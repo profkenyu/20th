@@ -1,0 +1,21 @@
+{
+  "name": "terra-incognita",
+  "private": true,
+  "version": "0.1.0-phase1",
+  "description": "Terra Incognita · 20th solo exhibition",
+  "type": "module",
+  "scripts": {
+    "dev": "python3 -m http.server 5173",
+    "build": "node --experimental-vm-modules tools/build.mjs",
+    "fonts": "node tools/fonts.mjs",
+    "smoke": "node tools/smoke.mjs",
+    "harness": "node tools/harness.mjs",
+    "terrain": "node tools/terrain.mjs",
+    "verify": "node tools/verify.mjs",
+    "report": "node tools/report.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.12",
+    "playwright": "^1.62.0"
+  }
+}
