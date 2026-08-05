@@ -89,4 +89,4 @@ server.close();
 
 console.log(`\n  console errors : ${errors.length ? errors.slice(0, 6).join('\n                   ') : 'none'}`);
 if (failed || errors.length) process.exit(1);
-console.log('\n✓ PASS — the engine builds two different worlds from the same code');
+console.log('\n✓ PASS — the engine builds and transfers among three planetary surfaces');

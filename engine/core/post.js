@@ -58,4 +58,9 @@ export class Lens {
 
   /* renderAsync() deprecated r181 — renderer.init() is already awaited */
   render() { this.post.render(); }
+
+  dispose() {
+    this.post.dispose?.();
+    this.scenePass.dispose?.();
+  }
 }

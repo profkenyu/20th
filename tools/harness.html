@@ -57,7 +57,7 @@ try {
         const x = i * 3, z = Math.sin(i * .12) * 24;
         atlas.update({ x, z, ground: h(x, z) }, now, 0.72, true);
       }
-      const a = atlas.stats, snap = atlas.snapshot();
+      const a = atlas.stats, snap = atlas.snapshot(), live = atlas.state();
       if (a.detail > 48 || a.coarse > 16 || a.trail > 40)
         throw new Error(`atlas budget exceeded: ${JSON.stringify(a)}`);
       if (!snap.cells.length || snap.cells.length > 1024 || snap.trail.length > 192)
@@ -68,7 +68,11 @@ try {
       atlas.update({ x: 600, z: 500, ground: h(600, 500) }, now + 500, 0.25, true);
       if ([...atlas.cells.values()].some(p => p.x < 540) || atlas.archives[0].id !== 'BODY 01')
         throw new Error('planet coordinate frames collided');
-      return `${a.detail} detail + ${a.coarse} coarse · ${snap.cells.length} archived · BODY 02 blank start`;
+      const body2 = atlas.snapshot();
+      atlas.reset([0, 0], { id: 'BODY 01', label: 'TEST PLAIN', archives: [body2], memory: live });
+      if (atlas.stats.detail !== a.detail || atlas.stats.coarse !== a.coarse || atlas.stats.trail !== a.trail)
+        throw new Error('revisited body did not restore its live atlas');
+      return `${a.detail} detail + ${a.coarse} coarse · ${snap.cells.length} archived · BODY 01 restored`;
     });
     await step('ATLAS TRANSFER · archive survives, destination stays blank', async () => {
       const cv = document.createElement('canvas'); cv.width = 308; cv.height = 352;
@@ -79,14 +83,15 @@ try {
       const now = performance.now() + 1000;
       atlas.update({ x: 18, z: -12, ground: 0 }, now, 0.8, true);
       const memory = atlas.snapshot();
-      let swapped = false, arrived = false, surveyCollapse = 0;
+      let swapped = false, arrived = false, surveyCollapse = 0, targetSeen = false;
       const noop = () => {};
       const tx = new E.PlanetTransfer({
         minimap: atlas,
         survey: { collapse: v => { surveyCollapse = v; } },
         effect: { beginDeparture: noop, depart: noop, blackout: noop, beginArrival: noop, arrive: noop, finish: noop },
         ambient: { transferCue: noop },
-        onBlackout: (_reason, snapshot) => {
+        onBlackout: (_reason, snapshot, destination) => {
+          targetSeen = destination.key === 'desert';
           atlas.reset([600, 500], {
             id: 'BODY 02', label: 'TEST DUNE', archives: [snapshot.atlas],
           });
@@ -94,11 +99,13 @@ try {
         },
         onArrived: () => { arrived = true; },
       });
-      tx.request('manual', { completion: .5, atlas: memory });
+      tx.request('manual', { completion: .5, atlas: memory }, {
+        key: 'desert', id: 'BODY 02', arrivalKo: '시험 행성 연결', arrivalEn: 'TEST BODY 02',
+      });
       await tx.update(tx.t0 + 5500);
       if (surveyCollapse <= 0 || tx.phase !== 'blackout') throw new Error('atlas did not collapse into transfer');
       await tx.update(tx.t0 + 3100);
-      if (!swapped || atlas.id !== 'BODY 02' || atlas.stats.detail !== 0 || atlas.archives[0]?.id !== 'BODY 01')
+      if (!swapped || !targetSeen || atlas.id !== 'BODY 02' || atlas.stats.detail !== 0 || atlas.archives[0]?.id !== 'BODY 01')
         throw new Error('archive/live frame separation failed during blackout');
       await tx.update(tx.t0 + 8300);
       if (tx.active || !arrived) throw new Error('atlas transfer did not finish');
@@ -171,6 +178,9 @@ try {
       rover.group.traverse(o => { if (o.isMesh) { meshes++;
         const g = o.geometry; tris += (g.index ? g.index.count : g.attributes.position.count) / 3; } });
       const wheels = rover.wheels.length;
+      if (tris < 52000 || tris > 60000)
+        throw new Error(`rover triangle budget ${Math.round(tris).toLocaleString()} is outside 52–60k`);
+      if (meshes > 160) throw new Error(`rover draw-call budget exceeded: ${meshes} meshes`);
       return `${meshes} meshes · ${Math.round(tris).toLocaleString()} triangles · ${wheels} wheels · lid ${rover.lid ? 'hinged' : 'MISSING'}`;
     });
 
@@ -180,11 +190,22 @@ try {
         const role = o.userData.designRole;
         if (role) roles.set(role, (roles.get(role) ?? 0) + 1);
       });
-      for (const role of ['armoured-hull', 'solar-gimbal', 'solar-array', 'avionics-pod', 'sample-arm', 'lidar-cluster'])
+      for (const role of ['armoured-hull', 'service-panels', 'suspension-pivots', 'front-service-array', 'camera-mast-structure', 'solar-gimbal', 'solar-array', 'solar-backplane', 'solar-cell-matrix', 'avionics-pod', 'sample-arm', 'lidar-cluster'])
         if (roles.get(role) !== 1) throw new Error(`${role}: expected 1, got ${roles.get(role) ?? 0}`);
       if (roles.get('suspension-coil') !== 8)
         throw new Error(`suspension-coil: expected 8, got ${roles.get('suspension-coil') ?? 0}`);
-      return 'armoured hull · raised array · sampling arm · lidar · avionics · 8 live coils';
+      const wheelLayers = rover.wheels[0]?.children.filter(o => o.isMesh) ?? [];
+      if (wheelLayers.length !== 2 || wheelLayers[0].material === wheelLayers[1].material)
+        throw new Error('wheel rubber and metal layers are not materially separated');
+      let front = null;
+      rover.group.traverse(o => { if (o.userData.designRole === 'front-service-array') front = o; });
+      if (!front || front.children.filter(o => o.isMesh).length < 4)
+        throw new Error('front fascia is not a layered four-stage assembly');
+      let mast = null;
+      rover.group.traverse(o => { if (o.userData.designRole === 'camera-mast-structure') mast = o; });
+      if (!mast || mast.children.filter(o => o.isMesh).length < 7)
+        throw new Error('camera mast lacks base/yoke/brace/duct load path');
+      return 'layered armour · closed nose · grounded twin camera mast · 6×12 cell matrix · rubber/metal wheels';
     });
 
     await step('ROVER · autonomous survey hold is a true stop', () => {
@@ -395,6 +416,34 @@ try {
     await step('POWER · descend from r 95, lamps OFF', () => {
       const d = drive(0, 95, 0, 420, false);
       return `${d.diedAt < 0 ? 'cell ' + (d.pw.charge*100).toFixed(0) + '% · survived' : 'DIED at ' + Math.floor(d.diedAt/60) + 'm ' + Math.round(d.diedAt%60) + 's · r ' + d.v.radius.toFixed(1) + ' m'} · shadowed ${d.shadowPct}%`;
+    });
+
+    await step('CAMERA · C cycles mast → rear → front', () => {
+      rover.reset(BH.start[0], BH.start[1], Math.atan2(BH.start[0], BH.start[1]));
+      rover.auto = false;
+      rover.setViewMode('mast');
+      let v = rover.update(0);
+      if (v.viewMode !== 'mast' || rover.group.visible)
+        throw new Error('mast view does not hide the rover body');
+
+      rover.cycleViewMode();
+      for (let i = 0; i < 90; i++) v = rover.update(1 / 60);
+      const fx = -Math.sin(rover.heading), fz = -Math.cos(rover.heading);
+      let relX = camera.position.x - rover.pos.x, relZ = camera.position.z - rover.pos.z;
+      const rearDot = relX * fx + relZ * fz;
+      if (v.viewMode !== 'rear' || !rover.group.visible || rearDot >= 0)
+        throw new Error('rear chase is not behind the rover');
+
+      rover.cycleViewMode();
+      for (let i = 0; i < 120; i++) v = rover.update(1 / 60);
+      relX = camera.position.x - rover.pos.x; relZ = camera.position.z - rover.pos.z;
+      const frontDot = relX * fx + relZ * fz;
+      if (v.viewMode !== 'front' || frontDot <= 0 || v.chaseDist > 8.0)
+        throw new Error('front inspection is not close to the rover nose');
+
+      rover.cycleViewMode(); v = rover.update(0);
+      if (v.viewMode !== 'mast') throw new Error('front does not cycle back to mast');
+      return `rear dot ${rearDot.toFixed(1)} m · front dot ${frontDot.toFixed(1)} m · front boom ${v.chaseDist.toFixed(1)} m`;
     });
 
     await step('CHASE camera · 30 s drive while orbiting the probe', () => {

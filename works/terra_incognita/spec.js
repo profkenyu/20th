@@ -2,8 +2,8 @@
  * Terra Incognita — constants.
  * 20th solo exhibition · work 01
  *
- * Two frozen blocks and nothing else. The engine knows how to build a world;
- * this file is what THIS world is. A second work supplies a different one.
+ * Frozen geology and metric blocks. The engine knows how to build a world;
+ * this file defines the three bodies explored inside this work.
  */
 
 export const T = Object.freeze({
@@ -26,6 +26,16 @@ export const T = Object.freeze({
   warpOct: 2,
   warpOffA: 3.11,
   warpOffB: 8.77,
+
+  /* narrow mineral laminae laid down along a gravitational shear field.
+     They live outside the relativistic barrier, so the potential-derived
+     inner geography remains mathematically legible. */
+  shearRadial: 0.055,
+  shearX: 0.021,
+  shearZ: -0.013,
+  shearWarp: 2.6,
+  shearExp: 10.0,
+  shearAmp: 1.25,
 
   // continental swell — broad, low-frequency relief beneath the ridges.
   // It removes the synthetic “single octave” read without changing the
@@ -100,8 +110,42 @@ export const D = Object.freeze({
   duneAmpHi: 4.2,
   warpAmp: 34.0,
   macroFreq: 0.0011,
+  /* wind-carved yardangs: slow change along the wind, rapid change across it */
+  yardangU: 0.00115,
+  yardangV: 0.0105,
+  yardangExp: 4.5,
+  yardangAmp: 2.65,
+  /* curved, intersecting seams in the sintered wadi crust */
+  crustU: 0.084,
+  crustV: 0.072,
+  crustWarpU: 0.011,
+  crustWarpV: 0.013,
+  crustWarpAmp: 1.45,
   mesaA: Object.freeze([-155, 120, 230, 92, 10.5]),
   mesaB: Object.freeze([300, -40, 180, 76, 7.0]),
+});
+
+/** GRANITE PLAIN — BODY 03.
+ *
+ * A quiet, old crust rather than another dune system: kilometre-scale swell,
+ * broad exfoliation domes, weather-softened granite shelves and embedded
+ * clasts at wheel scale. Every band stays above the clipmap Nyquist limit. */
+export const G = Object.freeze({
+  macroFreq: 0.00165,
+  macroOct: 3,
+  macroAmp: 6.2,
+  shelfFreq: 0.0062,
+  shelfOct: 3,
+  shelfExp: 2.7,
+  shelfAmp: 2.6,
+  domeFreq: 0.0155,
+  domeOct: 3,
+  domeLo: 0.67,
+  domeHi: 0.91,
+  domeAmp: 3.8,
+  weatherFreq: 0.044,
+  weatherOct: 3,
+  weatherAmp: 0.46,
 });
 
 /**

@@ -29,6 +29,7 @@ import { MiniMap, Optics, Survey } from '../../engine/core/survey.js';
 /* ── this world ───────────────────────────────────────────────────────── */
 const tier = deviceTier();
 const pick = o => o[tier];
+const ARCHIVE_AT_BOOT = tier === 'low';
 
 const CFG = configure({
   tier,
@@ -56,6 +57,8 @@ const CFG = configure({
 const LINES = [
   { r: 540.0,  ko: '통신 반송파 미검출 · 왕복 지연 산출 불가',
                en: 'COMMS · RETURN CARRIER NOT ACQUIRED' },
+  { r: 500.0,  ko: '광물층 비등방 전단 배열 검출 · 방사 대칭 불일치',
+               en: 'GEOLOGY · ANISOTROPIC SHEAR LAMINAE' },
   { r: 380.0,  ko: '대기 성분 미량 검출 · 신호대잡음비 기준 미달',
                en: 'ATMOSPHERE · TRACE BELOW CONFIDENCE THRESHOLD' },
   { r: 312.97, ko: '중력 퍼텐셜 국소 극값 · r = 312.97 m',
@@ -74,14 +77,9 @@ const LINES = [
                en: 'METRIC · COORDINATE TIME DIVERGENT / ARRIVAL UNDEFINED' },
 ];
 
-const END_LINE = {
-  r: 0,
-  ko: '전지 잔량 0% · 구동계 정지 · 외부 응답 없음',
-  en: 'POWER 0% · DRIVE OFFLINE · NO EXTERNAL RESPONSE',
-};
-
 const TERRA_SURVEY = [
   [540, 'COMMS · RETURN CARRIER / NOT ACQUIRED'],
+  [500, 'GEOLOGY · ANISOTROPIC SHEAR LAMINAE'],
   [380, 'ATMOSPHERE · TRACE / BELOW THRESHOLD'],
   [313, 'GRAVITY · ORBITAL ANOMALY / LOCKED'],
   [250, 'BIOSCAN · LOCAL SIGNALS / 0'],
@@ -93,19 +91,40 @@ const TERRA_SURVEY = [
 
 const DESERT_SURVEY = [
   [500, 'COMMS · RETURN CARRIER / NOT ACQUIRED'],
-  [460, 'ATMOSPHERE · SILICATE DRIFT / ACTIVE'],
+  [460, 'ATMOSPHERE · CHARGED SILICATE DRIFT'],
   [350, 'WIND · EASTWARD SHEAR / 5.2 M·S⁻¹'],
-  [245, 'GROUND · MOBILE DUNE FIELD'],
-  [140, 'MOISTURE · BELOW DETECTION LIMIT'],
+  [245, 'GROUND · YARDANG / SINTERED CRUST'],
+  [140, 'MINERAL · GLASS PHASE / DISCONTINUOUS'],
   [90, 'BIOSCAN · LOCAL SIGNALS / 0'],
 ];
 
 const DESERT_LINES = [
   { r: 500, ko: '통신 반송파 미검출 · 원격 운용 채널 대기', en: 'COMMS · RETURN CARRIER NOT ACQUIRED' },
-  { r: 460, ko: '규산염 에어로졸 검출 · 저층 이류 활성', en: 'ATMOSPHERE · SILICATE DRIFT ACTIVE' },
+  { r: 460, ko: '규산염 하전 입자 검출 · 저층 이류 활성', en: 'ATMOSPHERE · CHARGED SILICATE DRIFT' },
   { r: 350, ko: '풍속 벡터 +X 5.2 m·s⁻¹ · 횡성분 0.72 m·s⁻¹', en: 'WIND · VECTOR +X 5.2 M·S⁻¹ / CROSS 0.72' },
-  { r: 245, ko: '이동사구 변위 검출 · 지형 모델 신뢰도 저하', en: 'GROUND · DUNE DISPLACEMENT / MODEL CONFIDENCE LOW' },
+  { r: 245, ko: '야르당 능선·소결 지각 교차 검출 · 표면 모델 갱신', en: 'GROUND · YARDANG / SINTERED CRUST' },
+  { r: 140, ko: '유리질 광물상 불연속 분포 · 반사율 편차 증가', en: 'MINERAL · GLASS PHASE / ALBEDO VARIANCE' },
   { r: 90, ko: '주변 생체 신호 0 · 응답 패킷 0', en: 'BIOSCAN · LOCAL SIGNALS 0 / RETURN PACKETS 0' },
+];
+
+const GRANITE_SURVEY = [
+  [500, 'COMMS · RETURN CARRIER / NOT ACQUIRED'],
+  [460, 'PETROLOGY · QUARTZ / ALKALI FELDSPAR'],
+  [365, 'GROUND · WEATHERED GRANITE PLAIN'],
+  [280, 'WEATHERING · SPHEROIDAL EXFOLIATION'],
+  [190, 'FRACTURE · JOINT SET / LOW DENSITY'],
+  [95, 'ATMOSPHERE · INERT TRACE / STABLE'],
+  [60, 'BIOSCAN · LOCAL SIGNALS / 0'],
+];
+
+const GRANITE_LINES = [
+  { r: 500, ko: '통신 반송파 미검출 · 원격 운용 채널 대기', en: 'COMMS · RETURN CARRIER NOT ACQUIRED' },
+  { r: 460, ko: '광물 조성 분석 · 규산염 성분 우세', en: 'PETROLOGY · QUARTZ / ALKALI FELDSPAR DOMINANT' },
+  { r: 365, ko: '완만한 지표 구조 검출 · 경사 편차 낮음', en: 'GROUND · WEATHERED GRANITE PLAIN' },
+  { r: 280, ko: '완만한 바위 구조 검출 · 표면 경사 완만', en: 'WEATHERING · SPHEROIDAL EXFOLIATION' },
+  { r: 190, ko: '바위 간격 증가 · 표면 파열 감소', en: 'FRACTURE · JOINT SPACING WIDE / DENSITY LOW' },
+  { r: 95, ko: '불활성 대기 미량 검출 · 층류 상태 안정', en: 'ATMOSPHERE · INERT TRACE / LAMINAR STABLE' },
+  { r: 60, ko: '주변 생체 신호 0 · 응답 패킷 0', en: 'BIOSCAN · LOCAL SIGNALS 0 / RETURN PACKETS 0' },
 ];
 
 const TRANSFER_LINE = {
@@ -116,10 +135,50 @@ const DESERT_ARRIVAL_LINE = {
   r: 0, ko: 'BODY 02 기동 대기 · 왕복 통신 응답 없음', en: 'REMOTE BODY 02 · RETURN CARRIER NOT ACQUIRED',
 };
 
+const TERRA_ARRIVAL_LINE = {
+  r: 0, ko: 'BODY 01 재연결 · 전단 지질 좌표계 복구', en: 'REMOTE BODY 01 · SHEAR FRAME RESTORED',
+};
+
+const GRANITE_ARRIVAL_LINE = {
+  r: 0, ko: 'BODY 03 기동 대기 · 지표 기준 좌표 동기 완료', en: 'REMOTE BODY 03 · LITHIC FRAME SYNCHRONIZED',
+};
+
 const DESERT_START = [96, 520];
+const GRANITE_START = [-168, 486];
+
+const PLANETS = Object.freeze({
+  terra: Object.freeze({
+    key: 'terra', number: 1, id: 'BODY 01', label: 'SHEAR BODY', start: BH.start,
+    mode: 'terra', metric: true, storm: false, initialCharge: 1,
+    lines: LINES, survey: TERRA_SURVEY, arrivalLine: TERRA_ARRIVAL_LINE,
+    arrivalKo: '전단 행성 · 원격 몸체 연결', arrivalEn: 'SHEAR BODY · REMOTE BODY 01',
+  }),
+  desert: Object.freeze({
+    key: 'desert', number: 2, id: 'BODY 02', label: 'YARDANG FIELD', start: DESERT_START,
+    mode: 'desert', metric: false, storm: true, initialCharge: 0.86,
+    lines: DESERT_LINES, survey: DESERT_SURVEY, arrivalLine: DESERT_ARRIVAL_LINE,
+    arrivalKo: '야르당 행성 · 원격 몸체 연결', arrivalEn: 'YARDANG ARCHIVE · REMOTE BODY 02',
+  }),
+  granite: Object.freeze({
+    key: 'granite', number: 3, id: 'BODY 03', label: 'GRANITE PLAIN', start: GRANITE_START,
+    mode: 'granite', metric: false, storm: false, initialCharge: 0.82,
+    lines: GRANITE_LINES, survey: GRANITE_SURVEY, arrivalLine: GRANITE_ARRIVAL_LINE,
+    arrivalKo: '돌·바위 행성 · 원격 몸체 연결', arrivalEn: 'GRANITE PLAIN · REMOTE BODY 03',
+  }),
+});
+const PLANET_KEY_BY_CODE = Object.freeze({
+  Digit1: 'terra', Digit2: 'desert', Digit3: 'granite',
+  Numpad1: 'terra', Numpad2: 'desert', Numpad3: 'granite',
+});
+const TRANSFER_CAMERA = Object.freeze({
+  departMs: 2800,
+  arriveMs: 4400,
+  front: Object.freeze({ yaw: Math.PI, pitch: 0.18, dist: 7.8 }),
+  rear: Object.freeze({ yaw: 0.05, pitch: 0.30, dist: 28.5 }),
+});
 
 const ROWS = [
-  ['Instrument', [['backend', 'Backend'], ['vendor', 'Vendor'], ['tier', 'Tier'], ['limits', 'Limits']]],
+  ['Instrument', [['backend', 'Backend'], ['vendor', 'Vendor'], ['tier', 'Tier'], ['mode', 'Render mode'], ['limits', 'Limits']]],
   ['Surface',    [['grid', 'Grid'], ['tris', 'Triangles'], ['cell', 'Cell'], ['span', 'Span']]],
   ['Clipmap',    [['origin', 'Origin'], ['recentre', 'Recentres'],
                   ['rcT', 'rebuild · ground'], ['rcF', 'rebuild · field'], ['rcL', 'rebuild · filaments']]],
@@ -183,14 +242,15 @@ captureDeviceErrors(renderer, err => { running = false; fatal(err, 'gpu'); });
    Declarations are hoisted; initialisations are not. */
 let scene, hud, captions, ambient, kiosk, ground, field, wake, dust, storm, transferFx, scatter, beam, sky, landmark, rover, power, lens, adaptive, minimap, optics, survey, transmission;
 let world = 'terra';
-let ended = false;
-let endedAt = 0;
+let archiveMode = false, lastArchiveFrame = 0, archiveCueTimer = 0;
 let arrivalHoldUntil = 0;
+let departureOrbit = null, arrivalOrbit = null;
 let nextAutoPauseAt = 0, autoPauseUntil = 0;
 let released = false;      // the prologue has let go of the rover
 let running = false, hasTimestamp = false;
 let tPrev = 0, tStamp = 0, tProbe = 0, frames = 0, acc = 0;
 const rc = { ground: 0, field: 0, scatter: 0 };
+const planetMemory = new Map();
 try {
 scene = new THREE.Scene();
 hud = new Hud(ROWS);
@@ -221,53 +281,63 @@ rover = new Rover(camera, canvas, heightCPU);
 transferFx = new ResolutionTransferFX(rover.group);
 power = new Power(heightCPU, solarAccessCPU);
 minimap = new MiniMap(document.getElementById('ti-minimap'), BH.start, {
-  heightAt: heightCPU, id: 'BODY 01', label: 'TERRA',
+  heightAt: heightCPU, id: 'BODY 01', label: 'SHEAR BODY',
 });
 optics = new Optics();
 survey = new Survey(heightCPU, TERRA_SURVEY);
 transmission = new PlanetTransfer({
-  minimap, survey, effect: transferFx, ambient,
+  minimap, survey, effect: transferFx, ambient, orientMs: TRANSFER_CAMERA.departMs,
   onBegin: reason => {
-    rover.auto = false; rover.transmitting = true; rover.disabled = reason === 'power'; rover.chase = true;
-    rover.orbitYaw = 0.82; rover.orbitPitch = 0.20; rover.orbitDist = 7.8;
+    rover.auto = false; rover.transmitting = true; rover.disabled = reason === 'power';
+    beginDepartureOrbit();
     rover.update(0);
-    captions.force(TRANSFER_LINE, performance.now(), 5200);
+    captions.force(TRANSFER_LINE, performance.now(), 7600);
     kiosk.last = performance.now();
   },
-  onBlackout: enterDesert,
-  onArrived: () => {
+  onOrient: p => updateDepartureOrbit(p),
+  onBlackout: enterPlanet,
+  onArrived: (_reason, _snapshot, destination) => {
     const now = performance.now();
-    rover.disabled = false; rover.transmitting = true; rover.auto = false; rover.chase = true; rover.lamps = true;
-    rover.orbitYaw = 0.12; rover.orbitPitch = 0.30; rover.orbitDist = 28.5;
-    arrivalHoldUntil = now + 5000;
-    ambient.silenceFor(5000);
+    const planet = PLANETS[destination.key];
+    rover.disabled = false; rover.transmitting = true; rover.auto = false; rover.lamps = true;
+    rover.setViewMode('cinematic', TRANSFER_CAMERA.front);
+    beginArrivalOrbit(now);
+    arrivalHoldUntil = now + TRANSFER_CAMERA.arriveMs;
+    ambient.silenceFor(TRANSFER_CAMERA.arriveMs);
     transmission.trigger.disabled = true;
-    captions.force(DESERT_ARRIVAL_LINE, now, 5200);
+    captions.force(planet.arrivalLine, now, 5200);
   },
 });
-transmission.bindRequest(requestTransfer);
+transmission.bindRequest(() => requestNextPlanet('manual'));
 
 scene.add(sky, landmark, ground.mesh, ...scatter.meshes, ...beam.meshes,
           ...(dust ? [dust.points] : []), storm.points, rover.group, survey.group, transferFx.group);
 
-lens = off('lens') ? null : new Lens(renderer, scene, camera);
+lens = (off('lens') || ARCHIVE_AT_BOOT) ? null : new Lens(renderer, scene, camera);
 adaptive = new Adaptive(renderer, CFG.dprCeiling());
+if (ARCHIVE_AT_BOOT) activateArchive('device', false);
 } catch (e) { fatal(e, 'build'); await HALT(); }
 
 addEventListener('resize', () => renderer.setPixelRatio(adaptive.dpr));
 addEventListener('keydown', e => {
+  const target = PLANET_KEY_BY_CODE[e.code];
+  if (target) {
+    e.preventDefault();
+    if (!released) releasePrologue();
+    requestPlanet(target, 'manual');
+  }
   if (e.code === 'KeyG') {
     const on = !ground.mesh.material.wireframe;
     ground.mesh.material.wireframe = on;
     for (const m of scatter.meshes) m.visible = !on;
   }
-  if (e.code === 'KeyT') requestTransfer('manual');
 });
 
 const a = await describeAdapter();
 hud.set('backend', 'WebGPU');
 hud.set('vendor', `${a.vendor} · ${a.arch}`);
 hud.set('tier', `${CFG.tier} · ${a.storageMB} MB storage`);
+hud.set('mode', archiveMode ? 'ARCHIVAL · PHOSPHOR' : 'CINEMATIC · FULL COLOUR');
 hud.set('grid', `${CFG.clipmap.grid} × ${CFG.clipmap.grid}`);
 hud.set('tris', ground.stats.triangles.toLocaleString());
 hud.set('cell', `${CFG.clipmap.cell.toFixed(3)} m`);
@@ -291,7 +361,7 @@ rover.reset(BH.start[0], BH.start[1], START_HEADING);
 /* The prologue holds the rover at its landing point. It then releases an
    autonomous route; keyboard driving is the operator's manual override. */
 rover.auto = false;
-rover.chase = true; rover.orbitYaw = 0.05; rover.orbitPitch = 0.30; rover.orbitDist = 28.5;
+rover.setViewMode('rear');
 uObserverR.value = Math.hypot(...BH.start);
 ground.syncTo(rover.pos.x, rover.pos.z);
 try { await rebuild(); }
@@ -301,7 +371,13 @@ running = true;
 tPrev = performance.now();
 window.TI_READY = true;                      // clears the watchdog in index.html
 window.TI_WORLD = world;
-window.TI_TRANSMIT = () => requestTransfer('manual');
+window.TI_PLANET = number => requestPlanet(['terra', 'desert', 'granite'][Number(number) - 1], 'manual');
+window.TI_TRANSMIT = () => requestNextPlanet('manual');
+window.TI_RENDER_MODE = () => ({ archive: archiveMode, dpr: adaptive.dpr, lens: !!lens });
+window.TI_CAMERA = () => ({
+  mode: rover.viewMode, yaw: rover.orbitYaw, pitch: rover.orbitPitch,
+  distance: rover.orbitDist, cue: arrivalOrbit ? 'arrival' : departureOrbit ? 'departure' : 'none',
+});
 requestAnimationFrame(loop);
 
 /* ── releasing the prologue ────────────────────────────────────────────────
@@ -325,12 +401,13 @@ function releasePrologue() {
   if (released) return;
   released = true;
   document.body.classList.add('ti-prologue-out');
-  rover.auto = true; rover.chase = true;
-  rover.orbitYaw = 0.05; rover.orbitPitch = 0.30; rover.orbitDist = 28.5;
+  rover.auto = true;
+  rover.setViewMode('rear');
   nextAutoPauseAt = performance.now() + 32000;
   kiosk.last = performance.now();   // the idle clock starts when the drive does
   removeEventListener('keydown', releasePrologue);
   removeEventListener('pointerdown', releasePrologue);
+  if (archiveMode) showArchiveCue();
 }
 
 if (location.search.includes('embed')) {
@@ -346,7 +423,13 @@ if (location.search.includes('embed')) {
   }, ARM_MS);
 }
 
-const resume = () => { if (!running) { running = true; tPrev = performance.now(); requestAnimationFrame(loop); } };
+const resume = () => {
+  if (archiveMode) {
+    document.body.classList.add('ti-terminal');
+    adaptive.lockAt(0.58);
+  }
+  if (!running) { running = true; tPrev = performance.now(); requestAnimationFrame(loop); }
+};
 addEventListener('pageshow', resume);
 addEventListener('pagehide', () => { running = false; });
 document.addEventListener('visibilitychange', () =>
@@ -360,8 +443,16 @@ async function rebuild() {
   rc.ground = t1 - t0; rc.field = t2 - t1; rc.scatter = performance.now() - t2;
 }
 
-async function loop() {
+async function loop(now = performance.now()) {
   if (!running) return;
+  /* Terminal cadence is intentionally 30 Hz. Input events still arrive at the
+     browser's native rate, while simulation, compute and raster work happen
+     once per archival frame. */
+  if (archiveMode && now - lastArchiveFrame < 30) {
+    requestAnimationFrame(loop);
+    return;
+  }
+  lastArchiveFrame = now;
   try { await frame(); }
   catch (e) { running = false; fatal(e, 'frame'); return; }
   requestAnimationFrame(loop);
@@ -373,14 +464,18 @@ async function frame() {
   const frameMs = now - tPrev;
   tPrev = now;
 
+  updateArrivalOrbit(now);
   if (arrivalHoldUntil && now >= arrivalHoldUntil) {
     arrivalHoldUntil = 0;
+    arrivalOrbit = null;
+    rover.setViewMode('rear', TRANSFER_CAMERA.rear);
     rover.transmitting = false;
     rover.auto = true;
+    transmission.trigger.disabled = false;
     nextAutoPauseAt = now + 36000;
   }
   const arrivalWaiting = arrivalHoldUntil > now;
-  if (rover.auto && !transmission.active && !arrivalWaiting && !ended) {
+  if (rover.auto && !transmission.active && !arrivalWaiting) {
     if (!nextAutoPauseAt) nextAutoPauseAt = now + 32000;
     if (!autoPauseUntil && now >= nextAutoPauseAt) autoPauseUntil = now + 14000;
     if (autoPauseUntil && now >= autoPauseUntil) {
@@ -388,20 +483,32 @@ async function frame() {
       nextAutoPauseAt = now + 46000;
     }
     rover.missionHold = autoPauseUntil > now;
-    if (rover.chase) {
+    if (rover.viewMode === 'rear') {
       const wide = 28.6 + Math.sin(now * 0.000085) * 3.0;
       rover.orbitDist += (wide - rover.orbitDist) * Math.min(1, dt * 0.18);
       rover.orbitPitch += (0.29 + Math.sin(now * 0.000061) * 0.055 - rover.orbitPitch) * Math.min(1, dt * 0.15);
       rover.orbitYaw += dt * 0.006;
+    } else if (rover.viewMode === 'front') {
+      /* A close, low inspection composition: the machine advances into the
+         lens while an almost imperceptible drift keeps it from reading as a
+         turntable render. The orbit remains heading-relative, so the camera
+         stays on the nose throughout a turn. */
+      const frontDist = 6.6 + Math.sin(now * 0.00011) * 0.12;
+      const frontPitch = 0.16 + Math.sin(now * 0.000073) * 0.012;
+      const frontYaw = Math.PI + Math.sin(now * 0.000057) * 0.025;
+      const yawError = Math.atan2(Math.sin(frontYaw - rover.orbitYaw), Math.cos(frontYaw - rover.orbitYaw));
+      rover.orbitDist += (frontDist - rover.orbitDist) * Math.min(1, dt * 1.4);
+      rover.orbitPitch += (frontPitch - rover.orbitPitch) * Math.min(1, dt * 1.2);
+      rover.orbitYaw += yawError * Math.min(1, dt * 1.0);
     }
-  } else if (!ended) {
+  } else {
     rover.missionHold = arrivalWaiting;
   }
 
   const v = rover.update(dt);
   optics.update(now, v, camera);
   minimap.update(v, now, power.charge, !transmission.active);
-  uObserverR.value = world === 'desert' ? 1e7 : v.radius;
+  uObserverR.value = PLANETS[world].metric ? v.radius : 1e7;
 
   const prevX = ground.origin.x, prevZ = ground.origin.y;
   if (ground.syncTo(rover.pos.x, rover.pos.z)) {
@@ -425,14 +532,14 @@ async function frame() {
 
   if (!transmission.active) await kiosk.update(now, returnToStart);
   else kiosk.last = now;
-  adaptive.sample(frameMs, now);
+  if (adaptive.sample(frameMs, now) === 'critical') activateArchive('measured');
   /* ── the second clock ─────────────────────────────────────────────── */
-  const pw = power.update(dt, { ...v, radius: world === 'desert' ? 1e7 : v.radius, lamps: rover.lamps });
+  const pw = power.update(dt, { ...v, radius: PLANETS[world].metric ? v.radius : 1e7, lamps: rover.lamps });
   if (!transmission.active) survey.update(v, now, pw.charge);
 
-  if (world === 'terra' && !transmission.active) {
-    if (pw.dead) requestTransfer('power');
-    else if (survey.complete && survey.completedAt && now - survey.completedAt > 18000) requestTransfer('complete');
+  if (!transmission.active && !arrivalWaiting) {
+    if (pw.dead) requestNextPlanet('power');
+    else if (survey.complete && survey.completedAt && now - survey.completedAt > 18000) requestNextPlanet('complete');
   }
   rover.disabled = pw.dead;
   rover.transmitting = transmission.active || arrivalHoldUntil > now;
@@ -440,25 +547,6 @@ async function frame() {
      the same uniform, so a jolt dims the whole lit world at once. */
   uLampPower.value = rover.lamps ? pw.bus * transmission.light : 0;
   ambient.setPower((pw.dead ? 0 : pw.charge) * transmission.audio);
-
-  if (world === 'desert' && pw.dead && !ended && !transmission.active) {
-    ended = true;
-    endedAt = now;
-    /* The ending needs an image, and the mast camera cannot provide one — it
-       is bolted to the thing that stopped. Step outside for the last shot. */
-    rover.chase = true;
-    rover.orbitYaw = 0.9; rover.orbitPitch = 0.22; rover.orbitDist = 7.5;
-    document.body.classList.add('fh-dead');
-    captions.force(END_LINE, now, 6500);
-  }
-  if (ended) {
-    const u = Math.max(0, Math.min(1, (now - endedAt) / 20000));
-    const ease = u * u * (3 - 2 * u);
-    rover.orbitDist = 7.5 + ease * 24.5;
-    rover.orbitPitch = 0.22 + ease * 0.10;
-    rover.orbitYaw = 0.9 + ease * 0.34;
-  }
-  if (ended && now - power.deadAt > CFG.power.deadHold) { await returnToStart(); }
 
   const q = ambient.update(v.radius);
   if (!transmission.active) captions.update(v.radius, now);
@@ -484,7 +572,11 @@ async function frame() {
       ? `${(v.artic * 100).toFixed(0)} / ${(v.travel * 100).toFixed(0)} cm · ${(v.stops * 8).toFixed(0)} on stops`
       : `${(v.artic * 100).toFixed(0)} / ${(v.travel * 100).toFixed(0)} cm`,
       v.slam > 0.05);
-    hud.set('view', v.chase ? `chase · ${v.chaseDist.toFixed(1)} m — drag to orbit` : 'mast camera');
+    const viewLabel = v.viewMode === 'mast' ? 'Mast / 1인칭'
+      : v.viewMode === 'rear' ? `Rear chase / 3인칭 · ${v.chaseDist.toFixed(1)} m`
+      : v.viewMode === 'front' ? `Front inspection / 정면 · ${v.chaseDist.toFixed(1)} m`
+      : `${v.viewMode === 'cinematic' ? 'Cinematic' : 'Free orbit'} · ${v.chaseDist.toFixed(1)} m`;
+    hud.set('view', viewLabel);
     hud.set('lamps', v.lamps
       ? (pw.bus > 0.92 ? `on · ${CFG.headlight.reach.toFixed(0)} m reach`
                        : `on · bus ${(pw.bus * 100).toFixed(0)} %`)
@@ -497,10 +589,11 @@ async function frame() {
       : (pw.endurance === Infinity ? `charging +${pw.net.toFixed(2)} %/s`
          : `${Math.floor(pw.endurance / 60)}m ${Math.round(pw.endurance % 60)}s`),
       pw.endurance < 90);
-    hud.set('r', world === 'desert' ? `${v.radius.toFixed(1)} m · dune field`
-                                    : `${v.radius.toFixed(1)} m · ${(v.radius / BH.rs).toFixed(2)} rs`);
+    hud.set('r', PLANETS[world].metric ? `${v.radius.toFixed(1)} m · ${(v.radius / BH.rs).toFixed(2)} rs`
+      : world === 'desert' ? `${v.radius.toFixed(1)} m · yardang field`
+                           : `${v.radius.toFixed(1)} m · granite plain`);
     hud.set('region', regionOf(v.radius), v.radius < BH.rs * 1.5);
-    hud.set('lapse', world === 'desert' ? '1.0000' : v.lapse.toFixed(4));
+    hud.set('lapse', PLANETS[world].metric ? v.lapse.toFixed(4) : '1.0000');
     hud.set('dpr', `${adaptive.dpr.toFixed(2)} · ${adaptive.changes} steps`);
     hud.set('focus', lens ? `${lens.uFocus.value.toFixed(0)} m` : 'safe mode');
     hud.set('score', ambient.started
@@ -525,46 +618,166 @@ async function frame() {
   if (DEV && now - tProbe > 1200) { tProbe = now; probeDivergence().catch(() => {}); }
 }
 
-function requestTransfer(reason) {
-  if (!released || world !== 'terra' || transmission.active) return false;
-  const atlas = minimap.snapshot();
-  if (reason === 'power') atlas.trail = atlas.trail.slice(-Math.max(1, Math.ceil(atlas.trail.length * 0.35)));
-  const snapshot = { ...survey.snapshot(), atlas, trail: atlas.trail };
-  return transmission.request(reason, snapshot);
+function showArchiveCue() {
+  const cue = document.getElementById('ti-terminal-cue');
+  if (!cue) return;
+  cue.classList.add('on');
+  clearTimeout(archiveCueTimer);
+  archiveCueTimer = setTimeout(() => cue.classList.remove('on'), 3600);
 }
 
-async function enterDesert(reason, snapshot) {
-  world = 'desert'; window.TI_WORLD = world; setWorldMode('desert');
-  rover.metricEnabled = false;
-  document.body.classList.add('ti-desert');
-  landmark.position.set(-230, heightCPU(-230, -340) + 8, -340);
-  landmark.visible = true;
-  for (const mesh of scatter.meshes) mesh.visible = false;
-  for (const mesh of beam.meshes) mesh.visible = false;
-  dust?.clear(); power.reset(0.86);
-  rover.lamps = true; rover.lidTilt = 0; rover.auto = false; rover.disabled = false; rover.transmitting = true;
-  rover.reset(DESERT_START[0], DESERT_START[1], Math.atan2(DESERT_START[0], DESERT_START[1]));
-  rover.auto = false; rover.transmitting = true;
-  rover.update(0);
-  captions.lines = DESERT_LINES; captions.rearm();
-  survey.reset(DESERT_SURVEY); survey.inherit(snapshot);
-  minimap.reset(DESERT_START, {
-    id: 'BODY 02', label: 'DUNE FIELD',
-    archives: [...minimap.archives, snapshot.atlas].filter(Boolean).slice(-2),
+/** One-way visual state: the work does not oscillate after the lens is shed. */
+function activateArchive(reason = 'device', announce = true) {
+  if (archiveMode) return;
+  archiveMode = true;
+  document.body.classList.add('ti-terminal');
+  adaptive?.lockAt(0.58);
+  lens?.dispose?.();
+  lens = null;
+  hud?.set('mode', `ARCHIVAL · ${reason.toUpperCase()}`);
+  hud?.set('tier', `${CFG.tier} · LOW BANDWIDTH`);
+  if (announce && released) showArchiveCue();
+}
+
+function orbitEase(p) {
+  const t = Math.max(0, Math.min(1, p));
+  return t * t * t * (t * (t * 6 - 15) + 10);
+}
+
+function beginDepartureOrbit() {
+  const tau = Math.PI * 2;
+  let fromYaw = rover.viewMode === 'mast' ? 0 : rover.orbitYaw;
+  fromYaw = ((fromYaw + Math.PI) % tau + tau) % tau - Math.PI;
+  let toYaw = Math.PI;
+  while (toYaw <= fromYaw) toYaw += tau;
+  if (toYaw - fromYaw < 0.35) toYaw += tau;
+  departureOrbit = {
+    fromYaw, toYaw,
+    fromPitch: rover.viewMode === 'mast' ? 0.30 : rover.orbitPitch,
+    fromDist: rover.viewMode === 'mast' ? 6.4 : rover.orbitDist,
+  };
+  rover.setViewMode('cinematic', {
+    yaw: departureOrbit.fromYaw,
+    pitch: departureOrbit.fromPitch,
+    dist: departureOrbit.fromDist,
   });
-  uObserverR.value = 1e7;
+}
+
+function updateDepartureOrbit(progress) {
+  if (!departureOrbit) return;
+  const e = orbitEase(progress), front = TRANSFER_CAMERA.front;
+  rover.orbitYaw = departureOrbit.fromYaw + (departureOrbit.toYaw - departureOrbit.fromYaw) * e;
+  rover.orbitPitch = departureOrbit.fromPitch + (front.pitch - departureOrbit.fromPitch) * e;
+  rover.orbitDist = departureOrbit.fromDist + (front.dist - departureOrbit.fromDist) * e;
+  if (progress >= 1) {
+    rover.orbitYaw = departureOrbit.toYaw;
+    rover.orbitPitch = front.pitch;
+    rover.orbitDist = front.dist;
+    departureOrbit = null;
+  }
+}
+
+function beginArrivalOrbit(now) {
+  const front = TRANSFER_CAMERA.front, rear = TRANSFER_CAMERA.rear;
+  arrivalOrbit = {
+    t0: now,
+    fromYaw: front.yaw,
+    toYaw: Math.PI * 2 + rear.yaw,
+    fromPitch: front.pitch,
+    toPitch: rear.pitch,
+    fromDist: front.dist,
+    toDist: rear.dist,
+  };
+}
+
+function updateArrivalOrbit(now) {
+  if (!arrivalOrbit) return;
+  const p = Math.max(0, Math.min(1, (now - arrivalOrbit.t0) / TRANSFER_CAMERA.arriveMs));
+  const e = orbitEase(p);
+  rover.orbitYaw = arrivalOrbit.fromYaw + (arrivalOrbit.toYaw - arrivalOrbit.fromYaw) * e;
+  rover.orbitPitch = arrivalOrbit.fromPitch + (arrivalOrbit.toPitch - arrivalOrbit.fromPitch) * e;
+  rover.orbitDist = arrivalOrbit.fromDist + (arrivalOrbit.toDist - arrivalOrbit.fromDist) * e;
+}
+
+function requestPlanet(targetKey, reason = 'manual') {
+  if (!released || !PLANETS[targetKey] || targetKey === world || transmission.active
+      || arrivalHoldUntil > performance.now()) return false;
+  const atlas = minimap.snapshot();
+  if (reason === 'power') atlas.trail = atlas.trail.slice(-Math.max(1, Math.ceil(atlas.trail.length * 0.35)));
+  const surveyState = survey.snapshot();
+  const live = minimap.state();
+  if (reason === 'power') live.trail = live.trail.slice(-Math.max(1, Math.ceil(live.trail.length * 0.35)));
+  planetMemory.set(world, {
+    atlas, live, survey: surveyState, charge: power.charge,
+    position: { x: rover.pos.x, z: rover.pos.z }, heading: rover.heading,
+  });
+  const snapshot = { ...surveyState, atlas, trail: atlas.trail, charge: power.charge, source: world };
+  const target = PLANETS[targetKey];
+  return transmission.request(reason, snapshot, {
+    key: target.key, number: target.number, id: target.id,
+    arrivalKo: target.arrivalKo, arrivalEn: target.arrivalEn,
+  });
+}
+
+function requestNextPlanet(reason = 'manual') {
+  const next = ['terra', 'desert', 'granite'][PLANETS[world].number % 3];
+  return requestPlanet(next, reason);
+}
+
+async function enterPlanet(reason, snapshot, destination) {
+  const planet = PLANETS[destination.key];
+  if (!planet) throw new Error(`Unknown destination: ${destination.key}`);
+  const memory = planetMemory.get(planet.key);
+  world = planet.key; window.TI_WORLD = world; setWorldMode(planet.mode);
+  rover.metricEnabled = planet.metric;
+  document.body.classList.toggle('ti-desert', world === 'desert');
+  document.body.classList.toggle('ti-granite', world === 'granite');
+  document.body.classList.remove('fh-dead');
+  landmark.visible = world === 'desert';
+  if (landmark.visible) landmark.position.set(-230, heightCPU(-230, -340) + 8, -340);
+  for (const mesh of scatter.meshes) mesh.visible = planet.metric;
+  for (const mesh of beam.meshes) mesh.visible = planet.metric;
+  storm.setActive(false);
+  dust?.clear();
+  const rememberedCharge = memory?.charge;
+  const arrivalCharge = rememberedCharge == null ? planet.initialCharge
+    : Math.max(reason === 'power' ? 0.38 : 0.08, rememberedCharge);
+  power.reset(arrivalCharge);
+  const rememberedPosition = memory?.position ?? memory?.live?.trail?.at(-1);
+  const start = rememberedPosition ? [rememberedPosition.x, rememberedPosition.z] : planet.start;
+  rover.lamps = true; rover.lidTilt = 0; rover.auto = false; rover.disabled = false; rover.transmitting = true;
+  rover.reset(start[0], start[1], memory?.heading ?? Math.atan2(start[0], start[1]));
+  rover.auto = false; rover.transmitting = true;
+  /* The destination is reconstructed squarely toward the rover's face.  The
+     post-arrival orbit begins only after every wheel has locked into place. */
+  rover.setViewMode('cinematic', TRANSFER_CAMERA.front);
+  rover.update(0);
+  captions.lines = planet.lines; captions.rearm();
+  survey.reset(planet.survey);
+  survey.restore(memory?.survey);
+  survey.inherit(snapshot);
+  const archives = [...planetMemory.entries()]
+    .filter(([key]) => key !== planet.key)
+    .map(([, state]) => state.atlas)
+    .filter(Boolean).slice(-2);
+  minimap.reset(start, {
+    id: planet.id, label: planet.label, archives, memory: memory?.live,
+  });
+  uObserverR.value = planet.metric ? Math.hypot(...start) : 1e7;
   ground.syncTo(rover.pos.x, rover.pos.z);
   if (!off('wake')) await wake.clear(renderer);
   await rebuild();
-  storm.setActive(true, { x: rover.pos.x, z: rover.pos.z });
-  lens?.focusAt(520);
+  storm.setActive(planet.storm, { x: rover.pos.x, z: rover.pos.z });
+  lens?.focusAt(planet.metric ? uObserverR.value : Math.hypot(...start));
 }
 
 async function returnToStart() {
-  ended = false; endedAt = 0; arrivalHoldUntil = 0; nextAutoPauseAt = 0; autoPauseUntil = 0;
+  arrivalHoldUntil = 0; departureOrbit = null; arrivalOrbit = null;
+  nextAutoPauseAt = 0; autoPauseUntil = 0;
+  planetMemory.clear();
   world = 'terra'; window.TI_WORLD = world; setWorldMode('terra');
   rover.metricEnabled = true;
-  document.body.classList.remove('fh-dead', 'ti-desert');
+  document.body.classList.remove('fh-dead', 'ti-desert', 'ti-granite');
   transmission.reset(); storm.setActive(false);
   landmark.visible = false;
   for (const mesh of scatter.meshes) mesh.visible = true;
@@ -596,12 +809,11 @@ async function returnToStart() {
   rover.lidTilt = 0;
   rover.reset(BH.start[0], BH.start[1], START_HEADING);
   rover.auto = location.search.includes('embed');
-  rover.chase = true;
-  rover.orbitYaw = 0.05; rover.orbitPitch = 0.30; rover.orbitDist = 28.5;
+  rover.setViewMode('rear');
   uObserverR.value = Math.hypot(...BH.start);
   captions.lines = LINES; captions.rearm();
   survey.reset(TERRA_SURVEY);
-  minimap.reset(BH.start, { id: 'BODY 01', label: 'TERRA', archives: [] });
+  minimap.reset(BH.start, { id: 'BODY 01', label: 'SHEAR BODY', archives: [] });
   ground.syncTo(rover.pos.x, rover.pos.z);
   if (!off('wake')) await wake.clear(renderer);
   await rebuild();
@@ -609,7 +821,8 @@ async function returnToStart() {
 }
 
 function regionOf(r) {
-  if (world === 'desert') return 'dune archive';
+  if (world === 'desert') return 'sintered archive';
+  if (world === 'granite') return 'weathered lithic plain';
   if (r > BH.rTrough) return 'outer basin';
   if (r > BH.rBarrier) return 'descent';
   if (r > BH.rs * 1.5) return 'inside barrier';
@@ -617,7 +830,7 @@ function regionOf(r) {
   return 'beyond horizon';
 }
 
-const deg = rad => `${(rad * 57.29578).toFixed(1)}°`;
+function deg(rad) { return `${(rad * 57.29578).toFixed(1)}°`; }
 
 /* ── does the GPU agree with the CPU about the ground? ─────────────────── */
 async function probeDivergence() {

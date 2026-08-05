@@ -80,10 +80,30 @@ setCPUWorldMix(1);
   }
   const stalled = dp.filter(v => v * 57.29578 > 27.5).length / dp.length;
   console.log('');
-  console.log('  destination geology — dunes / wadi / basalt mesas');
+  console.log('  destination geology — yardangs / sintered crust / glass wadi');
   console.log(`    relief ${dmn.toFixed(1)} … ${dmx.toFixed(1)} m`);
   console.log(`    pitch  mean ${mean(dp).toFixed(1)}°   p95 ${pct(dp,.95).toFixed(1)}°`);
   console.log(`    roll   mean ${mean(dr).toFixed(1)}°   p95 ${pct(dr,.95).toFixed(1)}°`);
+  console.log(`    ground above 27.5° pitch: ${(stalled * 100).toFixed(1)} %`);
+}
+
+setCPUWorldMix(2);
+{
+  const gp = [], gr = [];
+  let gmn = 1e9, gmx = -1e9;
+  for (let i = 0; i < 6000; i++) {
+    const a = Math.random() * Math.PI * 2, r = 60 + Math.random() * 580;
+    const x = Math.cos(a) * r, z = Math.sin(a) * r;
+    const h = heightCPU(x, z); gmn = Math.min(gmn, h); gmx = Math.max(gmx, h);
+    const [p, q] = gradeAt(x, z, Math.random() * Math.PI * 2);
+    gp.push(p); gr.push(q);
+  }
+  const stalled = gp.filter(v => v * 57.29578 > 27.5).length / gp.length;
+  console.log('');
+  console.log('  BODY 03 geology — granite swell / exfoliation domes / weathered plain');
+  console.log(`    relief ${gmn.toFixed(1)} … ${gmx.toFixed(1)} m`);
+  console.log(`    pitch  mean ${mean(gp).toFixed(1)}°   p95 ${pct(gp,.95).toFixed(1)}°`);
+  console.log(`    roll   mean ${mean(gr).toFixed(1)}°   p95 ${pct(gr,.95).toFixed(1)}°`);
   console.log(`    ground above 27.5° pitch: ${(stalled * 100).toFixed(1)} %`);
 }
 setCPUWorldMix(0);

@@ -53,8 +53,9 @@
  */
 
 import * as THREE from 'three';
-import { Fn, float, vec3, vec4, normalize, dot, abs, mix, exp, smoothstep as ss,
-         normalWorld, positionView } from 'three/tsl';
+import { Fn, float, vec3, vec4, normalize, dot, abs, fract, max, mix, exp,
+         pow, sin, smoothstep as ss, cameraPosition, normalWorld,
+         positionLocal, positionView, positionWorld } from 'three/tsl';
 import { cfg } from '../config.js';
 import { lapseAt } from '../cpu/metric.js';
 import { uLampA, uLampB, uLampDir } from '../tsl/headlight.js';
@@ -100,6 +101,16 @@ const B = {
 /** Filled from cfg() on first construction — see the note above. */
 let D = null;
 
+/* C cycles only these three operator views. Scripted transfer and ending
+   shots use `cinematic`, while a dragged orbit becomes `orbit`; keeping those
+   names out of the cycle prevents an exhibition cue from being mistaken for
+   a fourth camera mode. */
+const VIEW_ORDER = ['mast', 'rear', 'front'];
+const VIEW_PRESET = {
+  rear:  { yaw: 0.05, pitch: 0.30, dist: 28.5 },
+  front: { yaw: Math.PI, pitch: 0.16, dist: 6.6 },
+};
+
 
 export class Rover {
   constructor(camera, dom, heightAt) {
@@ -119,6 +130,7 @@ export class Rover {
     this.speed = 0; this.odometer = 0;
     this.traction = 1; this.grade = 0;
     this.chase = false;
+    this.viewMode = 'mast';
     this.orbitYaw = 0;              // around the probe, relative to its heading
     this.orbitPitch = 0.30;
     this.orbitDist = 6.4;
@@ -160,6 +172,7 @@ export class Rover {
            is moving, and a fixed rear pole only ever shows its back */
         this.orbitYaw -= (e.clientX - lx) * s * 1.6;
         this.orbitPitch = clamp(this.orbitPitch + (e.clientY - ly) * s * 1.2, D.orbitPitch[0], D.orbitPitch[1]);
+        this.viewMode = 'orbit';
       } else {
         this.lookYaw -= (e.clientX - lx) * s;
         this.lookPitch = clamp(this.lookPitch - (e.clientY - ly) * s, -0.65, 0.45);
@@ -170,17 +183,40 @@ export class Rover {
     dom.addEventListener('wheel', e => {
       if (!this.chase) return;
       this.orbitDist = clamp(this.orbitDist * (1 + Math.sign(e.deltaY) * 0.10), D.orbitDist[0], D.orbitDist[1]);
+      this.viewMode = 'orbit';
     }, { passive: true });
 
     addEventListener('keydown', e => {
       if (e.code === 'Space') { this.auto = !this.auto; e.preventDefault(); }
       if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) this.auto = false;
-      if (e.code === 'KeyC') this.chase = !this.chase;
+      if (e.code === 'KeyC' && !this.transmitting) this.cycleViewMode();
       if (e.code === 'KeyL' && !this.disabled) this.lamps = !this.lamps;
       this.keys.add(e.code);
     });
     addEventListener('keyup', e => this.keys.delete(e.code));
     addEventListener('blur', () => this.keys.clear());
+  }
+
+  setViewMode(mode, framing = {}) {
+    if (![...VIEW_ORDER, 'orbit', 'cinematic'].includes(mode)) mode = 'mast';
+    this.viewMode = mode;
+    this.chase = mode !== 'mast';
+    const preset = VIEW_PRESET[mode];
+    if (preset) {
+      this.orbitYaw = preset.yaw;
+      this.orbitPitch = preset.pitch;
+      this.orbitDist = preset.dist;
+    }
+    if (Number.isFinite(framing.yaw)) this.orbitYaw = framing.yaw;
+    if (Number.isFinite(framing.pitch)) this.orbitPitch = framing.pitch;
+    if (Number.isFinite(framing.dist)) this.orbitDist = framing.dist;
+    return this.viewMode;
+  }
+
+  cycleViewMode() {
+    const at = VIEW_ORDER.indexOf(this.viewMode);
+    const next = at < 0 ? 'mast' : VIEW_ORDER[(at + 1) % VIEW_ORDER.length];
+    return this.setViewMode(next);
   }
 
   /**
@@ -399,6 +435,11 @@ export class Rover {
     }
     this.group.updateMatrixWorld(true);
 
+    /* Preserve compatibility with diagnostic tools that set `chase`
+       directly, but keep the public view label truthful. */
+    if (this.chase && this.viewMode === 'mast') this.viewMode = 'orbit';
+    if (!this.chase && this.viewMode !== 'mast') this.viewMode = 'mast';
+
     if (this.chase) {
       this.placeChase(dt);
       this.group.visible = true;
@@ -436,7 +477,8 @@ export class Rover {
       radius: this.radius, lapse: this.lapse,
       x: this.pos.x, z: this.pos.z, heading: this.heading,
       pitch: this.pitch, roll: this.roll, traction: this.traction,
-      grade: climb, odometer: this.odometer, chase: this.chase, boosting,
+      grade: climb, odometer: this.odometer, chase: this.chase,
+      viewMode: this.viewMode, boosting,
       lidTilt: this.lidTilt, lidMax: D.lidMax,
       artic: this.artic, travel: D.travel, slam: this.slam, stops: this.stops,
       stroke: this.sus,                   // the eight extensions, metres
@@ -595,46 +637,62 @@ const xf = (p, r = [0, 0, 0], s = [1, 1, 1]) => new THREE.Matrix4().compose(
 /** One wheel, built once and shared by all eight. Axle along local X. */
 function buildWheel() {
   const R = D.wheelR, W = D.wheelW;
-  const m = Merged();
+  const tyre = Merged(), rim = Merged();
 
   /* the drum — open-ended, so it reads as mesh rather than as a solid tyre */
-  const drum = new THREE.CylinderGeometry(R * 0.88, R * 0.88, W, 22, 1, true);
-  m.add(drum, xf([0, 0, 0], [0, 0, Math.PI / 2]));
+  const drum = new THREE.CylinderGeometry(R * 0.88, R * 0.88, W, 40, 1, true);
+  tyre.add(drum, xf([0, 0, 0], [0, 0, Math.PI / 2]));
 
   /* recessed sidewalls give the wheel a pneumatic/mesh construction instead
      of the silhouette of a primitive cylinder. */
-  const sidewall = new THREE.TorusGeometry(R * 0.76, R * 0.035, 5, 22);
-  m.add(sidewall, xf([-W * 0.49, 0, 0], [0, Math.PI / 2, 0]));
-  m.add(sidewall, xf([ W * 0.49, 0, 0], [0, Math.PI / 2, 0]));
+  const sidewall = new THREE.TorusGeometry(R * 0.76, R * 0.035, 8, 40);
+  tyre.add(sidewall, xf([-W * 0.49, 0, 0], [0, Math.PI / 2, 0]));
+  tyre.add(sidewall, xf([ W * 0.49, 0, 0], [0, Math.PI / 2, 0]));
 
   /* rim hoops at both edges */
-  const hoop = new THREE.TorusGeometry(R * 0.98, R * 0.05, 5, 26);
-  m.add(hoop, xf([-W / 2, 0, 0], [0, Math.PI / 2, 0]));
-  m.add(hoop, xf([ W / 2, 0, 0], [0, Math.PI / 2, 0]));
+  const hoop = new THREE.TorusGeometry(R * 0.98, R * 0.05, 7, 40);
+  rim.add(hoop, xf([-W / 2, 0, 0], [0, Math.PI / 2, 0]));
+  rim.add(hoop, xf([ W / 2, 0, 0], [0, Math.PI / 2, 0]));
 
   /* grousers — the cleats that do the work in loose regolith */
   const g = new THREE.BoxGeometry(W * 0.96, R * 0.075, R * 0.18);
-  for (let i = 0; i < 20; i++) {
-    const a = (i / 20) * Math.PI * 2;
+  for (let i = 0; i < 28; i++) {
+    const a = (i / 28) * Math.PI * 2;
     /* alternating chevrons shed regolith rather than reading as a smooth tyre */
-    m.add(g, xf([0, Math.sin(a) * R * 0.96, Math.cos(a) * R * 0.96], [-a, 0, (i & 1 ? 0.16 : -0.16)]));
+    tyre.add(g, xf([0, Math.sin(a) * R * 0.96, Math.cos(a) * R * 0.96], [-a, 0, (i & 1 ? 0.16 : -0.16)]));
   }
 
   /* hub and spokes */
-  m.add(new THREE.CylinderGeometry(R * 0.24, R * 0.24, W * 1.18, 12),
+  rim.add(new THREE.CylinderGeometry(R * 0.24, R * 0.24, W * 1.18, 20),
         xf([0, 0, 0], [0, 0, Math.PI / 2]));
-  m.add(new THREE.CylinderGeometry(R * 0.11, R * 0.11, W * 1.27, 12),
+  rim.add(new THREE.CylinderGeometry(R * 0.11, R * 0.11, W * 1.27, 20),
         xf([0, 0, 0], [0, 0, Math.PI / 2]));
   const spoke = new THREE.BoxGeometry(W * 0.10, R * 0.66, R * 0.055);
   for (const side of [-1, 1]) {
-    for (let i = 0; i < 6; i++) {
-      const a = (i / 6) * Math.PI * 2;
-      m.add(spoke, xf(
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      rim.add(spoke, xf(
         [side * W * 0.54, Math.sin(a) * R * 0.55, Math.cos(a) * R * 0.55],
         [-a, 0, 0]));
     }
   }
-  return m.build();
+
+  /* Bead-lock rings and exposed drive lugs are what make the wheel read as a
+     load-bearing exploration assembly in close view, rather than a detailed
+     tyre wrapped around a generic hub. They stay merged into the rim, so this
+     precision adds triangles without adding draw calls. */
+  const bead = new THREE.TorusGeometry(R * 0.43, R * 0.018, 5, 32);
+  const lug = new THREE.CylinderGeometry(R * 0.025, R * 0.025, W * 0.10, 6);
+  for (const side of [-1, 1]) {
+    rim.add(bead, xf([side * W * 0.60, 0, 0], [0, Math.PI / 2, 0]));
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      rim.add(lug, xf(
+        [side * W * 0.64, Math.sin(a) * R * 0.33, Math.cos(a) * R * 0.33],
+        [0, 0, Math.PI / 2]));
+    }
+  }
+  return { tyre: tyre.build(), rim: rim.build() };
 }
 
 /** Low armoured prism: narrow and lowered at the nose, full section aft. */
@@ -661,9 +719,9 @@ function wedgeGeometry(width, height, length, frontScale = 0.72) {
 /** Compact visible coil around the working damper. */
 function buildCoil() {
   const m = Merged();
-  const ring = new THREE.TorusGeometry(0.050, 0.007, 5, 12);
-  for (let i = 0; i < 7; i++)
-    m.add(ring, xf([0, -0.12 + i * 0.04, 0], [Math.PI / 2, 0, 0]));
+  const ring = new THREE.TorusGeometry(0.050, 0.007, 6, 17);
+  for (let i = 0; i < 9; i++)
+    m.add(ring, xf([0, -0.14 + i * 0.035, 0], [Math.PI / 2, 0, 0]));
   return m.build();
 }
 
@@ -683,12 +741,28 @@ function buildRover() {
   group.add(chassis);
 
   const L = normalize(vec3(...C.sun));
-  const paint = (rgb, emissive = 0) => {
+  /* The work has no scene lights, so the rover carries a compact material
+     model in TSL. `grain` breaks the CAD-perfect flatness; `dust` settles only
+     on upward faces. Both are object-space and therefore stay attached to a
+     wheel, panel or chassis while it moves. */
+  const paint = (rgb, emissive = 0, sheen = 0.08, gloss = 24, grain = 0.02, dust = 0.02) => {
     const mat = new THREE.MeshBasicNodeMaterial();
     mat.colorNode = Fn(() => {
       const n = normalize(normalWorld);
+      const v = normalize(cameraPosition.sub(positionWorld));
       const ndl = abs(dot(n, L));
-      const lit = vec3(...rgb).mul(ndl.mul(1.35).add(0.085))
+      const halfVector = normalize(L.add(v));
+      const grainHash = fract(sin(dot(positionLocal, vec3(91.17, 47.31, 113.53))).mul(43758.5453));
+      const surface = vec3(...rgb).mul(grainHash.mul(grain * 2).add(1.0 - grain));
+      const dustMask = pow(max(n.y, float(0.0)), float(4.0)).mul(dust)
+        .mul(grainHash.mul(0.45).add(0.55));
+      const coated = mix(surface, vec3(0.30, 0.215, 0.145), dustMask);
+      const specular = pow(max(dot(n, halfVector), float(0.0)), float(gloss))
+        .mul(sheen).mul(ndl.add(0.12)).mul(grainHash.mul(0.28).add(0.82));
+      const rim = pow(float(1.0).sub(abs(dot(n, v))), float(3.0)).mul(sheen * 0.16);
+      const lit = coated.mul(ndl.mul(1.35).add(0.085))
+        .add(vec3(1.00, 0.97, 0.91).mul(specular))
+        .add(vec3(0.34, 0.40, 0.46).mul(rim))
         .add(vec3(...C.color.crimson).mul(emissive));
       const fog = float(1.0).sub(exp(positionView.length().mul(-C.atmosphere.fogDensity)));
       return vec4(mix(lit, vec3(...C.color.horizon), ss(0.0, 1.0, fog)), 1.0);
@@ -696,14 +770,35 @@ function buildRover() {
     return mat;
   };
 
-  const hull = paint([0.095, 0.101, 0.111]);
-  const dark = paint([0.022, 0.023, 0.027]);
-  const metal = paint([0.190, 0.198, 0.208]);
-  const armour = paint([0.135, 0.139, 0.145]);
-  /* cold photovoltaic glass: distinct from the graphite armour without
-     introducing a decorative colour outside the work's restrained palette. */
-  const cell = paint([0.025, 0.048, 0.068]);
-  const mark = paint(C.color.crimson, 0.85);
+  const hull = paint([0.095, 0.101, 0.111], 0, 0.10, 30, 0.045, 0.060);
+  const dark = paint([0.022, 0.023, 0.027], 0, 0.035, 18, 0.070, 0.075);
+  const metal = paint([0.190, 0.198, 0.208], 0, 0.34, 52, 0.025, 0.022);
+  const armour = paint([0.135, 0.139, 0.145], 0, 0.16, 36, 0.036, 0.045);
+  const wheelRubber = paint([0.017, 0.017, 0.019], 0, 0.018, 12, 0.105, 0.140);
+  const wheelMetal = paint([0.145, 0.151, 0.158], 0, 0.27, 44, 0.035, 0.080);
+  const mark = paint(C.color.crimson, 0.85, 0.12, 34, 0.025, 0.015);
+
+  /* Photovoltaic glass gets a different response from painted metal: a deep
+     blue angular shift, a tight solar glint and faint cell-scale crystalline
+     variation. Geometry supplies the grid and busbars below. */
+  const cell = new THREE.MeshBasicNodeMaterial();
+  cell.colorNode = Fn(() => {
+    const n = normalize(normalWorld);
+    const v = normalize(cameraPosition.sub(positionWorld));
+    const ndl = abs(dot(n, L));
+    const halfVector = normalize(L.add(v));
+    const crystal = sin(positionLocal.x.mul(83.0).add(positionLocal.z.mul(51.0)))
+      .mul(0.5).add(0.5);
+    const angle = ss(0.0, 1.0, ndl.mul(0.72).add(crystal.mul(0.10)));
+    const base = mix(vec3(0.006, 0.017, 0.032), vec3(0.025, 0.082, 0.135), angle);
+    const glint = pow(max(dot(n, halfVector), float(0.0)), float(78.0)).mul(0.52);
+    const edge = pow(float(1.0).sub(abs(dot(n, v))), float(2.2)).mul(0.065);
+    const lit = base.mul(ndl.mul(0.62).add(0.38))
+      .add(vec3(0.72, 0.87, 1.0).mul(glint))
+      .add(vec3(0.08, 0.18, 0.28).mul(edge));
+    const fog = float(1.0).sub(exp(positionView.length().mul(-C.atmosphere.fogDensity)));
+    return vec4(mix(lit, vec3(...C.color.horizon), ss(0.0, 1.0, fog)), 1.0);
+  })();
   const transferTag = (object, part, colour, rig = false) => {
     object.userData.transferPart = part;
     if (colour != null) object.userData.transferColor = colour;
@@ -745,6 +840,120 @@ function buildRover() {
   }
   chassis.add(transferTag(new THREE.Mesh(access.build(), metal), 'body', 0x9aa1a8));
 
+  /* Replace broad unbroken side faces with field-serviceable armour modules.
+     Borders, fasteners and recessed vents are real relief, so they retain a
+     readable hierarchy in the close front and free-orbit cameras without a
+     texture atlas or extra image request. */
+  const servicePanels = transferTag(new THREE.Group(), 'body', 0x697079, true);
+  servicePanels.userData.designRole = 'service-panels';
+  const panelPlate = Merged(), panelFastener = Merged(), panelRecess = Merged();
+  for (const side of [-1, 1]) {
+    for (const z of [-LEN * 0.13, LEN * 0.31]) {
+      panelPlate.add(new THREE.BoxGeometry(0.018, 0.215, 0.34),
+        xf([side * W * 0.514, deck + 0.025, z]));
+      panelRecess.add(new THREE.BoxGeometry(0.022, 0.145, 0.255),
+        xf([side * W * 0.526, deck + 0.025, z]));
+      for (const y of [deck - 0.055, deck + 0.105]) {
+        for (const dz of [-0.125, 0.125])
+          panelFastener.add(new THREE.CylinderGeometry(0.014, 0.014, 0.027, 10),
+            xf([side * W * 0.541, y, z + dz], [0, 0, Math.PI / 2]));
+      }
+    }
+  }
+  /* paired deck hatches and their raised latches */
+  for (const x of [-W * 0.22, W * 0.22]) {
+    panelPlate.add(new THREE.BoxGeometry(W * 0.30, 0.025, LEN * 0.24),
+      xf([x, deck + 0.215, LEN * 0.03]));
+    panelFastener.add(new THREE.BoxGeometry(0.09, 0.028, 0.035),
+      xf([x, deck + 0.242, -LEN * 0.035]));
+  }
+  servicePanels.add(new THREE.Mesh(panelPlate.build(), armour));
+  servicePanels.add(new THREE.Mesh(panelRecess.build(), dark));
+  servicePanels.add(new THREE.Mesh(panelFastener.build(), metal));
+  chassis.add(servicePanels);
+
+  /* Mechanical shoulder line: visible axle pivots connect the armoured body
+     to the suspension rhythm, while shallow hood louvres break the remaining
+     broad top plane. Everything is merged into two material batches. */
+  const mechanicalMetal = Merged(), mechanicalDark = Merged();
+  for (const side of [-1, 1]) {
+    mechanicalMetal.add(new THREE.CylinderGeometry(0.026, 0.026, LEN * 0.88, 12),
+      xf([side * W * 0.455, deck + 0.205, LEN * 0.01], [Math.PI / 2, 0, 0]));
+    for (const dz of D.axles) {
+      mechanicalMetal.add(new THREE.CylinderGeometry(0.062, 0.062, 0.038, 18),
+        xf([side * W * 0.505, deck - 0.155, -dz], [0, 0, Math.PI / 2]));
+      mechanicalDark.add(new THREE.TorusGeometry(0.045, 0.008, 6, 18),
+        xf([side * W * 0.528, deck - 0.155, -dz], [0, Math.PI / 2, 0]));
+    }
+  }
+  for (let i = 0; i < 6; i++)
+    mechanicalDark.add(new THREE.BoxGeometry(W * 0.30, 0.018, 0.026),
+      xf([0, deck + 0.213, -LEN * (0.12 + i * 0.035)]));
+  const mechanicalGroup = transferTag(new THREE.Group(), 'body', 0x9aa1a8, true);
+  mechanicalGroup.userData.designRole = 'suspension-pivots';
+  mechanicalGroup.add(new THREE.Mesh(mechanicalMetal.build(), metal));
+  mechanicalGroup.add(new THREE.Mesh(mechanicalDark.build(), dark));
+  chassis.add(mechanicalGroup);
+
+  /* ── front service array ──────────────────────────────────────────────
+     The third camera earns its place by revealing engineered structure, not
+     merely another angle on the old silhouette: recessed cooling slots,
+     armour brow, fasteners, skid plate and recovery eyes all sit on the nose
+     plane and catch different widths of the same raking light. */
+  const frontDetail = transferTag(new THREE.Group(), 'body', 0x9aa1a8, true);
+  frontDetail.userData.designRole = 'front-service-array';
+  /* A continuous armoured fascia closes the old void between the wedge hull
+     and the bumper. The shallow centre and deeper cheek blocks create a
+     functional nose volume while preserving the low expedition silhouette. */
+  const fascia = Merged();
+  fascia.add(wedgeGeometry(W * 0.72, 0.30, 0.12, 0.86),
+    xf([0, deck + 0.015, -LEN * 0.575]));
+  for (const side of [-1, 1]) {
+    fascia.add(new THREE.BoxGeometry(W * 0.19, 0.235, 0.145),
+      xf([side * W * 0.365, deck + 0.035, -LEN * 0.558], [0, side * 0.10, 0]));
+    fascia.add(new THREE.BoxGeometry(W * 0.17, 0.045, 0.105),
+      xf([side * W * 0.365, deck + 0.175, -LEN * 0.560], [0, side * 0.10, 0]));
+  }
+  frontDetail.add(new THREE.Mesh(fascia.build(), armour));
+
+  /* Recesses stay dark behind the metal grille and lamp pods. Their depth is
+     what makes the front read as assembled layers instead of painted marks. */
+  const recess = Merged();
+  recess.add(new THREE.BoxGeometry(W * 0.38, 0.155, 0.026),
+    xf([0, deck - 0.020, -LEN * 0.611]));
+  for (const side of [-1, 1])
+    recess.add(new THREE.BoxGeometry(W * 0.145, 0.090, 0.030),
+      xf([side * W * 0.365, deck + 0.060, -LEN * 0.601]));
+  frontDetail.add(new THREE.Mesh(recess.build(), dark));
+
+  const grille = Merged();
+  for (let i = -3; i <= 3; i++)
+    grille.add(new THREE.BoxGeometry(0.020, 0.125, 0.022),
+      xf([i * 0.060, deck - 0.020, -LEN * 0.621]));
+  for (const x of [-W * 0.29, W * 0.29])
+    grille.add(new THREE.CylinderGeometry(0.024, 0.024, 0.026, 12),
+      xf([x, deck - 0.105, -LEN * 0.620], [Math.PI / 2, 0, 0]));
+  frontDetail.add(new THREE.Mesh(grille.build(), metal));
+
+  const noseHardware = Merged();
+  noseHardware.add(new THREE.BoxGeometry(W * 0.58, 0.045, 0.075),
+    xf([0, deck + 0.185, -LEN * 0.560]));
+  noseHardware.add(new THREE.BoxGeometry(W * 0.86, 0.075, 0.075),
+    xf([0, deck - 0.165, -LEN * 0.605]));
+  noseHardware.add(new THREE.BoxGeometry(W * 0.47, 0.070, 0.045),
+    xf([0, deck - 0.235, -LEN * 0.595], [0.10, 0, 0]));
+  for (const side of [-1, 1]) {
+    noseHardware.add(new THREE.BoxGeometry(0.035, 0.205, 0.055),
+      xf([side * W * 0.435, deck - 0.045, -LEN * 0.619]));
+    noseHardware.add(new THREE.BoxGeometry(W * 0.16, 0.028, 0.050),
+      xf([side * W * 0.365, deck + 0.130, -LEN * 0.615]));
+  }
+  for (const x of [-W * 0.25, W * 0.25])
+    noseHardware.add(new THREE.TorusGeometry(0.058, 0.012, 6, 18),
+      xf([x, deck - 0.205, -LEN * 0.630]));
+  frontDetail.add(new THREE.Mesh(noseHardware.build(), metal));
+  chassis.add(frontDetail);
+
   /* ── suspension and the wheels ─────────────────────────────────────────
      Each wheel is its own mesh with its own vertical stroke, and each carries
      a strut that stretches with it. The order below matches the physics
@@ -755,9 +964,9 @@ function buildRover() {
   const strutGeo = new THREE.BoxGeometry(0.05, 0.30, 0.07);
   const hubGeo = new THREE.BoxGeometry(D.track * 0.38, 0.05, 0.06);
   const rockerGeo = new THREE.BoxGeometry(D.track * 0.34, 0.055, 0.075);
-  const shockGeo = new THREE.CylinderGeometry(0.028, 0.028, 0.34, 9);
+  const shockGeo = new THREE.CylinderGeometry(0.028, 0.028, 0.34, 14);
   const coilGeo = buildCoil();
-  const fenderGeo = new THREE.TorusGeometry(D.wheelR * 1.12, 0.025, 5, 18, Math.PI);
+  const fenderGeo = new THREE.TorusGeometry(D.wheelR * 1.12, 0.025, 6, 24, Math.PI);
   const wheels = [];
   for (const dz of D.axles) {
     for (const dx of [-D.track, D.track]) {
@@ -766,7 +975,13 @@ function buildRover() {
          layout right up until `sus[i]` drives `wheels[i]`, and then the front
          stroke appears on the rear wheels. */
       const lz = -dz;
-      const w = new THREE.Mesh(wheelGeo, dark);
+      /* Tyre and hub are separate materials. Sharing two geometries across all
+         eight wheels costs almost nothing, but it lets dusty rubber absorb
+         light while the exposed rim and spokes return a narrow metal glint. */
+      const w = transferTag(new THREE.Group(), 'wheel', null, true);
+      const tyre = transferTag(new THREE.Mesh(wheelGeo.tyre, wheelRubber), 'wheel', 0x242529);
+      const rim = transferTag(new THREE.Mesh(wheelGeo.rim, wheelMetal), 'wheel', 0x8f969e);
+      w.add(tyre, rim);
       const restY = deck - D.clearance;
       w.position.set(dx, restY, lz);
       chassis.add(w);
@@ -800,7 +1015,6 @@ function buildRover() {
       fender.rotation.y = Math.PI / 2;
       chassis.add(fender);
 
-      transferTag(w, 'wheel', 0x242529, true);
       transferTag(strut, 'wheel', 0x697079, true);
       transferTag(hub, 'wheel', 0x697079, true);
       transferTag(rocker, 'wheel', 0x9aa1a8, true);
@@ -825,7 +1039,7 @@ function buildRover() {
   panelRig.userData.designRole = 'solar-gimbal';
   for (const x of [-0.20, 0.20]) {
     panelRig.add(cylinderBetween([x, deck + 0.18, 0.18], [x, deck + 0.72, -D.lidLen * 0.50], 0.027, metal));
-    const joint = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.055, 12), dark);
+    const joint = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.055, 18), dark);
     joint.position.set(x, deck + 0.72, -D.lidLen * 0.50);
     joint.rotation.z = Math.PI / 2;
     panelRig.add(joint);
@@ -840,39 +1054,98 @@ function buildRover() {
 
   const frame = Merged();
   frame.add(new THREE.BoxGeometry(D.lidWidth, 0.035, D.lidLen), xf([0, 0, D.lidLen / 2]));
-  lid.add(transferTag(new THREE.Mesh(frame.build(), hull), 'panel', 0x697079));
+  /* extruded perimeter and central spar give the panel a load path, rather
+     than the appearance of a photovoltaic texture pasted on a lid */
+  for (const x of [-D.lidWidth * 0.485, D.lidWidth * 0.485])
+    frame.add(new THREE.BoxGeometry(0.032, 0.055, D.lidLen), xf([x, 0.012, D.lidLen / 2]));
+  for (const z of [0.015, D.lidLen * 0.50, D.lidLen - 0.015])
+    frame.add(new THREE.BoxGeometry(D.lidWidth, 0.055, 0.032), xf([0, 0.012, z]));
+  const backplane = transferTag(new THREE.Mesh(frame.build(), hull), 'panel', 0x697079);
+  backplane.userData.designRole = 'solar-backplane';
+  lid.add(backplane);
 
-  const array = Merged();
-  for (let i = 0; i < 4; i++)
-    array.add(new THREE.BoxGeometry(D.lidWidth * 0.94, 0.011, D.lidLen * 0.205),
-              xf([0, 0.024, D.lidLen * (0.135 + i * 0.243)]));
-  lid.add(transferTag(new THREE.Mesh(array.build(), cell), 'panel', 0x6b5235));
+  const cellW = D.lidWidth * 0.90, cellL = D.lidLen * 0.90;
+  const array = new THREE.Mesh(new THREE.BoxGeometry(cellW, 0.012, cellL), cell);
+  array.position.set(0, 0.040, D.lidLen * 0.50);
+  array.userData.designRole = 'solar-cell-matrix';
+  lid.add(transferTag(array, 'panel', 0x214b73));
 
-  /* panel seams and edge rails: small enough to preserve the spare language,
-     dense enough that the array reads as engineered rather than painted on. */
-  const arrayDetail = Merged();
-  for (let i = 1; i < 8; i++)
-    arrayDetail.add(new THREE.BoxGeometry(D.lidWidth * 0.94, 0.010, 0.012),
-      xf([0, 0.032, D.lidLen * (i / 8)]));
-  for (const side of [-1, -0.5, 0, 0.5, 1])
-    arrayDetail.add(new THREE.BoxGeometry(0.022, 0.020, D.lidLen * 0.93),
-      xf([side * D.lidWidth * 0.47, 0.033, D.lidLen * 0.50]));
-  lid.add(transferTag(new THREE.Mesh(arrayDetail.build(), dark), 'panel', 0x242529));
+  /* 6 × 12 cell matrix. Dark isolation gaps define each cell; fine silver
+     busbars catch only the most direct glints and stay subordinate. */
+  const arrayGrid = Merged(), arrayBus = Merged();
+  for (let row = 1; row < 12; row++)
+    arrayGrid.add(new THREE.BoxGeometry(cellW, 0.008, 0.008),
+      xf([0, 0.050, D.lidLen * 0.05 + cellL * row / 12]));
+  for (let col = 1; col < 6; col++)
+    arrayGrid.add(new THREE.BoxGeometry(0.009, 0.008, cellL),
+      xf([-cellW / 2 + cellW * col / 6, 0.050, D.lidLen * 0.50]));
+  for (let col = 0; col < 6; col++)
+    arrayBus.add(new THREE.BoxGeometry(0.0035, 0.009, cellL * 0.97),
+      xf([-cellW / 2 + cellW * (col + 0.5) / 6, 0.054, D.lidLen * 0.50]));
+  /* corner clamps and central electrical bridge */
+  for (const x of [-cellW / 2, cellW / 2])
+    for (const z of [D.lidLen * 0.05, D.lidLen * 0.95])
+      arrayBus.add(new THREE.BoxGeometry(0.045, 0.016, 0.045), xf([x, 0.052, z]));
+  arrayBus.add(new THREE.BoxGeometry(cellW * 0.96, 0.011, 0.008),
+    xf([0, 0.055, D.lidLen * 0.50]));
+  lid.add(transferTag(new THREE.Mesh(arrayGrid.build(), dark), 'panel', 0x242529));
+  lid.add(transferTag(new THREE.Mesh(arrayBus.build(), metal), 'panel', 0xb7b9b5));
+
+  /* Back-face mechanics remain visible when the array tilts: torque tube,
+     crossed braces and a junction box connect the charging surface to the
+     gimbal instead of letting it float above the chassis. */
+  const underside = transferTag(new THREE.Group(), 'panel', 0x9aa1a8);
+  const torqueTube = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.034, 0.034, D.lidWidth * 1.04, 18), metal);
+  torqueTube.position.set(0, -0.040, D.lidLen * 0.08);
+  torqueTube.rotation.z = Math.PI / 2;
+  underside.add(torqueTube);
+  underside.add(cylinderBetween(
+    [-D.lidWidth * 0.43, -0.035, D.lidLen * 0.10],
+    [ D.lidWidth * 0.43, -0.035, D.lidLen * 0.90], 0.014, metal, 8));
+  underside.add(cylinderBetween(
+    [ D.lidWidth * 0.43, -0.035, D.lidLen * 0.10],
+    [-D.lidWidth * 0.43, -0.035, D.lidLen * 0.90], 0.014, metal, 8));
+  const junction = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.075, 0.16), armour);
+  junction.position.set(0, -0.065, D.lidLen * 0.62);
+  underside.add(junction);
+  lid.add(underside);
 
   /* Fold-out solar wings turn the charging surface into a visible mechanism.
      They remain low and broad when deployed, then tuck beside the central lid
      as the operator tilts the array toward the sun. */
   const wings = [];
   for (const side of [-1, 1]) {
-    const wing = new THREE.Group();
+    const wing = transferTag(new THREE.Group(), 'panel', null);
     wing.userData.side = side;
     wing.position.set(side * D.lidWidth * 0.49, 0.020, D.lidLen * 0.50);
-    const panel = new THREE.Mesh(new THREE.BoxGeometry(D.lidWidth * 0.50, 0.014, D.lidLen * 0.78), cell);
-    panel.position.set(side * D.lidWidth * 0.25, 0, 0);
-    wing.add(transferTag(panel, 'panel', 0x6b5235));
-    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.026, D.lidLen * 0.84), dark);
-    rail.position.set(side * D.lidWidth * 0.49, 0.012, 0);
-    wing.add(transferTag(rail, 'panel', 0x242529));
+    const wingW = D.lidWidth * 0.44, wingL = D.lidLen * 0.78;
+    const wingX = side * wingW * 0.50;
+    const wingBack = new THREE.Mesh(new THREE.BoxGeometry(wingW, 0.026, wingL), hull);
+    wingBack.position.set(wingX, 0, 0);
+    wing.add(transferTag(wingBack, 'panel', 0x697079));
+    const wingCellW = wingW * 0.88, wingCellL = wingL * 0.90;
+    const wingCell = new THREE.Mesh(new THREE.BoxGeometry(wingCellW, 0.011, wingCellL), cell);
+    wingCell.position.set(wingX, 0.022, 0);
+    wing.add(transferTag(wingCell, 'panel', 0x214b73));
+
+    const wingGrid = Merged(), wingRail = Merged();
+    for (let row = 1; row < 8; row++)
+      wingGrid.add(new THREE.BoxGeometry(wingCellW, 0.008, 0.007),
+        xf([wingX, 0.031, -wingCellL / 2 + wingCellL * row / 8]));
+    for (let col = 1; col < 3; col++)
+      wingGrid.add(new THREE.BoxGeometry(0.008, 0.008, wingCellL),
+        xf([wingX - wingCellW / 2 + wingCellW * col / 3, 0.031, 0]));
+    for (const x of [wingX - side * wingW * 0.48, wingX + side * wingW * 0.48])
+      wingRail.add(new THREE.BoxGeometry(0.024, 0.042, wingL), xf([x, 0.010, 0]));
+    for (const z of [-wingL * 0.49, wingL * 0.49])
+      wingRail.add(new THREE.BoxGeometry(wingW, 0.042, 0.024), xf([wingX, 0.010, z]));
+    const hinge = new THREE.Mesh(new THREE.CylinderGeometry(0.033, 0.033, 0.16, 16), metal);
+    hinge.position.set(0, -0.005, 0);
+    hinge.rotation.x = Math.PI / 2;
+    wing.add(transferTag(new THREE.Mesh(wingGrid.build(), dark), 'panel', 0x242529));
+    wing.add(transferTag(new THREE.Mesh(wingRail.build(), metal), 'panel', 0xb7b9b5));
+    wing.add(hinge);
     lid.add(wing);
     wings.push(wing);
   }
@@ -899,11 +1172,11 @@ function buildRover() {
     [0, 0, 0], [-0.16, 0.08, -0.28], [-0.12, -0.14, -0.58], [-0.03, -0.25, -0.82],
   ];
   for (let i = 0; i < armPts.length - 1; i++) {
-    arm.add(cylinderBetween(armPts[i], armPts[i + 1], i === 0 ? 0.038 : 0.030, metal, 10));
-    const joint = new THREE.Mesh(new THREE.CylinderGeometry(0.060 - i * 0.006, 0.060 - i * 0.006, 0.055, 12), dark);
+    arm.add(cylinderBetween(armPts[i], armPts[i + 1], i === 0 ? 0.038 : 0.030, metal, 16));
+    const joint = new THREE.Mesh(new THREE.CylinderGeometry(0.060 - i * 0.006, 0.060 - i * 0.006, 0.055, 18), dark);
     joint.position.set(...armPts[i]); joint.rotation.z = Math.PI / 2; arm.add(joint);
   }
-  const wrist = new THREE.Mesh(new THREE.CylinderGeometry(0.040, 0.047, 0.10, 10), dark);
+  const wrist = new THREE.Mesh(new THREE.CylinderGeometry(0.040, 0.047, 0.10, 16), dark);
   wrist.position.set(...armPts.at(-1)); wrist.rotation.x = Math.PI / 2; arm.add(wrist);
   for (const side of [-1, 1]) {
     const tine = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.025, 0.19), metal);
@@ -912,46 +1185,104 @@ function buildRover() {
   }
   chassis.add(arm);
 
-  /* ── forward navigation cluster: stereo cameras + elevated lidar ──── */
+  /* ── forward navigation cluster: stereo cameras + elevated lidar ────
+     The former centre post began 5 cm above the sloping nose and read as a
+     floating camera pod. This is a complete load path: a base plate intersects
+     the armour, twin columns meet a lower yoke, four braces resist pitch and
+     a visible pair of trunnions carries the sensor head. */
+  const mastMount = transferTag(new THREE.Group(), 'signal', 0x697079, true);
+  mastMount.userData.designRole = 'camera-mast-structure';
+  const baseZ = D.camZ + 0.09;
   const tower = Merged();
-  tower.add(new THREE.BoxGeometry(0.26, D.camY - 0.15, 0.21), xf([0, deck + 0.17 + (D.camY - 0.15) / 2, D.camZ + 0.09]));
-  tower.add(new THREE.BoxGeometry(0.46, 0.18, 0.20), xf([0, deck + D.camY, D.camZ]));
-  const towerMesh = transferTag(new THREE.Mesh(tower.build(), hull), 'signal', 0x697079, true);
-  chassis.add(towerMesh);
+  tower.add(new THREE.BoxGeometry(0.48, 0.060, 0.31),
+    xf([0, deck + 0.120, baseZ]));
+  for (const x of [-0.085, 0.085])
+    tower.add(new THREE.BoxGeometry(0.075, 0.420, 0.12),
+      xf([x, deck + 0.345, baseZ - 0.025]));
+  tower.add(new THREE.BoxGeometry(0.38, 0.080, 0.22),
+    xf([0, deck + 0.555, D.camZ + 0.035]));
+  tower.add(new THREE.BoxGeometry(0.46, 0.18, 0.20),
+    xf([0, deck + D.camY, D.camZ]));
+  mastMount.add(new THREE.Mesh(tower.build(), hull));
+
+  for (const side of [-1, 1]) {
+    mastMount.add(cylinderBetween(
+      [side * 0.205, deck + 0.145, baseZ + 0.105],
+      [side * 0.165, deck + 0.545, D.camZ + 0.045], 0.014, metal, 8));
+    mastMount.add(cylinderBetween(
+      [side * 0.060, deck + 0.145, baseZ + 0.115],
+      [side * 0.140, deck + 0.545, D.camZ + 0.045], 0.012, metal, 8));
+  }
+
+  const mastJoint = Merged();
+  for (const x of [-0.185, 0.185])
+    mastJoint.add(new THREE.CylinderGeometry(0.055, 0.055, 0.075, 14),
+      xf([x, deck + 0.570, D.camZ], [0, 0, Math.PI / 2]));
+  mastMount.add(new THREE.Mesh(mastJoint.build(), metal));
+  const cableDuct = new THREE.Mesh(new THREE.BoxGeometry(0.036, 0.34, 0.040), dark);
+  cableDuct.position.set(0, deck + 0.330, baseZ + 0.080);
+  mastMount.add(cableDuct);
+  chassis.add(mastMount);
 
   const lidar = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.12, 0.15), armour);
-  lidar.position.set(0, deck + D.camY + 0.16, D.camZ + 0.015);
+  lidar.position.set(0, deck + D.camY + 0.145, D.camZ + 0.015);
   lidar.userData.designRole = 'lidar-cluster';
   chassis.add(transferTag(lidar, 'signal', 0x697079, true));
 
   /* a high-gain dish and instrument canister give the rover a readable
      mission profile in chase view; both are mechanically mounted to the deck. */
-  const dishStem = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.034, 0.36, 10), metal);
+  const dishStem = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.034, 0.36, 16), metal);
   dishStem.position.set(0.28, deck + 0.34, 0.24);
   dishStem.rotation.z = -0.18;
   chassis.add(transferTag(dishStem, 'signal', 0x9aa1a8, true));
-  const dish = new THREE.Mesh(new THREE.SphereGeometry(0.16, 16, 8, 0, Math.PI * 2, 0, Math.PI * 0.45), metal);
+  const dishFoot = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.065, 0.060, 12), armour);
+  dishFoot.position.set(0.248, deck + 0.190, 0.24);
+  chassis.add(transferTag(dishFoot, 'signal', 0x697079, true));
+  const dish = new THREE.Mesh(new THREE.SphereGeometry(0.16, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.45), metal);
   dish.position.set(0.24, deck + 0.52, 0.22);
   dish.rotation.x = -0.88;
   chassis.add(transferTag(dish, 'signal', 0x9aa1a8, true));
-  const instrument = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.09, 0.21, 12), dark);
+  const instrument = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.09, 0.21, 18), dark);
   instrument.position.set(-0.30, deck + 0.29, 0.27);
   instrument.rotation.z = Math.PI / 2;
   chassis.add(transferTag(instrument, 'signal', 0x242529, true));
+  const instrumentSaddle = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.040, 0.12), armour);
+  instrumentSaddle.position.set(-0.30, deck + 0.205, 0.27);
+  chassis.add(transferTag(instrumentSaddle, 'signal', 0x697079, true));
 
   const glass = new THREE.MeshBasicNodeMaterial();
-  glass.colorNode = vec4(vec3(...C.color.dust).mul(0.55), 1.0);
-  const lensGeo = new THREE.CylinderGeometry(0.047, 0.047, 0.04, 14);
+  glass.colorNode = Fn(() => {
+    const n = normalize(normalWorld);
+    const v = normalize(cameraPosition.sub(positionWorld));
+    const halfVector = normalize(L.add(v));
+    const glint = pow(max(dot(n, halfVector), float(0.0)), float(70.0)).mul(0.72);
+    const edge = pow(float(1.0).sub(abs(dot(n, v))), float(2.0));
+    return vec4(vec3(0.015, 0.040, 0.052)
+      .add(vec3(0.18, 0.34, 0.38).mul(edge))
+      .add(vec3(0.82, 0.93, 0.90).mul(glint)), 1.0);
+  })();
+  const lensGeo = new THREE.CylinderGeometry(0.047, 0.047, 0.04, 20);
+  const lensBezelGeo = new THREE.TorusGeometry(0.057, 0.009, 7, 24);
   for (const sx of [-0.135, 0.135]) {
     const l = new THREE.Mesh(lensGeo, glass);
     l.rotation.x = Math.PI / 2;
     l.position.set(sx, deck + D.camY, D.camZ - 0.11);
     chassis.add(transferTag(l, 'signal', 0x8793a5, true));
+    const bezel = new THREE.Mesh(lensBezelGeo, metal);
+    bezel.position.set(sx, deck + D.camY, D.camZ - 0.134);
+    chassis.add(transferTag(bezel, 'signal', 0x9aa1a8, true));
   }
-  const lidarLens = new THREE.Mesh(new THREE.CylinderGeometry(0.060, 0.060, 0.042, 16), glass);
+  const lidarLens = new THREE.Mesh(new THREE.CylinderGeometry(0.060, 0.060, 0.042, 24), glass);
   lidarLens.rotation.x = Math.PI / 2;
-  lidarLens.position.set(0, deck + D.camY + 0.16, D.camZ - 0.067);
+  lidarLens.position.set(0, deck + D.camY + 0.145, D.camZ - 0.067);
   chassis.add(transferTag(lidarLens, 'signal', 0x8793a5, true));
+  const lidarBezel = new THREE.Mesh(new THREE.TorusGeometry(0.071, 0.010, 7, 28), metal);
+  lidarBezel.position.set(0, deck + D.camY + 0.145, D.camZ - 0.092);
+  chassis.add(transferTag(lidarBezel, 'signal', 0x9aa1a8, true));
+
+  const sensorBrow = new THREE.Mesh(new THREE.BoxGeometry(0.43, 0.025, 0.055), armour);
+  sensorBrow.position.set(0, deck + D.camY + 0.095, D.camZ - 0.105);
+  chassis.add(transferTag(sensorBrow, 'signal', 0x697079, true));
 
   /* short redundant comms whips: quiet silhouette, no unsupported dish-scale
      communication claim. */
@@ -965,16 +1296,18 @@ function buildRover() {
   /* ── lamps: low slit housings in the nose, below the camera ────────── */
   const glow = new THREE.MeshBasicNodeMaterial();
   glow.colorNode = vec4(vec3(...C.headlight.colour).mul(1.9), 1.0);
-  const canGeo = new THREE.BoxGeometry(0.16, 0.065, 0.10);
-  const lensG = new THREE.PlaneGeometry(0.125, 0.032);
+  const canGeo = new THREE.BoxGeometry(0.18, 0.105, 0.10);
+  const lensG = new THREE.PlaneGeometry(0.135, 0.024);
   for (const sgn of [-1, 1]) {
     const can = new THREE.Mesh(canGeo, hull);
-    can.position.set(sgn * C.headlight.offset, deck + C.headlight.rise - 0.30, -LEN * 0.46);
+    can.position.set(sgn * C.headlight.offset, deck + 0.070, -LEN * 0.585);
     chassis.add(transferTag(can, 'body', 0x697079));
-    const le = new THREE.Mesh(lensG, glow);
-    le.position.set(sgn * C.headlight.offset, deck + C.headlight.rise - 0.30, -LEN * 0.49);
-    le.rotation.y = Math.PI;
-    chassis.add(transferTag(le, 'body', 0xd8d5c2));
+    for (const dy of [-0.025, 0.025]) {
+      const le = new THREE.Mesh(lensG, glow);
+      le.position.set(sgn * C.headlight.offset, deck + 0.070 + dy, -LEN * 0.617);
+      le.rotation.y = Math.PI;
+      chassis.add(transferTag(le, 'body', 0xd8d5c2));
+    }
   }
 
   /* identity mark — the only crimson on the machine */

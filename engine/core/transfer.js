@@ -18,6 +18,7 @@ const CSS = `
 #ti-transfer-copy .en{display:block;margin-top:8px;font-size:8px;line-height:1.7;color:#5e666e}
 #ti-transfer-copy .meter{display:block;width:74px;height:1px;margin:18px auto 0;background:linear-gradient(90deg,#69e091 var(--memory,0%),rgba(105,224,145,.12) 0)}
 body.tx-active #ti-transfer-layer{opacity:1}body.tx-lock #ti-transfer-layer::before{opacity:1}body.tx-lock #ti-transfer-copy{opacity:1;transform:translate(-50%,0)}
+body.tx-orient #ti-transfer-layer{opacity:0}
 body.tx-lock #ti-transfer-axis{animation:ti-axis-charge 4.9s cubic-bezier(.35,0,.2,1) both}
 body.tx-lock #ti-transfer-field{opacity:1}
 body.tx-lock #ti-transfer-field i:nth-child(1){animation:ti-field-collapse 3.8s .15s ease-in both}
@@ -49,11 +50,12 @@ body.tx-arrival #ti-transfer-flare{animation:ti-flare-in 5.6s ease-out both}
 const clamp = x => Math.max(0, Math.min(1, x));
 
 export class PlanetTransfer {
-  constructor({ minimap, survey, effect, ambient, onBegin, onBlackout, onArrived }) {
+  constructor({ minimap, survey, effect, ambient, orientMs = 0, onBegin, onOrient, onBlackout, onArrived }) {
     this.minimap = minimap; this.survey = survey;
     this.effect = effect;
     this.ambient = ambient;
-    this.onBegin = onBegin; this.onBlackout = onBlackout; this.onArrived = onArrived;
+    this.orientMs = Math.max(0, orientMs);
+    this.onBegin = onBegin; this.onOrient = onOrient; this.onBlackout = onBlackout; this.onArrived = onArrived;
     this.active = false; this.phase = 'idle'; this.light = 1; this.audio = 1;
     const style = document.createElement('style'); style.textContent = CSS; document.head.appendChild(style);
     this.layer = document.createElement('div'); this.layer.id = 'ti-transfer-layer';
@@ -61,15 +63,21 @@ export class PlanetTransfer {
     this.layer.innerHTML = '<div id="ti-transfer-axis"></div><div id="ti-transfer-field"><i></i><i></i><i></i></div><div id="ti-transfer-flare"></div><div id="ti-transfer-core"></div><div id="ti-transfer-copy"></div>';
     document.body.appendChild(this.layer); this.copy = this.layer.querySelector('#ti-transfer-copy');
     this.trigger = document.createElement('button'); this.trigger.id = 'ti-transfer-trigger'; this.trigger.type = 'button';
-    this.trigger.textContent = 'T · TRANSMIT'; this.trigger.setAttribute('aria-label', 'Transmit survey memory to the next planet');
-    document.body.appendChild(this.trigger); this.trigger.addEventListener('click', () => this.onRequest?.('manual'));
+    this.trigger.textContent = '1 · 2 · 3  PLANET SELECT'; this.trigger.setAttribute('aria-label', 'Select planet with number keys 1, 2 or 3');
+    document.body.appendChild(this.trigger); this.trigger.addEventListener('click', () => this.onRequest?.('next'));
   }
 
   bindRequest(fn) { this.onRequest = fn; }
 
-  request(reason, snapshot = {}) {
+  beginLock(now) {
+    this.phase = 'lock'; this.t0 = now;
+    document.body.classList.remove('tx-orient'); document.body.classList.add('tx-lock');
+    this.ambient?.transferCue('charge'); this.effect?.beginDeparture(this.reason);
+  }
+
+  request(reason, snapshot = {}, destination = {}) {
     if (this.active) return false;
-    this.active = true; this.reason = reason; this.snapshot = snapshot; this.phase = 'lock'; this.t0 = performance.now();
+    this.active = true; this.reason = reason; this.snapshot = snapshot; this.destination = destination; this.phase = this.orientMs ? 'orient' : 'lock'; this.t0 = performance.now();
     this.light = 1; this.audio = 1; this.trigger.disabled = true;
     const pct = Math.round((snapshot.completion ?? 0) * 100), emergency = reason === 'power';
     const ko = emergency ? '잔여 탐사 메모리 복구' : '탐사 메모리 패킷 송신';
@@ -77,12 +85,22 @@ export class PlanetTransfer {
     const en = emergency ? `RECOVERED MEMORY · ${pct}% · ${cells} CELLS` : `SURVEY MEMORY · ${pct}% · ${cells} CELLS`;
     this.copy.style.setProperty('--memory', `${pct}%`);
     this.copy.innerHTML = `<span class="ko">${ko}</span><span class="en">${en}</span><span class="meter"></span>`;
-    document.body.classList.add('tx-active', 'tx-lock'); this.ambient?.transferCue('charge'); this.onBegin?.(reason, snapshot); this.effect?.beginDeparture(reason); return true;
+    document.body.classList.add('tx-active'); this.onBegin?.(reason, snapshot, destination);
+    if (this.orientMs) document.body.classList.add('tx-orient');
+    else this.beginLock(this.t0);
+    return true;
   }
 
   async update(now) {
     if (!this.active) return;
     const elapsed = now - this.t0;
+    if (this.phase === 'orient') {
+      const p = clamp(elapsed / this.orientMs);
+      this.onOrient?.(p, this.reason, this.snapshot, this.destination);
+      if (elapsed < this.orientMs) return;
+      this.onOrient?.(1, this.reason, this.snapshot, this.destination);
+      this.beginLock(now); return;
+    }
     if (this.phase === 'lock') {
       const p = clamp((elapsed - 400) / 4400);
       this.minimap.collapse(p); this.survey.collapse(p); this.effect?.depart(p); this.light = 1 - p * p; this.audio = 1 - p * .92;
@@ -94,30 +112,31 @@ export class PlanetTransfer {
     if (this.phase === 'blackout') {
       this.effect?.blackout(elapsed);
       if (elapsed < 3000) return;
-      this.phase = 'rebuild'; await this.onBlackout?.(this.reason, this.snapshot); this.effect?.beginArrival(this.reason);
+      this.phase = 'rebuild'; await this.onBlackout?.(this.reason, this.snapshot, this.destination); this.effect?.beginArrival(this.reason);
       this.phase = 'arrival'; this.t0 = performance.now(); this.minimap.collapse(0); this.survey.collapse(0);
       document.body.classList.remove('tx-blackout'); document.body.classList.add('tx-arrival');
       this.ambient?.transferCue('arrival');
-      this.copy.innerHTML = '<span class="ko">사막 행성 · 원격 몸체 연결</span><span class="en">DUNE ARCHIVE · REMOTE BODY 02</span>'; return;
+      const ko = this.destination.arrivalKo ?? '원격 행성 · 몸체 연결';
+      const en = this.destination.arrivalEn ?? `${this.destination.id ?? 'REMOTE BODY'} · LINK ACQUIRED`;
+      this.copy.innerHTML = `<span class="ko">${ko}</span><span class="en">${en}</span>`; return;
     }
     if (this.phase === 'arrival') {
       /* The destination field establishes itself for two full seconds before
          any material point or mechanical part is allowed to appear. */
       this.effect?.arrive(clamp((elapsed - 2000) / 6200));
-      if (elapsed >= 8200) { this.finish(); this.onArrived?.(); }
+      if (elapsed >= 8200) { const destination = this.destination; this.finish(); this.onArrived?.(this.reason, this.snapshot, destination); }
     }
   }
 
   finish() {
     const completedTransfer = this.active;
     this.active = false; this.phase = 'idle'; this.light = 1; this.audio = 1; this.trigger.disabled = false;
-    const pct = Math.round((this.snapshot?.completion ?? 0) * 100);
-    this.trigger.textContent = `BODY 02 · MEMORY ${pct}%`; this.effect?.finish();
-    document.body.classList.remove('tx-active', 'tx-lock', 'tx-blackout', 'tx-arrival');
+    this.trigger.textContent = `${this.destination?.id ?? 'BODY'} · 1 2 3 SELECT`; this.effect?.finish();
+    document.body.classList.remove('tx-active', 'tx-orient', 'tx-lock', 'tx-blackout', 'tx-arrival');
     if (completedTransfer) this.ambient?.transferCue('online');
   }
 
   reset() {
-    this.finish(); this.trigger.textContent = 'T · TRANSMIT'; this.minimap.collapse(0); this.survey.collapse(0);
+    this.finish(); this.destination = null; this.trigger.textContent = '1 · 2 · 3  PLANET SELECT'; this.minimap.collapse(0); this.survey.collapse(0);
   }
 }

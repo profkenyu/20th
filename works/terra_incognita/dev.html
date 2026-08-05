@@ -14,7 +14,7 @@
   *{margin:0;padding:0;box-sizing:border-box}
   html,body{height:100%;background:#050506;overflow:hidden;overscroll-behavior:none}
   body{cursor:crosshair;-webkit-font-smoothing:antialiased;touch-action:none}
-  #gl{position:fixed;inset:0;display:block}
+  #gl{position:fixed;inset:0;display:block;transition:filter .9s ease}
   .bar{position:fixed;left:0;right:0;height:var(--bar);background:#000;z-index:20;pointer-events:none}
   .bar.t{top:0;border-bottom:1px solid rgba(192,21,42,.16)}
   .bar.b{bottom:0;border-top:1px solid rgba(192,21,42,.16)}
@@ -29,6 +29,27 @@
   #ti-sensor{position:fixed;inset:0;z-index:19;pointer-events:none;opacity:.034;mix-blend-mode:screen;background:radial-gradient(ellipse at center,transparent 54%,rgba(2,5,4,.3) 100%),repeating-linear-gradient(0deg,rgba(190,255,215,.045) 0 1px,transparent 1px 4px);animation:sensor-breathe 8s ease-in-out infinite}
   body.sensor-stutter #ti-sensor{opacity:.07}@keyframes sensor-breathe{50%{opacity:.048}}
   body.ti-desert #ti-sensor{opacity:.032;background:radial-gradient(ellipse at center,transparent 42%,rgba(73,32,13,.28) 100%),linear-gradient(90deg,transparent 0 36%,rgba(205,132,67,.018) 56%,transparent 78%),repeating-linear-gradient(0deg,rgba(255,190,128,.018) 0 1px,transparent 1px 5px)}
+  body.ti-granite #ti-sensor{opacity:.030;background:radial-gradient(ellipse at center,transparent 48%,rgba(28,34,43,.31) 100%),linear-gradient(103deg,transparent 0 43%,rgba(151,127,172,.018) 58%,transparent 74%),repeating-linear-gradient(0deg,rgba(206,220,213,.015) 0 1px,transparent 1px 6px)}
+  /* Low compute becomes a distinct archival state. The low backing resolution,
+     not this colour treatment, is what saves fill-rate. One static compositor
+     layer is kept deliberately faint to avoid CRT moire on photographed screens. */
+  body.ti-terminal #gl{filter:grayscale(1) sepia(1) hue-rotate(68deg) saturate(5) contrast(1.18) brightness(.82);image-rendering:pixelated}
+  #ti-terminal-screen{position:fixed;inset:0;z-index:18;display:none;pointer-events:none;
+    background:radial-gradient(ellipse at center,transparent 48%,rgba(0,18,7,.34) 100%),
+      repeating-linear-gradient(0deg,rgba(126,255,164,.026) 0 1px,transparent 1px 5px)}
+  body.ti-terminal #ti-terminal-screen{display:block;animation:terminal-breathe 9s ease-in-out infinite}
+  @keyframes terminal-breathe{50%{opacity:.76}}
+  #ti-terminal-cue{position:fixed;z-index:42;right:max(20px,env(safe-area-inset-right));top:calc(var(--bar) + 18px);
+    width:min(270px,68vw);padding:10px 0 9px;border-top:1px solid rgba(118,255,158,.24);
+    font-family:'DM Mono','Noto Sans KR',ui-monospace,monospace;text-align:right;text-transform:uppercase;
+    color:rgba(164,255,190,.72);font-size:8px;line-height:1.8;letter-spacing:.16em;
+    opacity:0;transform:translateY(-5px);pointer-events:none;transition:opacity .7s ease,transform .7s ease}
+  #ti-terminal-cue b{display:block;font:700 9px/1.5 'Space Mono',ui-monospace,monospace;letter-spacing:.22em;color:#85f2a8}
+  #ti-terminal-cue.on{opacity:1;transform:none}
+  #ti-terminal-state{display:none;margin-top:9px;color:#69b47f}
+  body.ti-terminal #ti-terminal-state{display:block}
+  body.ti-terminal #fh-hud .eyebrow,body.ti-terminal #fh-hud .v.warn{color:#85f2a8}
+  body.ti-terminal #fh-pulse.on{background-color:#85f2a8}
   #survey-log{position:fixed;z-index:31;left:24px;top:calc(var(--bar) + 22px);width:min(360px,52vw);pointer-events:none;font-family:'DM Mono',ui-monospace,monospace;font-size:9px;line-height:1.7;letter-spacing:.1em;color:rgba(177,230,197,.38);text-transform:uppercase}
   #survey-log div{margin:0 0 4px;animation:survey-record 13s linear forwards}@keyframes survey-record{0%{opacity:0;transform:translateY(4px)}8%,68%{opacity:1;transform:none}100%{opacity:0}}
 
@@ -85,11 +106,22 @@
   #fh-watchdog p{font-size:11px;line-height:1.9;max-width:46ch}
   #fh-watchdog .r{width:56px;height:1px;background:#c0152a}
 
-  @media (max-width:760px){ #universe-id{right:14px;bottom:calc(var(--bar) + 14px)} }
+  .mobile-controls{display:none}
+  @media (max-width:760px){
+    #universe-id{right:max(14px,env(safe-area-inset-right));bottom:calc(var(--bar) + max(14px,env(safe-area-inset-bottom)))}
+    #ti-minimap{right:max(14px,env(safe-area-inset-right));transform:scale(.82);transform-origin:top right}
+  }
+  @media (pointer:coarse){
+    .desktop-controls{display:none}.mobile-controls{display:inline}
+    #ti-prologue .controls{bottom:calc(var(--bar) + max(18px,env(safe-area-inset-bottom)));font-size:8px}
+  }
+  @media (prefers-reduced-motion:reduce){#ti-terminal-screen{animation:none!important}}
 </style>
 </head>
 <body>
 <canvas id="gl"></canvas>
+<div id="ti-terminal-screen" aria-hidden="true"></div>
+<div id="ti-terminal-cue" role="status" aria-live="polite"><b>Archival Terminal</b>제한된 연산 자원 · 기록 신호로 전환<br>Low-compute telemetry recovered</div>
 <div id="ti-sensor" aria-hidden="true"></div>
 <canvas id="ti-minimap" width="308" height="352" aria-label="Local rover survey atlas"></canvas>
 <div id="survey-log" aria-live="polite"></div>
@@ -118,10 +150,10 @@
       오직 햇빛만으로 움직이며 지형을 측량, 중력을 측정, 방사선을 감지, 대기를 분석한다.
       마지막 전력이 사그라들기 전까지, 알아낼 수 있는 정보를 수집한다.</p>
     <p class="en">During an uncertain voyage, we land on a planet never explored before. There are no maps and no prior knowledge. An unmanned rover begins its mission alone. Powered only by sunlight, it surveys the terrain, measures gravity, detects radiation, and analyzes the atmosphere. Before its last power fades, it gathers whatever information it can.</p>
-    <span class="mission">Autonomous Survey · Sol 01</span>
+    <span class="mission">Autonomous Survey · Sol 01<span id="ti-terminal-state">Archival Terminal · Low Bandwidth</span></span>
     <span class="skip">아무 키나 눌러 시작</span>
   </div>
-  <div class="controls"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 수동 조작 &nbsp;·&nbsp; <kbd>Shift</kbd> 고속 주행 &nbsp;·&nbsp; <kbd>Space</kbd> 자동 주행 복귀 &nbsp;·&nbsp; <kbd>C</kbd> 추적 시점 &nbsp;·&nbsp; <kbd>L</kbd> 전조등 &nbsp;·&nbsp; <kbd>[</kbd><kbd>]</kbd> 태양광 패널 &nbsp;·&nbsp; <kbd>T</kbd> 행성 전송</div>
+  <div class="controls"><span class="desktop-controls"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 수동 조작 &nbsp;·&nbsp; <kbd>Shift</kbd> 고속 주행 &nbsp;·&nbsp; <kbd>Space</kbd> 자동 주행 복귀 &nbsp;·&nbsp; <kbd>C</kbd> 1인칭·후방·정면 시점 &nbsp;·&nbsp; <kbd>L</kbd> 전조등 &nbsp;·&nbsp; <kbd>[</kbd><kbd>]</kbd> 태양광 패널 &nbsp;·&nbsp; <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> 행성 이동</span><span class="mobile-controls">화면을 눌러 자동 탐사 시작 &nbsp;·&nbsp; 드래그하여 관측 시점 이동<br>Tap to begin autonomous survey · Drag to observe</span></div>
 </section>
 
 <script>

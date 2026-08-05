@@ -15,7 +15,7 @@
  * Median, not mean: one 40 ms outlier should not move the estimate at all.
  */
 
-const LADDER = [0.65, 0.8, 1.0, 1.25, 1.5];
+const LADDER = [0.5, 0.65, 0.8, 1.0, 1.25, 1.5];
 
 export class Adaptive {
   constructor(renderer, ceiling) {
@@ -27,14 +27,23 @@ export class Adaptive {
     this.dirty = false;
     this.cooldown = 0;
     this.changes = 0;
+    this.slowWindows = 0;
+    this.locked = null;
   }
 
-  get dpr() { return Math.min(this.max, LADDER[this.index]); }
+  get dpr() { return this.locked ?? Math.min(this.max, LADDER[this.index]); }
+
+  /** Terminal mode owns resolution permanently for the rest of this visit. */
+  lockAt(dpr) {
+    this.locked = Math.min(this.max, dpr);
+    this.renderer.setPixelRatio(this.dpr);
+  }
 
   /** Discard the current window — a rebuild stall happened inside it. */
   skip() { this.dirty = true; }
 
   sample(ms, now) {
+    if (this.locked != null) return null;
     this.samples.push(ms);
     if (this.samples.length < 48) return;
 
@@ -47,6 +56,14 @@ export class Adaptive {
     window.sort((a, b) => a - b);
     const median = window[window.length >> 1];
 
+    /* Resolution is already exhausted. Three sustained slow windows mean the
+       expensive lens must yield to the archival renderer. This is one-way:
+       the sudden saving would otherwise make the monitor immediately promote
+       itself and the work would oscillate between two visual languages. */
+    if (this.index === 0 && median > 24.0) this.slowWindows++;
+    else this.slowWindows = 0;
+    if (this.slowWindows >= 3) return 'critical';
+
     let next = this.index;
     if (median > 21.0) next = Math.max(0, this.index - 1);
     else if (median < 13.2) next = Math.min(LADDER.length - 1, this.index + 1);
@@ -58,5 +75,6 @@ export class Adaptive {
     this.renderer.setPixelRatio(this.dpr);
     this.cooldown = now + 1800;
     this.changes++;
+    return null;
   }
 }

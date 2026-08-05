@@ -54,6 +54,15 @@ export class MiniMap {
     this.lastTrail = performance.now();
     this.lastScan = this.lastTrail - 1000;
     this.transfer = 0;
+    const memory = options.memory;
+    if (memory) {
+      this.start = { ...(memory.start ?? this.start) };
+      this.trail = (memory.trail ?? []).map(p => ({ ...p }));
+      if (!this.trail.length) this.trail = [{ ...this.start }];
+      this.cells = new Map((memory.cells ?? []).map(p => [this.cellKey(p.ix, p.iz), { ...p }]));
+      this.coarse = new Map((memory.coarse ?? []).map(p => [this.cellKey(p.ix, p.iz), { ...p }]));
+      this.enforceBudget();
+    }
   }
 
   cellKey(ix, iz) { return `${ix},${iz}`; }
@@ -155,6 +164,17 @@ export class MiniMap {
       id: this.id, label: this.label, cell: archiveCell, cells: packed, trail, bounds,
       measuredCells: this.cells.size + this.coarse.size,
       coverageSqM: this.stats.area,
+    };
+  }
+
+  /** Full finite live state for revisiting a body. `snapshot()` remains the
+   compressed off-world thumbnail; this restores the active atlas itself. */
+  state() {
+    return {
+      id: this.id, label: this.label, start: { ...this.start },
+      trail: this.trail.map(p => ({ ...p })),
+      cells: [...this.cells.values()].map(p => ({ ...p })),
+      coarse: [...this.coarse.values()].map(p => ({ ...p })),
     };
   }
 
@@ -270,7 +290,8 @@ export class Survey {
   constructor(heightAt, objectives = []) { this.heightAt=heightAt; this.group=new THREE.Group(); this.rings=[]; for(let k=0;k<3;k++){const n=72,g=new THREE.BufferGeometry(),p=new Float32Array(n*6),i=new Uint16Array(n*6); for(let q=0;q<n;q++){const a=q*2,b=(q+1)%n,c=a+2,d=(b+2)%(n*2),o=q*6;i.set([a,c,b,b,c,d],o)} g.setAttribute('position',new THREE.BufferAttribute(p,3));g.setIndex(new THREE.BufferAttribute(i,1));const m=new THREE.MeshBasicNodeMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending});m.colorNode=vec4(vec3(.46,.68,.54),.18);const mesh=new THREE.Mesh(g,m);mesh.visible=false;this.group.add(mesh);this.rings.push({mesh,m,p,n});} this.log=document.getElementById('survey-log'); this.reset(objectives); }
   get complete(){return this.objectives.length>0&&this.seen.size>=this.objectives.length&&this.queue.length===0}
   get completion(){return this.objectives.length?Math.min(1,this.logged/this.objectives.length):0}
-  snapshot(){return{completion:this.completion,records:[...this.records],total:this.objectives.length,complete:this.complete}}
+  snapshot(){return{completion:this.completion,records:[...this.records],total:this.objectives.length,complete:this.complete,seen:[...this.seen],queue:[...this.queue],logged:this.logged}}
+  restore(snapshot){if(!snapshot)return;this.records=[...(snapshot.records??[])];this.seen=new Set(snapshot.seen??[]);this.queue=[...(snapshot.queue??[])];this.logged=Math.min(this.objectives.length,snapshot.logged??this.records.length);this.completedAt=snapshot.complete?performance.now():0;if(!this.log)return;for(const msg of this.records.slice(-2).reverse()){const row=document.createElement('div');row.textContent=msg;this.log.appendChild(row)}}
   inherit(snapshot){this.inherited={records:[...(snapshot.records??[])],trail:[...(snapshot.trail??[])]};if(!this.log)return;const row=document.createElement('div');const atlas=snapshot.atlas;row.textContent=`${atlas?.id??'MEMORY 01'} ARCHIVE · ${this.inherited.records.length}/${snapshot.total??0} RECORDS · ${atlas?.cells?.length??0} LOCAL CELLS`;this.log.prepend(row)}
   collapse(amount){this.transfer=Math.max(0,Math.min(1,amount))}
   reset(objectives=this.objectives??[]){this.objectives=objectives.map(o=>Array.isArray(o)?{r:o[0],msg:o[1]}:o);this.phase=-1;this.last=performance.now();this.lastRecord=performance.now();this.seen=new Set;this.queue=[];this.records=[];this.logged=0;this.completedAt=0;this.transfer=0;this.inherited=null;this.rings?.forEach(r=>r.mesh.visible=false);if(this.log)this.log.replaceChildren()}

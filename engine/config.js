@@ -11,6 +11,11 @@
  */
 
 export function deviceTier() {
+  const query = typeof location !== 'undefined' ? new URLSearchParams(location.search) : null;
+  const forced = query?.get('quality');
+  if (query?.has('terminal') || forced === 'critical' || forced === 'low') return 'low';
+  if (query?.has('full') || forced === 'high') return 'high';
+  if (forced === 'mid') return 'mid';
   const mem = navigator.deviceMemory ?? 8;
   const cores = navigator.hardwareConcurrency ?? 4;
   if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) return 'low';
@@ -42,7 +47,8 @@ export function defaults(tier = deviceTier()) {
 
     /* world-anchored disturbance grid */
     wake: {
-      grid: 256, cellsPerSnap: 16, radius: 1.45, tau: 7.0, gain: 2.4,
+      grid: pick({ high: 256, mid: 256, low: 128 }),
+      cellsPerSnap: 16, radius: 1.45, tau: 7.0, gain: 2.4,
       flatten: 1.15,          // how far scattered instances lie down
       /* How strongly the trail tilts the GROUND normal. The track is geometry
          and nothing else — no albedo change — so it exists only where light
@@ -130,7 +136,8 @@ export function defaults(tier = deviceTier()) {
       scaleHeight: 0.52,      // the dust layer thins with this constant
       hugFade: 0.09,          // fade out at the very bottom, so the lit pool takes over
       nearFade: 1.35,         // do not stab the camera
-      segments: 22, rings: 14,
+      segments: pick({ high: 22, mid: 18, low: 12 }),
+      rings: pick({ high: 14, mid: 12, low: 8 }),
     },
 
     /* Mars-like gravity makes wheel-thrown regolith ballistic and visibly
@@ -140,7 +147,8 @@ export function defaults(tier = deviceTier()) {
       /* 640 measured, not chosen: a fast traverse peaks at 398 live grains,
          and a pool that saturates starts silently dropping the newest —
          the trail thins exactly when the machine is working hardest. */
-      maxParticles: 640, maxEmitPerFrame: 12,
+      maxParticles: pick({ high: 640, mid: 420, low: 192 }),
+      maxEmitPerFrame: pick({ high: 12, mid: 8, low: 5 }),
       /* THE ARC IS SIZED AGAINST THE WHEEL IT COMES OFF, not guessed.
          At the original lift of 0.32–0.76 m/s and g = 3.71 the apex was
          1.4–7.8 cm — a seventh of a 0.29 m wheel — and mean flight was 0.29 s
@@ -228,7 +236,7 @@ export function defaults(tier = deviceTier()) {
     audio: { droneBase: 300, droneEmitR: 0, droneGain: 0.16, noiseGain: 0.020, breath: 0.055 },
 
     kiosk: { idleMs: 90000 },
-    dprCeiling: () => Math.min(devicePixelRatio, tier === 'high' ? 1.5 : 1.0),
+    dprCeiling: () => Math.min(devicePixelRatio, tier === 'high' ? 1.5 : tier === 'mid' ? 1.0 : 0.75),
   };
 }
 
