@@ -16,7 +16,7 @@ import {
   configure, deviceTier, universeSeed, DEV,
   Clipmap, Field, Scatter, Wake, Dust, Sandstorm, ResolutionTransferFX, Beam, buildSky,
   createRenderer, describeAdapter, unsupported, fatal, enableTimestamps, captureDeviceErrors,
-  Lens, Adaptive, Hud, Captions, Kiosk, Ambient, PlanetTransfer, Rover, Power,
+  Lens, Adaptive, Hud, Captions, Kiosk, Ambient, PlanetTransfer, Rover, Lander, Power,
   uObserverR, nuRatioCPU, uLampPower,
 } from '../../engine/index.js';
 import { T, BH } from './spec.js';
@@ -240,7 +240,7 @@ captureDeviceErrors(renderer, err => { running = false; fatal(err, 'gpu'); });
    that got past the adapter gate. Inside a top-level-await module that throw
    is an unhandled rejection, so the only symptom was a black screen.
    Declarations are hoisted; initialisations are not. */
-let scene, hud, captions, ambient, kiosk, ground, field, wake, dust, storm, transferFx, scatter, beam, sky, landmark, rover, power, lens, adaptive, minimap, optics, survey, transmission;
+let scene, hud, captions, ambient, kiosk, ground, field, wake, dust, storm, transferFx, scatter, beam, sky, landmark, rover, lander, power, lens, adaptive, minimap, optics, survey, transmission;
 let world = 'terra';
 let archiveMode = false, lastArchiveFrame = 0, archiveCueTimer = 0;
 let arrivalHoldUntil = 0;
@@ -278,6 +278,7 @@ landmark = new THREE.Mesh(
 landmark.rotation.set(0.10, 0.42, -0.035);
 landmark.visible = false;
 rover = new Rover(camera, canvas, heightCPU);
+lander = new Lander(heightCPU);
 transferFx = new ResolutionTransferFX(rover.group);
 power = new Power(heightCPU, solarAccessCPU);
 minimap = new MiniMap(document.getElementById('ti-minimap'), BH.start, {
@@ -310,7 +311,7 @@ transmission = new PlanetTransfer({
 });
 transmission.bindRequest(() => requestNextPlanet('manual'));
 
-scene.add(sky, landmark, ground.mesh, ...scatter.meshes, ...beam.meshes,
+scene.add(sky, landmark, ground.mesh, ...scatter.meshes, ...beam.meshes, lander.group,
           ...(dust ? [dust.points] : []), storm.points, rover.group, survey.group, transferFx.group);
 
 lens = (off('lens') || ARCHIVE_AT_BOOT) ? null : new Lens(renderer, scene, camera);
@@ -358,6 +359,7 @@ if (disabled.length) hud.set('backend', `WebGPU · without ${disabled.join(', ')
    is atan2(x, z), because heading 0 looks down −Z */
 const START_HEADING = Math.atan2(BH.start[0], BH.start[1]);
 rover.reset(BH.start[0], BH.start[1], START_HEADING);
+lander.place(BH.start[0], BH.start[1], START_HEADING, true);
 /* The prologue holds the rover at its landing point. It then releases an
    autonomous route; keyboard driving is the operator's manual override. */
 rover.auto = false;
@@ -524,6 +526,7 @@ async function frame() {
     v.trackB[0] - ground.origin.x, v.trackB[1] - ground.origin.y);
   dust?.update(dt, v);
   storm.update(dt, v, now);
+  lander.update(now, world === 'terra');
   await transmission.update(now);
 
   sky.position.copy(camera.position);
@@ -535,6 +538,7 @@ async function frame() {
   if (adaptive.sample(frameMs, now) === 'critical') activateArchive('measured');
   /* ── the second clock ─────────────────────────────────────────────── */
   const pw = power.update(dt, { ...v, radius: PLANETS[world].metric ? v.radius : 1e7, lamps: rover.lamps });
+  rover.setSignalState(pw.charge, transmission.active || arrivalWaiting);
   if (!transmission.active) survey.update(v, now, pw.charge);
 
   if (!transmission.active && !arrivalWaiting) {
@@ -621,9 +625,13 @@ async function frame() {
 function showArchiveCue() {
   const cue = document.getElementById('ti-terminal-cue');
   if (!cue) return;
+  cue.setAttribute('aria-hidden', 'false');
   cue.classList.add('on');
   clearTimeout(archiveCueTimer);
-  archiveCueTimer = setTimeout(() => cue.classList.remove('on'), 3600);
+  archiveCueTimer = setTimeout(() => {
+    cue.classList.remove('on');
+    cue.setAttribute('aria-hidden', 'true');
+  }, 3600);
 }
 
 /** One-way visual state: the work does not oscillate after the lens is shed. */
@@ -747,6 +755,8 @@ async function enterPlanet(reason, snapshot, destination) {
   const start = rememberedPosition ? [rememberedPosition.x, rememberedPosition.z] : planet.start;
   rover.lamps = true; rover.lidTilt = 0; rover.auto = false; rover.disabled = false; rover.transmitting = true;
   rover.reset(start[0], start[1], memory?.heading ?? Math.atan2(start[0], start[1]));
+  if (world === 'terra') lander.place(BH.start[0], BH.start[1], START_HEADING, true);
+  else lander.group.visible = false;
   rover.auto = false; rover.transmitting = true;
   /* The destination is reconstructed squarely toward the rover's face.  The
      post-arrival orbit begins only after every wheel has locked into place. */
@@ -808,6 +818,7 @@ async function returnToStart() {
   rover.lamps = true;
   rover.lidTilt = 0;
   rover.reset(BH.start[0], BH.start[1], START_HEADING);
+  lander.place(BH.start[0], BH.start[1], START_HEADING, true);
   rover.auto = location.search.includes('embed');
   rover.setViewMode('rear');
   uObserverR.value = Math.hypot(...BH.start);

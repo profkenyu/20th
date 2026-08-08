@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { vec3, vec4 } from 'three/tsl';
 
+const REDUCED_MOTION = typeof matchMedia !== 'undefined'
+  && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
 /* A local instrument, not an omniscient world map. Cells enter only when the
    rover's scan footprint touches them; unknown terrain remains literally
    absent. Absolute world coordinates keep the record stable while the render
@@ -255,11 +258,69 @@ export class MiniMap {
         c.strokeStyle = `rgba(217,221,226,${.025 + age * .15})`; c.stroke();
       }
     }
-    const pulse = .5 + .5 * Math.sin(now / 720), glow = 1 - this.transfer * .72;
-    c.beginPath(); c.arc(cx, cy, 5.0 + 2.2 * pulse, 0, Math.PI * 2);
-    c.fillStyle = `rgba(105,224,145,${(.025 + .05 * pulse) * glow})`; c.fill();
-    c.beginPath(); c.arc(cx, cy, 2.15, 0, Math.PI * 2);
-    c.fillStyle = `rgba(136,190,154,${.30 * glow})`; c.fill();
+    /* The atlas is rover-centred. A crimson directional glyph makes that
+       convention explicit: its tip is the machine's physical forward axis,
+       not the chase camera bearing. */
+    const pulse = REDUCED_MOTION ? .5 : .5 + .5 * Math.sin(now / 620);
+    const glow = 1 - this.transfer * .72;
+    const heading = Number.isFinite(v.heading) ? v.heading : 0;
+    const fx = -Math.sin(heading), fy = -Math.cos(heading);
+    const sideX = -fy, sideY = fx;
+    /* A dark isolation disc keeps the locator readable over dense measured
+       cells. Dimensions are backing pixels; the canvas is displayed at half
+       size and reduced again on mobile, so the glyph must be intentionally
+       large here. */
+    c.beginPath(); c.arc(cx, cy, 20, 0, Math.PI * 2);
+    c.fillStyle = `rgba(1,2,3,${.90 * glow})`; c.fill();
+    c.lineWidth = 3;
+    c.strokeStyle = `rgba(255,242,237,${.25 * glow})`;
+    for (const [ax, ay, bx, by] of [
+      [cx - 29, cy, cx - 23, cy], [cx + 23, cy, cx + 29, cy],
+      [cx, cy - 29, cx, cy - 23], [cx, cy + 23, cx, cy + 29],
+    ]) { c.beginPath(); c.moveTo(ax, ay); c.lineTo(bx, by); c.stroke(); }
+    c.beginPath(); c.arc(cx, cy, 17 + 2 * pulse, 0, Math.PI * 2);
+    c.strokeStyle = `rgba(192,21,42,${(.52 + .34 * pulse) * glow})`; c.stroke();
+
+    c.beginPath();
+    c.moveTo(cx + fx * 17, cy + fy * 17);
+    c.lineTo(cx - fx * 8.5 + sideX * 7, cy - fy * 8.5 + sideY * 7);
+    c.lineTo(cx - fx * 3.5, cy - fy * 3.5);
+    c.lineTo(cx - fx * 8.5 - sideX * 7, cy - fy * 8.5 - sideY * 7);
+    c.closePath();
+    c.fillStyle = `rgba(192,21,42,${.98 * glow})`; c.fill();
+    c.lineWidth = 5;
+    c.strokeStyle = `rgba(1,2,3,${.98 * glow})`; c.stroke();
+    c.lineWidth = 2.4;
+    c.strokeStyle = `rgba(255,248,244,${.98 * glow})`; c.stroke();
+    c.beginPath(); c.moveTo(cx + fx * 22, cy + fy * 22); c.lineTo(cx + fx * 27, cy + fy * 27);
+    c.strokeStyle = `rgba(255,248,244,${.92 * glow})`; c.stroke();
+    c.beginPath(); c.arc(cx, cy, 7.2, 0, Math.PI * 2);
+    c.fillStyle = `rgba(192,21,42,${glow})`; c.fill();
+    c.lineWidth = 2.4;
+    c.strokeStyle = `rgba(255,255,252,${glow})`; c.stroke();
+    c.beginPath(); c.arc(cx, cy, 2.5, 0, Math.PI * 2);
+    c.fillStyle = `rgba(255,255,252,${glow})`; c.fill();
+
+    /* A direct textual anchor remains legible even when the chevron happens
+       to align with the trail or a dense patch of measured terrain. */
+    const roverTag = 'ROVER · LIVE';
+    c.font = 'bold 18px DM Mono, monospace';
+    const tagW = c.measureText(roverTag).width + 18;
+    const tagX = cx - tagW * 0.5, tagY = cy + 34;
+    c.fillStyle = `rgba(1,2,3,${.94 * glow})`; c.fillRect(tagX, tagY, tagW, 24);
+    c.fillStyle = `rgba(192,21,42,${glow})`; c.fillRect(tagX, tagY, 5, 24);
+    c.fillStyle = `rgba(255,250,247,${glow})`; c.fillText(roverTag, tagX + 10, tagY + 18);
+
+    const coordinate = `RVR ${v.x >= 0 ? '+' : ''}${v.x.toFixed(0)} / ${v.z >= 0 ? '+' : ''}${v.z.toFixed(0)}`;
+    const degrees = String(Math.round((heading * 180 / Math.PI + 360) % 360)).padStart(3, '0');
+    const labelX = mx + 7, labelY = my + 7;
+    c.fillStyle = `rgba(1,2,3,${.93 * glow})`; c.fillRect(labelX, labelY, 206, 44);
+    c.fillStyle = `rgba(192,21,42,${.98 * glow})`; c.fillRect(labelX, labelY, 5, 44);
+    c.font = 'bold 16px DM Mono, monospace';
+    c.fillStyle = `rgba(255,250,247,${.98 * glow})`; c.fillText(coordinate, labelX + 12, labelY + 18);
+    c.font = '13px DM Mono, monospace';
+    c.fillStyle = `rgba(202,224,213,${.78 * glow})`;
+    c.fillText(`LIVE · HDG ${degrees}° · ${v.speed.toFixed(1)} M/S`, labelX + 12, labelY + 36);
     c.restore(); c.globalAlpha = 1;
 
     const st = this.stats;

@@ -25,7 +25,7 @@
     font-family:'Space Mono',ui-monospace,monospace;font-size:9px;
     letter-spacing:.26em;color:#3a3e45;pointer-events:none;
   }
-  #ti-minimap{position:fixed;z-index:31;top:calc(var(--bar) + 18px);right:20px;width:154px;height:176px;pointer-events:none}
+  #ti-minimap{position:fixed;z-index:31;top:calc(var(--bar) + 18px);right:20px;width:176px;height:201px;pointer-events:none}
   #ti-sensor{position:fixed;inset:0;z-index:19;pointer-events:none;opacity:.034;mix-blend-mode:screen;background:radial-gradient(ellipse at center,transparent 54%,rgba(2,5,4,.3) 100%),repeating-linear-gradient(0deg,rgba(190,255,215,.045) 0 1px,transparent 1px 4px);animation:sensor-breathe 8s ease-in-out infinite}
   body.sensor-stutter #ti-sensor{opacity:.07}@keyframes sensor-breathe{50%{opacity:.048}}
   body.ti-desert #ti-sensor{opacity:.032;background:radial-gradient(ellipse at center,transparent 42%,rgba(73,32,13,.28) 100%),linear-gradient(90deg,transparent 0 36%,rgba(205,132,67,.018) 56%,transparent 78%),repeating-linear-gradient(0deg,rgba(255,190,128,.018) 0 1px,transparent 1px 5px)}
@@ -91,7 +91,7 @@
 <body>
 <canvas id="gl"></canvas>
 <div id="ti-sensor" aria-hidden="true"></div>
-<canvas id="ti-minimap" width="308" height="352" aria-label="Local rover survey atlas"></canvas>
+<canvas id="ti-minimap" width="308" height="352" aria-label="Local survey atlas showing the rover's live position and heading"></canvas>
 <div id="survey-log" aria-live="polite"></div>
 <div class="bar t"></div>
 <div class="bar b"></div>

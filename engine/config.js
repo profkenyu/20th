@@ -87,8 +87,8 @@ export function defaults(tier = deviceTier()) {
         wheelW: 0.17,
         clearance: 0.28,
         travel: 0.24,           // ± stroke, sized by measurement below
-        camY: 0.66,
-        camZ: -0.76,
+        camY: 0.92,
+        camZ: -0.70,
         lidLen: 1.42,
         lidWidth: 1.00,
         lidMax: 1.20,           // 69° — steep enough to aim at a 6.6° sun

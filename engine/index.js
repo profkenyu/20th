@@ -60,4 +60,5 @@ export { PlanetTransfer } from './core/transfer.js';
 
 export { Power } from './vehicle/power.js';
 export { Rover } from './vehicle/rover.js';
+export { Lander } from './vehicle/lander.js';
 export { Walker } from './vehicle/walker.js';

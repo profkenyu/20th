@@ -53,12 +53,12 @@
  */
 
 import * as THREE from 'three';
-import { Fn, float, vec3, vec4, normalize, dot, abs, fract, max, mix, exp,
+import { Fn, float, uniform, vec3, vec4, normalize, dot, abs, fract, max, mix, exp,
          pow, sin, smoothstep as ss, cameraPosition, normalWorld,
          positionLocal, positionView, positionWorld } from 'three/tsl';
 import { cfg } from '../config.js';
 import { lapseAt } from '../cpu/metric.js';
-import { uLampA, uLampB, uLampDir } from '../tsl/headlight.js';
+import { uLampA, uLampB, uLampDir, uLampPower } from '../tsl/headlight.js';
 
 /* Chassis geometry lives in cfg().vehicle.chassis so that `npm run terrain`
    can measure grade across the real wheelbase. Everything below is BEHAVIOUR,
@@ -157,6 +157,9 @@ export class Rover {
     this.wheels = built.wheels;
     this.lid = built.lid;
     this.wings = built.wings;
+    this.beaconPulse = built.beaconPulse;
+    this.signalPower = 1;
+    this.signalFast = false;
     this.wheelSpin = 0;
 
     let dragging = false, lx = 0, ly = 0;
@@ -435,6 +438,20 @@ export class Rover {
     }
     this.group.updateMatrixWorld(true);
 
+    /* A restrained doublet, closer to a spacecraft status beacon than an
+       automotive warning light. It accelerates only during transmission. */
+    if (this.beaconPulse) {
+      const period = this.signalFast ? 1.6 : 3.2;
+      const phase = ((performance.now() * 0.001) % period + period) % period;
+      const pulse = start => {
+        const x = phase - start;
+        if (x < 0 || x > 0.16) return 0;
+        return x < 0.018 ? x / 0.018 : Math.exp(-(x - 0.018) / 0.040);
+      };
+      this.beaconPulse.value = this.disabled ? 0
+        : this.signalPower * Math.max(pulse(0.00), pulse(0.17));
+    }
+
     /* Preserve compatibility with diagnostic tools that set `chase`
        directly, but keep the public view label truthful. */
     if (this.chase && this.viewMode === 'mast') this.viewMode = 'orbit';
@@ -569,6 +586,11 @@ export class Rover {
     this.transmitting = false;
     this.missionHold = false;
     this.auto = true;
+  }
+
+  setSignalState(charge = 1, transmitting = false) {
+    this.signalPower = charge < 0.30 ? Math.max(0, charge / 0.30) : 1;
+    this.signalFast = transmitting;
   }
 }
 
@@ -777,6 +799,10 @@ function buildRover() {
   const wheelRubber = paint([0.017, 0.017, 0.019], 0, 0.018, 12, 0.105, 0.140);
   const wheelMetal = paint([0.145, 0.151, 0.158], 0, 0.27, 44, 0.035, 0.080);
   const mark = paint(C.color.crimson, 0.85, 0.12, 34, 0.025, 0.015);
+  const beaconPulse = uniform(0.0);
+  const beaconGlow = new THREE.MeshBasicNodeMaterial();
+  beaconGlow.colorNode = vec4(
+    vec3(...C.color.crimson).mul(beaconPulse.mul(5.2).add(0.025)), 1.0);
 
   /* Photovoltaic glass gets a different response from painted metal: a deep
      blue angular shift, a tight solar glint and faint cell-scale crystalline
@@ -1164,6 +1190,26 @@ function buildRover() {
       xf([-0.23 + i * 0.066, deck + 0.44, LEN * 0.43]));
   chassis.add(transferTag(new THREE.Mesh(radiator.build(), dark), 'body', 0x242529));
 
+  /* Twin external survey drums and their diagonal load rails strengthen the
+     reference vehicle's expedition silhouette without touching the measured
+     wheel layout. They read as instruments, not a fictitious power source. */
+  const surveyDrums = transferTag(new THREE.Group(), 'signal', 0x697079, true);
+  surveyDrums.userData.designRole = 'survey-canisters';
+  for (const side of [-1, 1]) {
+    const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.125, 0.30, 18), armour);
+    drum.rotation.z = Math.PI / 2;
+    drum.position.set(side * W * 0.57, deck + 0.33, LEN * 0.28);
+    surveyDrums.add(drum);
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.095, 0.055, 18), dark);
+    cap.rotation.z = Math.PI / 2;
+    cap.position.set(side * W * 0.71, deck + 0.33, LEN * 0.28);
+    surveyDrums.add(cap);
+    surveyDrums.add(cylinderBetween(
+      [side * W * 0.46, deck + 0.18, LEN * 0.13],
+      [side * W * 0.56, deck + 0.44, LEN * 0.34], 0.016, metal, 8));
+  }
+  chassis.add(surveyDrums);
+
   /* deployable sampling arm, asymmetrical by function rather than ornament. */
   const arm = transferTag(new THREE.Group(), 'body', 0x9aa1a8, true);
   arm.userData.designRole = 'sample-arm';
@@ -1284,6 +1330,25 @@ function buildRover() {
   sensorBrow.position.set(0, deck + D.camY + 0.095, D.camZ - 0.105);
   chassis.add(transferTag(sensorBrow, 'signal', 0x697079, true));
 
+  /* Panoramic optical crown: a long, shallow visor is legible from the 28 m
+     gallery camera, while the three circular apertures retain the mast's
+     close-view precision. */
+  const crown = transferTag(new THREE.Group(), 'signal', 0x697079, true);
+  crown.userData.designRole = 'panoramic-optical-crown';
+  const crownShell = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.105, 0.19), armour);
+  crownShell.position.set(0, deck + D.camY + 0.035, D.camZ - 0.015);
+  crown.add(crownShell);
+  const visor = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.030, 0.075), dark);
+  visor.position.set(0, deck + D.camY + 0.095, D.camZ - 0.105);
+  crown.add(visor);
+  for (const x of [-0.255, 0, 0.255]) {
+    const optic = new THREE.Mesh(new THREE.CylinderGeometry(x ? 0.042 : 0.052, x ? 0.042 : 0.052, 0.045, 20), glass);
+    optic.rotation.x = Math.PI / 2;
+    optic.position.set(x, deck + D.camY + 0.030, D.camZ - 0.125);
+    crown.add(optic);
+  }
+  chassis.add(crown);
+
   /* short redundant comms whips: quiet silhouette, no unsupported dish-scale
      communication claim. */
   for (const x of [-0.38, 0.38]) {
@@ -1295,7 +1360,7 @@ function buildRover() {
 
   /* ── lamps: low slit housings in the nose, below the camera ────────── */
   const glow = new THREE.MeshBasicNodeMaterial();
-  glow.colorNode = vec4(vec3(...C.headlight.colour).mul(1.9), 1.0);
+  glow.colorNode = vec4(vec3(...C.headlight.colour).mul(uLampPower.mul(1.9).add(0.018)), 1.0);
   const canGeo = new THREE.BoxGeometry(0.18, 0.105, 0.10);
   const lensG = new THREE.PlaneGeometry(0.135, 0.024);
   for (const sgn of [-1, 1]) {
@@ -1310,6 +1375,25 @@ function buildRover() {
     }
   }
 
+  /* Single guarded status beacon, derived from the compact mast-top cylinders
+     in the references. No PointLight: bloom supplies the optical response and
+     the world keeps its one coherent lighting model. */
+  const beaconRig = transferTag(new THREE.Group(), 'signal', 0xc0152a, true);
+  beaconRig.userData.designRole = 'communications-beacon';
+  const beaconBase = new THREE.Mesh(new THREE.CylinderGeometry(0.060, 0.078, 0.065, 16), dark);
+  beaconBase.position.set(W * 0.34, deck + 0.245, LEN * 0.31);
+  beaconRig.add(beaconBase);
+  const beaconLens = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.048, 0.115, 18), beaconGlow);
+  beaconLens.position.set(W * 0.34, deck + 0.330, LEN * 0.31);
+  beaconRig.add(beaconLens);
+  for (const y of [deck + 0.275, deck + 0.385]) {
+    const guard = new THREE.Mesh(new THREE.TorusGeometry(0.060, 0.010, 6, 20), metal);
+    guard.rotation.x = Math.PI / 2;
+    guard.position.set(W * 0.34, y, LEN * 0.31);
+    beaconRig.add(guard);
+  }
+  chassis.add(beaconRig);
+
   /* identity mark — the only crimson on the machine */
   const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.045, 0.34), mark);
   stripe.position.set(-W * 0.42, deck + 0.02, -0.26);
@@ -1322,7 +1406,7 @@ function buildRover() {
   chassis.add(head);
 
   group.frustumCulled = false;
-  return { group, chassis, head, wheels, lid, wings };
+  return { group, chassis, head, wheels, lid, wings, beaconPulse };
 }
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
