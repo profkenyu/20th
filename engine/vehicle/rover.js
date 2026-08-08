@@ -111,6 +111,30 @@ const VIEW_PRESET = {
   front: { yaw: Math.PI, pitch: 0.16, dist: 6.6 },
 };
 
+/* Exact 1-axis optimum for the same panel normal used by Power.update().
+   The incidence is A·sin(a)+B·cos(a), with a=chassis pitch-lid angle;
+   evaluating its analytic maximum and the two hinge limits avoids a guessed
+   sun-tracking angle while keeping the visible hinge and power budget one. */
+function automaticLidTarget(pitch, roll, heading, maxLid) {
+  const sun = cfg().sun;
+  const fx = -Math.sin(heading), fz = -Math.cos(heading);
+  const sx = fz, sz = -fx;
+  const cr = Math.cos(roll), sr = Math.sin(roll);
+  const A = -cr * (fx * sun[0] + fz * sun[2]);
+  const B = -sr * (sx * sun[0] + sz * sun[2]) + cr * sun[1];
+  const lo = pitch - maxLid, hi = pitch;
+  let bestA = lo, bestDot = A * Math.sin(lo) + B * Math.cos(lo);
+  const test = a => {
+    if (a < lo || a > hi) return;
+    const value = A * Math.sin(a) + B * Math.cos(a);
+    if (value > bestDot) { bestDot = value; bestA = a; }
+  };
+  test(hi);
+  const optimum = Math.atan2(A, B);
+  for (let turn = -2; turn <= 2; turn++) test(optimum + turn * Math.PI * 2);
+  return clamp(pitch - bestA, 0, maxLid);
+}
+
 
 export class Rover {
   constructor(camera, dom, heightAt) {
@@ -147,6 +171,11 @@ export class Rover {
        the route back to the autonomous mission. */
     this.auto = true;
     this.missionHold = false;       // long autonomous survey pauses
+    this.mobileMode = false;
+    this.mobileSteer = 0;
+    this.operatorHold = false;
+    this.arrayAuto = false;
+    this.beaconLevel = 0;
     this.keys = new Set();
     this.settled = false;
 
@@ -193,7 +222,7 @@ export class Rover {
       if (e.code === 'Space') { this.auto = !this.auto; e.preventDefault(); }
       if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) this.auto = false;
       if (e.code === 'KeyC' && !this.transmitting) this.cycleViewMode();
-      if (e.code === 'KeyL' && !this.disabled) this.lamps = !this.lamps;
+      if (e.code === 'KeyL' && !this.mobileMode && !this.disabled) this.lamps = !this.lamps;
       this.keys.add(e.code);
     });
     addEventListener('keyup', e => this.keys.delete(e.code));
@@ -267,6 +296,11 @@ export class Rover {
     if (k.has('KeyA') || k.has('ArrowLeft')) steer += 1;
     if (k.has('KeyD') || k.has('ArrowRight')) steer -= 1;
     if (this.auto && throttle === 0 && !this.missionHold) throttle = 1;
+    if (this.mobileMode) {
+      this.auto = true;
+      steer = this.operatorHold || this.missionHold ? 0 : this.mobileSteer;
+      if (this.operatorHold) throttle = 0;
+    }
     let boosting = k.has('ShiftLeft') || k.has('ShiftRight');
 
     /* A dead probe is not a slowed probe. No drive, no steering, no lamps —
@@ -281,8 +315,16 @@ export class Rover {
        edge aims the array forward — a probe driving toward the sun can catch
        it, and one driving away cannot. */
     if (!this.disabled && !this.transmitting) {
-      const lidIn = (k.has('BracketRight') ? 1 : 0) - (k.has('BracketLeft') ? 1 : 0);
-      if (lidIn) this.lidTilt = clamp(this.lidTilt + lidIn * D.lidRate * dt, 0, D.lidMax);
+      if (this.arrayAuto) {
+        const targetLid = automaticLidTarget(this.pitch, this.roll, this.heading, D.lidMax);
+        const error = targetLid - this.lidTilt;
+        if (Math.abs(error) > Math.PI / 90) {
+          this.lidTilt += clamp(error, -D.lidRate * dt, D.lidRate * dt);
+        }
+      } else {
+        const lidIn = (k.has('BracketRight') ? 1 : 0) - (k.has('BracketLeft') ? 1 : 0);
+        if (lidIn) this.lidTilt = clamp(this.lidTilt + lidIn * D.lidRate * dt, 0, D.lidMax);
+      }
     }
     if (this.lid) this.lid.rotation.x = -this.lidTilt;
     /* The panels are not decorative wings: they fold upward as the charging
@@ -448,8 +490,9 @@ export class Rover {
         if (x < 0 || x > 0.16) return 0;
         return x < 0.018 ? x / 0.018 : Math.exp(-(x - 0.018) / 0.040);
       };
-      this.beaconPulse.value = this.disabled ? 0
+      this.beaconLevel = this.disabled ? 0
         : this.signalPower * Math.max(pulse(0.00), pulse(0.17));
+      this.beaconPulse.value = this.beaconLevel;
     }
 
     /* Preserve compatibility with diagnostic tools that set `chase`
@@ -586,11 +629,25 @@ export class Rover {
     this.transmitting = false;
     this.missionHold = false;
     this.auto = true;
+    this.mobileSteer = 0;
+    this.operatorHold = false;
   }
 
   setSignalState(charge = 1, transmitting = false) {
     this.signalPower = charge < 0.30 ? Math.max(0, charge / 0.30) : 1;
     this.signalFast = transmitting;
+    if (this.mobileMode && !transmitting && !this.disabled) {
+      if (charge <= 0.10) this.lamps = false;
+      else if (charge >= 0.14) this.lamps = true;
+    }
+  }
+
+  setMobileMode(active) {
+    this.mobileMode = !!active;
+    this.arrayAuto = this.mobileMode;
+    this.mobileSteer = 0;
+    this.operatorHold = false;
+    if (this.mobileMode && !this.disabled) this.lamps = true;
   }
 }
 
@@ -802,7 +859,7 @@ function buildRover() {
   const beaconPulse = uniform(0.0);
   const beaconGlow = new THREE.MeshBasicNodeMaterial();
   beaconGlow.colorNode = vec4(
-    vec3(...C.color.crimson).mul(beaconPulse.mul(5.2).add(0.025)), 1.0);
+    vec3(...C.color.beacon).mul(beaconPulse.mul(4.4).add(0.018)), 1.0);
 
   /* Photovoltaic glass gets a different response from painted metal: a deep
      blue angular shift, a tight solar glint and faint cell-scale crystalline
@@ -1378,7 +1435,7 @@ function buildRover() {
   /* Single guarded status beacon, derived from the compact mast-top cylinders
      in the references. No PointLight: bloom supplies the optical response and
      the world keeps its one coherent lighting model. */
-  const beaconRig = transferTag(new THREE.Group(), 'signal', 0xc0152a, true);
+  const beaconRig = transferTag(new THREE.Group(), 'signal', 0xffb21c, true);
   beaconRig.userData.designRole = 'communications-beacon';
   const beaconBase = new THREE.Mesh(new THREE.CylinderGeometry(0.060, 0.078, 0.065, 16), dark);
   beaconBase.position.set(W * 0.34, deck + 0.245, LEN * 0.31);

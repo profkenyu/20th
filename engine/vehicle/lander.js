@@ -373,7 +373,7 @@ export class Lander {
 
     const beaconMat = new THREE.MeshBasicNodeMaterial();
     beaconMat.colorNode = vec4(
-      vec3(...C.color.crimson).mul(this.beacon.mul(5.0).add(0.025)), 1.0);
+      vec3(...C.color.beacon).mul(this.beacon.mul(4.2).add(0.018)), 1.0);
 
     /* ── descent/service stage ────────────────────────────────────────
        The octagonal keel establishes the same hard-edged language as the

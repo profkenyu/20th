@@ -18,11 +18,12 @@
  *     Phase 2 keeping crisp, for a second full-screen pass.
  *
  * FOCUS
- *   The focal plane tracks the mass. Focus distance is the walker's own
- *   radial coordinate, clamped: far out, the pit is sharp and the near field
- *   is soft; at the barrier, focus has pulled in to 74 m. The camera is
- *   looking at the thing the geometry is about, and it does so without
- *   anyone animating it.
+ *   Depth of field consumes camera-space distance, never the vehicle's radial
+ *   coordinate in the world. The work supplies the current camera-to-subject
+ *   distance each frame; scripted two-subject shots may instead focus their
+ *   shared aim point. Confusing those two distances once put a 600 m focal
+ *   plane behind a rover only 29 m from the lens, defocusing the entire image
+ *   and feeding that energy into bloom.
  */
 
 import * as THREE from 'three';
@@ -51,9 +52,9 @@ export class Lens {
     this.scenePass = scenePass;
   }
 
-  /** Focus follows the observer's radial coordinate. */
-  focusAt(r) {
-    this.uFocus.value = Math.min(cfg().post.focusMax, Math.max(cfg().post.focusMin, r));
+  /** Camera-space distance to the current subject, in metres. */
+  focusAt(distance) {
+    this.uFocus.value = Math.min(cfg().post.focusMax, Math.max(cfg().post.focusMin, distance));
   }
 
   /* renderAsync() deprecated r181 — renderer.init() is already awaited */

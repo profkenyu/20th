@@ -22,6 +22,8 @@ WebGPU를 지원하는 최신 브라우저와 GPU가 필요하다. 전시 전에
 | `L` | 로버 램프 |
 | `H` | HUD 고정 / gallery mode 복귀 |
 
+모바일에서는 자동주행이 기본이다. 시작 시 기울기 센서를 활성화하면 기기를 좌우로 기울여 조향할 수 있으며, 하단 버튼으로 주행을 멈추거나 재개한다. 태양광 패널과 전조등은 자동으로 관리된다.
+
 ## 개발과 빌드
 
 ```bash
@@ -29,7 +31,7 @@ npm install
 npm run dev
 ```
 
-서버가 시작되면 `http://localhost:5173/dev.html`을 연다. 루트 `dev.html`은 실제 작품 소스인 `works/terra_incognita/`를 불러오는 개발 진입점이다.
+서버가 시작되면 `http://localhost:5173/works/terra_incognita/dev.html`을 연다. 루트 `dev.html`도 이 개발 진입점으로 자동 이동한다.
 
 ```bash
 npm run build      # index.html 및 dist/TERRA_INCOGNITA.html 생성

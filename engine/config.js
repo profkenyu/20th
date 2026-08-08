@@ -228,6 +228,7 @@ export function defaults(tier = deviceTier()) {
       dust:    [0.0880, 0.0940, 0.1050],
       fil:     [0.0340, 0.0370, 0.0430],
       crimson: [0.5400, 0.0070, 0.0230],
+      beacon:  [1.0000, 0.3400, 0.0150],
     },
 
     post: { bloomStrength: 0.72, bloomRadius: 0.85, bloomThreshold: 0.16,

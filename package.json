@@ -11,8 +11,7 @@
     "smoke": "node tools/smoke.mjs",
     "harness": "node tools/harness.mjs",
     "terrain": "node tools/terrain.mjs",
-    "verify": "node tools/verify.mjs",
-    "report": "node tools/report.mjs"
+    "verify": "node tools/verify.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.25.12",

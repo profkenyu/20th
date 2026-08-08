@@ -57,6 +57,7 @@ export { Captions } from './core/captions.js';
 export { Kiosk } from './core/kiosk.js';
 export { Ambient } from './core/ambient.js';
 export { PlanetTransfer } from './core/transfer.js';
+export { MobileControl } from './core/mobile-control.js';
 
 export { Power } from './vehicle/power.js';
 export { Rover } from './vehicle/rover.js';

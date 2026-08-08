@@ -16,7 +16,7 @@ import {
   configure, deviceTier, universeSeed, DEV,
   Clipmap, Field, Scatter, Wake, Dust, Sandstorm, ResolutionTransferFX, Beam, buildSky,
   createRenderer, describeAdapter, unsupported, fatal, enableTimestamps, captureDeviceErrors,
-  Lens, Adaptive, Hud, Captions, Kiosk, Ambient, PlanetTransfer, Rover, Lander, Power,
+  Lens, Adaptive, Hud, Captions, Kiosk, Ambient, PlanetTransfer, MobileControl, Rover, Lander, Power,
   uObserverR, nuRatioCPU, uLampPower,
 } from '../../engine/index.js';
 import { T, BH } from './spec.js';
@@ -50,6 +50,11 @@ const CFG = configure({
   /* Exponential fog previously reached 50% at 42.0 m. At this density the
      half-distance is 86.6 m, so the plain remains legible beyond 60 m. */
   atmosphere: { fogDensity: 0.0080 },
+  /* Full-colour optics retain a restrained halo around true signals while
+     preserving the rover's facets and the terrain's crimson bands. Archive
+     mode bypasses Lens entirely, so this has no low-tier cost. */
+  post: { bloomStrength: 0.035, bloomRadius: 0.34, bloomThreshold: 1.20,
+          focusMin: 2.0, focusMax: 90, focalLength: 0.16, bokeh: 1.15 },
   kiosk: { idleMs: 240000 },
   audio: { droneEmitR: BH.rs * 1.01 },
 });
@@ -176,6 +181,11 @@ const TRANSFER_CAMERA = Object.freeze({
   front: Object.freeze({ yaw: Math.PI, pitch: 0.18, dist: 7.8 }),
   rear: Object.freeze({ yaw: 0.05, pitch: 0.30, dist: 28.5 }),
 });
+const OPENING_CAMERA_MS = 6000;
+const openingCam = {
+  midpoint: new THREE.Vector3(), position: new THREE.Vector3(), aim: new THREE.Vector3(),
+  rearPosition: new THREE.Vector3(), rearQuaternion: new THREE.Quaternion(),
+};
 
 const ROWS = [
   ['Instrument', [['backend', 'Backend'], ['vendor', 'Vendor'], ['tier', 'Tier'], ['mode', 'Render mode'], ['limits', 'Limits']]],
@@ -240,14 +250,16 @@ captureDeviceErrors(renderer, err => { running = false; fatal(err, 'gpu'); });
    that got past the adapter gate. Inside a top-level-await module that throw
    is an unhandled rejection, so the only symptom was a black screen.
    Declarations are hoisted; initialisations are not. */
-let scene, hud, captions, ambient, kiosk, ground, field, wake, dust, storm, transferFx, scatter, beam, sky, landmark, rover, lander, power, lens, adaptive, minimap, optics, survey, transmission;
+let scene, hud, captions, ambient, kiosk, ground, field, wake, dust, storm, transferFx, scatter, beam, sky, landmark, rover, lander, power, lens, adaptive, minimap, optics, survey, transmission, mobileControl;
 let world = 'terra';
 let archiveMode = false, lastArchiveFrame = 0, archiveCueTimer = 0;
 let arrivalHoldUntil = 0;
 let departureOrbit = null, arrivalOrbit = null;
+let openingShot = null;
 let nextAutoPauseAt = 0, autoPauseUntil = 0;
 let released = false;      // the prologue has let go of the rover
 let running = false, hasTimestamp = false;
+let rafId = 0;
 let tPrev = 0, tStamp = 0, tProbe = 0, frames = 0, acc = 0;
 const rc = { ground: 0, field: 0, scatter: 0 };
 const planetMemory = new Map();
@@ -278,6 +290,7 @@ landmark = new THREE.Mesh(
 landmark.rotation.set(0.10, 0.42, -0.035);
 landmark.visible = false;
 rover = new Rover(camera, canvas, heightCPU);
+mobileControl = new MobileControl(rover);
 lander = new Lander(heightCPU);
 transferFx = new ResolutionTransferFX(rover.group);
 power = new Power(heightCPU, solarAccessCPU);
@@ -289,6 +302,8 @@ survey = new Survey(heightCPU, TERRA_SURVEY);
 transmission = new PlanetTransfer({
   minimap, survey, effect: transferFx, ambient, orientMs: TRANSFER_CAMERA.departMs,
   onBegin: reason => {
+    openingShot = null;
+    camera.fov = CFG.atmosphere.fov; camera.updateProjectionMatrix();
     rover.auto = false; rover.transmitting = true; rover.disabled = reason === 'power';
     beginDepartureOrbit();
     rover.update(0);
@@ -333,6 +348,12 @@ addEventListener('keydown', e => {
     for (const m of scatter.meshes) m.visible = !on;
   }
 });
+canvas.addEventListener('pointerdown', () => {
+  if (!released) return;
+  openingShot = null;
+  camera.fov = CFG.atmosphere.fov;
+  camera.updateProjectionMatrix();
+}, { passive: true });
 
 const a = await describeAdapter();
 hud.set('backend', 'WebGPU');
@@ -364,6 +385,7 @@ lander.place(BH.start[0], BH.start[1], START_HEADING, true);
    autonomous route; keyboard driving is the operator's manual override. */
 rover.auto = false;
 rover.setViewMode('rear');
+transmission.trigger.disabled = true;
 uObserverR.value = Math.hypot(...BH.start);
 ground.syncTo(rover.pos.x, rover.pos.z);
 try { await rebuild(); }
@@ -380,7 +402,7 @@ window.TI_CAMERA = () => ({
   mode: rover.viewMode, yaw: rover.orbitYaw, pitch: rover.orbitPitch,
   distance: rover.orbitDist, cue: arrivalOrbit ? 'arrival' : departureOrbit ? 'departure' : 'none',
 });
-requestAnimationFrame(loop);
+queueLoop();
 
 /* ── releasing the prologue ────────────────────────────────────────────────
    One gate, whether it opens on its own or because the visitor pressed
@@ -405,24 +427,37 @@ function releasePrologue() {
   document.body.classList.add('ti-prologue-out');
   rover.auto = true;
   rover.setViewMode('rear');
-  nextAutoPauseAt = performance.now() + 32000;
-  kiosk.last = performance.now();   // the idle clock starts when the drive does
+  if (!transmission.active && !arrivalHoldUntil) transmission.trigger.disabled = false;
+  const mobileStart = document.getElementById('ti-mobile-start');
+  if (mobileStart) mobileStart.disabled = true;
+  const now = performance.now();
+  openingShot = { t0: now };
+  lander.purge?.reset(now);
+  nextAutoPauseAt = now + 32000;
+  kiosk.last = now;   // the idle clock starts when the drive does
   removeEventListener('keydown', releasePrologue);
   removeEventListener('pointerdown', releasePrologue);
   if (archiveMode) showArchiveCue();
 }
 
+mobileControl.bindStart(releasePrologue);
+
+function armPrologue() {
+  if (released) return;
+  document.getElementById('ti-prologue')?.classList.add('armed');
+  const mobileStart = document.getElementById('ti-mobile-start');
+  if (mobileStart) mobileStart.disabled = false;
+  addEventListener('keydown', releasePrologue);
+  addEventListener('pointerdown', releasePrologue);
+}
+
 if (location.search.includes('embed')) {
   released = true;
   rover.auto = true;
+  transmission.trigger.disabled = false;
 } else {
   setTimeout(releasePrologue, PROLOGUE_MS);
-  setTimeout(() => {
-    if (released) return;
-    document.getElementById('ti-prologue')?.classList.add('armed');
-    addEventListener('keydown', releasePrologue);
-    addEventListener('pointerdown', releasePrologue);
-  }, ARM_MS);
+  setTimeout(armPrologue, ARM_MS);
 }
 
 const resume = () => {
@@ -430,12 +465,18 @@ const resume = () => {
     document.body.classList.add('ti-terminal');
     adaptive.lockAt(0.58);
   }
-  if (!running) { running = true; tPrev = performance.now(); requestAnimationFrame(loop); }
+  if (!running) { running = true; tPrev = performance.now(); }
+  queueLoop();
+  mobileControl?.recalibrate();
+};
+const pause = () => {
+  running = false;
+  if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
 };
 addEventListener('pageshow', resume);
-addEventListener('pagehide', () => { running = false; });
+addEventListener('pagehide', pause);
 document.addEventListener('visibilitychange', () =>
-  document.visibilityState === 'visible' ? resume() : (running = false));
+  document.visibilityState === 'visible' ? resume() : pause());
 
 /* ── rebuild order matters: the scatter samples both of the others ────── */
 async function rebuild() {
@@ -446,18 +487,23 @@ async function rebuild() {
 }
 
 async function loop(now = performance.now()) {
+  rafId = 0;
   if (!running) return;
   /* Terminal cadence is intentionally 30 Hz. Input events still arrive at the
      browser's native rate, while simulation, compute and raster work happen
      once per archival frame. */
   if (archiveMode && now - lastArchiveFrame < 30) {
-    requestAnimationFrame(loop);
+    queueLoop();
     return;
   }
   lastArchiveFrame = now;
   try { await frame(); }
   catch (e) { running = false; fatal(e, 'frame'); return; }
-  requestAnimationFrame(loop);
+  queueLoop();
+}
+
+function queueLoop() {
+  if (running && !rafId) rafId = requestAnimationFrame(loop);
 }
 
 async function frame() {
@@ -507,7 +553,13 @@ async function frame() {
     rover.missionHold = arrivalWaiting;
   }
 
+  mobileControl.update(now, dt, {
+    released,
+    blocked: transmission.active || arrivalWaiting,
+    missionHold: rover.missionHold,
+  });
   const v = rover.update(dt);
+  updateOpeningCamera(now);
   optics.update(now, v, camera);
   minimap.update(v, now, power.charge, !transmission.active);
   uObserverR.value = PLANETS[world].metric ? v.radius : 1e7;
@@ -530,7 +582,11 @@ async function frame() {
   await transmission.update(now);
 
   sky.position.copy(camera.position);
-  if (lens) { lens.focusAt(v.radius); lens.render(); }
+  if (lens) {
+    const focusTarget = openingShot ? openingCam.aim : rover.group.position;
+    lens.focusAt(camera.position.distanceTo(focusTarget));
+    lens.render();
+  }
   else renderer.render(scene, camera);
 
   if (!transmission.active) await kiosk.update(now, returnToStart);
@@ -539,6 +595,7 @@ async function frame() {
   /* ── the second clock ─────────────────────────────────────────────── */
   const pw = power.update(dt, { ...v, radius: PLANETS[world].metric ? v.radius : 1e7, lamps: rover.lamps });
   rover.setSignalState(pw.charge, transmission.active || arrivalWaiting);
+  mobileControl.syncSignal();
   if (!transmission.active) survey.update(v, now, pw.charge);
 
   if (!transmission.active && !arrivalWaiting) {
@@ -549,7 +606,7 @@ async function frame() {
   rover.transmitting = transmission.active || arrivalHoldUntil > now;
   /* switch × supply. The ground, the filaments and the airborne dust all read
      the same uniform, so a jolt dims the whole lit world at once. */
-  uLampPower.value = rover.lamps ? pw.bus * transmission.light : 0;
+  uLampPower.value = rover.lamps ? pw.bus * transmission.light * openingLampGain(now) : 0;
   ambient.setPower((pw.dead ? 0 : pw.charge) * transmission.audio);
 
   const q = ambient.update(v.radius);
@@ -650,6 +707,74 @@ function activateArchive(reason = 'device', announce = true) {
 function orbitEase(p) {
   const t = Math.max(0, Math.min(1, p));
   return t * t * t * (t * (t * 6 - 15) + 10);
+}
+
+function updateOpeningCamera(now) {
+  if (!openingShot || world !== 'terra' || !lander.group.visible || transmission.active) return;
+  if (rover.viewMode !== 'rear') {
+    openingShot = null;
+    camera.fov = CFG.atmosphere.fov;
+    camera.updateProjectionMatrix();
+    return;
+  }
+  const p = Math.max(0, Math.min(1, (now - openingShot.t0) / OPENING_CAMERA_MS));
+  if (p >= 1) {
+    openingShot = null;
+    camera.fov = CFG.atmosphere.fov;
+    camera.updateProjectionMatrix();
+    return;
+  }
+
+  /* Rover.update() has already produced the live rear-follow camera. Preserve
+     it as the destination, then override the eye with a low oblique view that
+     stacks the rover in the foreground and the habitat behind it. Aligning
+     mostly along their connecting axis keeps both masses inside a portrait
+     phone without reducing the habitat to a distant thumbnail. */
+  openingCam.rearPosition.copy(camera.position);
+  openingCam.rearQuaternion.copy(camera.quaternion);
+  const l = lander.group.position, r = rover.group.position;
+  let ux = r.x - l.x, uz = r.z - l.z;
+  const length = Math.hypot(ux, uz) || 1;
+  ux /= length; uz /= length;
+  const sx = -uz, sz = ux;
+  openingCam.midpoint.set(
+    l.x * 0.52 + r.x * 0.48,
+    l.y + 2.85,
+    l.z * 0.52 + r.z * 0.48,
+  );
+  /* A wide screen can hold the two machines in profile at nearly equal
+     camera distance, making their scale ratio explicit. A portrait phone
+     cannot: there the view folds them into depth so neither leaves frame. */
+  const portrait = camera.aspect < 0.80;
+  const along = portrait ? -31.0 : 0.0;
+  const lateral = portrait ? 20.0 : 22.0;
+  const cx = openingCam.midpoint.x + ux * along + sx * lateral;
+  const cz = openingCam.midpoint.z + uz * along + sz * lateral;
+  const cy = Math.max(l.y + 8.2, heightCPU(cx, cz) + 3.0);
+  openingCam.position.set(cx, cy, cz);
+  openingCam.aim.set(
+    l.x * (portrait ? 0.55 : 0.50) + r.x * (portrait ? 0.45 : 0.50),
+    Math.max(l.y + 2.95, rover.deckY + 0.75),
+    l.z * (portrait ? 0.55 : 0.50) + r.z * (portrait ? 0.45 : 0.50),
+  );
+  camera.position.copy(openingCam.position);
+  camera.up.set(0, 1, 0);
+  camera.lookAt(openingCam.aim);
+
+  /* Hold the scale image, then hand it to the already-running rear camera.
+     Position and orientation share the same quintic easing, so there is no
+     visible hinge at the edit. */
+  const blend = orbitEase(Math.max(0, (p - 0.60) / 0.40));
+  camera.fov = 52 + (CFG.atmosphere.fov - 52) * blend;
+  camera.updateProjectionMatrix();
+  camera.position.lerp(openingCam.rearPosition, blend);
+  camera.quaternion.slerp(openingCam.rearQuaternion, blend);
+}
+
+function openingLampGain(now) {
+  if (!openingShot) return 1;
+  const p = Math.max(0, Math.min(1, (now - openingShot.t0) / OPENING_CAMERA_MS));
+  return 0.015 + 0.985 * orbitEase(Math.max(0, (p - 0.55) / 0.45));
 }
 
 function beginDepartureOrbit() {
@@ -778,11 +903,13 @@ async function enterPlanet(reason, snapshot, destination) {
   if (!off('wake')) await wake.clear(renderer);
   await rebuild();
   storm.setActive(planet.storm, { x: rover.pos.x, z: rover.pos.z });
-  lens?.focusAt(planet.metric ? uObserverR.value : Math.hypot(...start));
+  lens?.focusAt(camera.position.distanceTo(rover.group.position));
 }
 
 async function returnToStart() {
   arrivalHoldUntil = 0; departureOrbit = null; arrivalOrbit = null;
+  openingShot = null;
+  camera.fov = CFG.atmosphere.fov; camera.updateProjectionMatrix();
   nextAutoPauseAt = 0; autoPauseUntil = 0;
   planetMemory.clear();
   world = 'terra'; window.TI_WORLD = world; setWorldMode('terra');
@@ -802,14 +929,12 @@ async function returnToStart() {
     released = false;
     document.body.classList.remove('ti-prologue-out');
     document.getElementById('ti-prologue')?.classList.remove('armed');
+    const mobileStart = document.getElementById('ti-mobile-start');
+    if (mobileStart) mobileStart.disabled = true;
+    transmission.trigger.disabled = true;
     rover.auto = false;
     setTimeout(releasePrologue, PROLOGUE_MS);
-    setTimeout(() => {
-      if (released) return;
-      document.getElementById('ti-prologue')?.classList.add('armed');
-      addEventListener('keydown', releasePrologue);
-      addEventListener('pointerdown', releasePrologue);
-    }, ARM_MS);
+    setTimeout(armPrologue, ARM_MS);
   }
   dust?.clear();
   power.reset();
@@ -818,6 +943,7 @@ async function returnToStart() {
   rover.lamps = true;
   rover.lidTilt = 0;
   rover.reset(BH.start[0], BH.start[1], START_HEADING);
+  mobileControl.reset();
   lander.place(BH.start[0], BH.start[1], START_HEADING, true);
   rover.auto = location.search.includes('embed');
   rover.setViewMode('rear');
@@ -828,7 +954,7 @@ async function returnToStart() {
   ground.syncTo(rover.pos.x, rover.pos.z);
   if (!off('wake')) await wake.clear(renderer);
   await rebuild();
-  lens?.focusAt(uObserverR.value);
+  lens?.focusAt(camera.position.distanceTo(rover.group.position));
 }
 
 function regionOf(r) {

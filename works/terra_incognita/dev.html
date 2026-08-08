@@ -94,8 +94,37 @@
     font-family:'DM Mono',ui-monospace,monospace;font-size:9px;letter-spacing:.22em;
     color:#33373d;text-transform:uppercase;opacity:0;transition:opacity 1.4s ease}
   #ti-prologue.armed .skip{opacity:1}
+  #ti-prologue #ti-mobile-start{display:none;border:1px solid rgba(217,221,226,.42);background:rgba(5,5,6,.88);
+    min-width:220px;min-height:48px;padding:0 18px;align-items:center;justify-content:center;
+    font:700 9px/1.4 'DM Mono',ui-monospace,monospace;letter-spacing:.18em;color:#f0f1f2;
+    appearance:none;-webkit-appearance:none;touch-action:manipulation}
+  #ti-prologue #ti-mobile-start:disabled{color:#4b5057;border-color:rgba(217,221,226,.16)}
+  #ti-prologue.armed #ti-mobile-start{pointer-events:auto}
   body.ti-prologue-out #ti-prologue{opacity:0;visibility:hidden}
   body.embed #ti-prologue{display:none}
+
+  /* Autonomous mobile driving: orientation bends the route, while the single
+     large control only pauses or resumes it. The signal dot is driven by the
+     rover's physical beacon uniform, never by an unrelated CSS animation. */
+  #ti-mobile-drive{display:none;position:fixed;z-index:33;left:50%;
+    bottom:calc(var(--bar) + max(12px,env(safe-area-inset-bottom)));transform:translateX(-50%);
+    width:min(330px,calc(100vw - max(28px,env(safe-area-inset-left)) - max(28px,env(safe-area-inset-right))));
+    grid-template-columns:minmax(0,1fr) 140px;gap:6px;padding:5px;
+    border:1px solid rgba(217,221,226,.15);background:rgba(2,3,4,.80);
+    backdrop-filter:blur(8px);font-family:'DM Mono',ui-monospace,monospace}
+  #ti-mobile-drive button{min-height:48px;border:0;margin:0;padding:7px 10px;appearance:none;
+    -webkit-appearance:none;background:rgba(10,11,13,.76);color:#a4abb4;text-align:left;
+    font:700 8px/1.45 'DM Mono',ui-monospace,monospace;letter-spacing:.10em;text-transform:uppercase;
+    touch-action:none;border-radius:0}
+  #ti-mobile-drive button:disabled{opacity:.48}
+  #ti-mobile-tilt{position:relative;padding-left:25px!important}
+  #ti-mobile-signal{position:absolute;left:10px;top:50%;width:7px;height:7px;margin-top:-3.5px;
+    border-radius:50%;background:#ffb21c;box-shadow:0 0 8px rgba(255,178,28,.48);
+    opacity:.18;transform:scale(.88);transform-origin:center}
+  #ti-mobile-toggle{border-left:1px solid rgba(192,21,42,.45)!important;text-align:center!important}
+  #ti-mobile-toggle[aria-pressed="true"]{border-color:rgba(217,221,226,.72)!important;background:rgba(23,24,27,.88)}
+  #ti-mobile-state{display:block;color:#f0f1f2;font:700 9px/1.4 'Space Mono',ui-monospace,monospace;letter-spacing:.15em}
+  #ti-mobile-hint{display:block;margin-top:3px;color:#666d76;font-size:7px;font-weight:400;letter-spacing:.06em}
 
   #fh-watchdog{
     position:fixed;inset:0;z-index:60;display:none;background:#050506;
@@ -111,10 +140,14 @@
   @media (max-width:760px){
     #universe-id{right:max(14px,env(safe-area-inset-right));bottom:calc(var(--bar) + max(14px,env(safe-area-inset-bottom)))}
     #ti-minimap{right:max(14px,env(safe-area-inset-right));transform:scale(.82);transform-origin:top right}
+    #ti-terminal-cue{left:max(14px,env(safe-area-inset-left));right:auto;width:min(46vw,180px);text-align:left}
   }
   @media (pointer:coarse), (max-width:760px){
-    .desktop-controls{display:none}.mobile-controls{display:inline}
     #ti-prologue .controls{bottom:calc(var(--bar) + max(18px,env(safe-area-inset-bottom)));font-size:8px}
+    body.ti-mobile .desktop-controls{display:none}body.ti-mobile .mobile-controls{display:inline}
+    body.ti-mobile #ti-mobile-start{display:inline-flex}
+    body.ti-mobile #ti-prologue .desktop-start{display:none}
+    body.ti-mobile.ti-prologue-out #ti-mobile-drive,body.ti-mobile.embed #ti-mobile-drive{display:grid}
   }
   @media (prefers-reduced-motion:reduce){#ti-terminal-screen{animation:none!important}}
 </style>
@@ -128,6 +161,14 @@
 <div id="survey-log" aria-live="polite"></div>
 <div class="bar t"></div>
 <div class="bar b"></div>
+<div id="ti-mobile-drive" aria-label="모바일 로버 조작">
+  <button id="ti-mobile-tilt" type="button" aria-pressed="false">
+    <i id="ti-mobile-signal" aria-hidden="true"></i><span id="ti-mobile-sensor">ENABLE TILT · 기울기 조향</span>
+  </button>
+  <button id="ti-mobile-toggle" type="button" aria-pressed="false">
+    <strong id="ti-mobile-state">STANDBY</strong><small id="ti-mobile-hint">자동 탐사 대기</small>
+  </button>
+</div>
 
 <div id="fh-watchdog">
   <h1>MODULE DID NOT START</h1>
@@ -146,15 +187,17 @@
   <div class="inner">
     <h1>Terra Incognita</h1>
     <div class="rule"></div>
-    <p class="ko">불확실한 항해 도중 우리는 한 번도 탐사된 적 없는 행성에 착륙한다.
-      지도도 없고 사전 지식도 없다. 무인 로버가 홀로 임무를 시작한다.
-      오직 햇빛만으로 움직이며 지형을 측량, 중력을 측정, 방사선을 감지, 대기를 분석한다.
-      마지막 전력이 사그라들기 전까지, 알아낼 수 있는 정보를 수집한다.</p>
-    <p class="en">During an uncertain voyage, we land on a planet never explored before. There are no maps and no prior knowledge. An unmanned rover begins its mission alone. Powered only by sunlight, it surveys the terrain, measures gravity, detects radiation, and analyzes the atmosphere. Before its last power fades, it gathers whatever information it can.</p>
-    <span class="mission">Autonomous Survey · Sol 01<span id="ti-terminal-state">Archival Terminal · Low Bandwidth</span></span>
-    <span class="skip">아무 키나 눌러 시작</span>
+    <p class="ko">지도 이전의 표면에 착륙선이 내려앉는다.
+      그 안에서 한 대의 무인 로버가 깨어나고, 착륙선은 최초의 좌표로 남는다.
+      로버는 햇빛을 전력으로 바꾸어 지형과 중력, 방사선과 미량 대기를 기록한다.
+      전력이 끝나기 전, 탐사의 기억은 다음 행성의 몸체로 전송된다.
+      한 행성의 마지막 좌표가 다른 행성의 첫 신호가 된다.</p>
+    <p class="en">Before there is a map, a lander settles onto an unknown surface. An unmanned rover wakes within it, while the lander remains as the first coordinate. Converting sunlight into motion, the rover records terrain, gravity, radiation, and atmospheric trace. Before power is exhausted, its survey memory is transmitted to a body waiting on the next world. The final coordinate of one planet becomes the first signal of another.</p>
+    <span class="mission">Autonomous Survey · Memory Relay 01<span id="ti-terminal-state">Archival Terminal · Low Bandwidth</span></span>
+    <span class="skip desktop-start">아무 키나 눌러 탐사 시작 · Press any key to begin</span>
+    <button id="ti-mobile-start" class="skip" type="button" disabled>탐사 시작 · ENABLE TILT</button>
   </div>
-  <div class="controls"><span class="desktop-controls"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 수동 조작 &nbsp;·&nbsp; <kbd>Shift</kbd> 고속 주행 &nbsp;·&nbsp; <kbd>Space</kbd> 자동 주행 복귀 &nbsp;·&nbsp; <kbd>C</kbd> 1인칭·후방·정면 시점 &nbsp;·&nbsp; <kbd>L</kbd> 전조등 &nbsp;·&nbsp; <kbd>[</kbd><kbd>]</kbd> 태양광 패널 &nbsp;·&nbsp; <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> 행성 이동</span><span class="mobile-controls">화면을 눌러 자동 탐사 시작 &nbsp;·&nbsp; 드래그하여 관측 시점 이동<br>Tap to begin autonomous survey · Drag to observe</span></div>
+  <div class="controls"><span class="desktop-controls"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 수동 조작 &nbsp;·&nbsp; <kbd>Shift</kbd> 고속 주행 &nbsp;·&nbsp; <kbd>Space</kbd> 자동 주행 복귀 &nbsp;·&nbsp; <kbd>C</kbd> 1인칭·후방·정면 시점 &nbsp;·&nbsp; <kbd>L</kbd> 전조등 &nbsp;·&nbsp; <kbd>[</kbd><kbd>]</kbd> 태양광 패널 &nbsp;·&nbsp; <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> 행성 이동</span><span class="mobile-controls">기기를 좌우로 기울여 조향 · 자동주행 기본 · 하단 버튼으로 정지/재개<br>Tilt to steer · Autonomous drive · Drag to observe</span></div>
 </section>
 
 <script>
