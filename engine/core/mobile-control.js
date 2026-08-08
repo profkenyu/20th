@@ -1,9 +1,9 @@
 /**
  * Mobile rover controls.
  *
- * The vehicle remains autonomous: device orientation bends the route but
- * never becomes a throttle. This keeps a gallery phone moving even when the
- * sensor is unavailable, denied, stale, or being recalibrated.
+ * The vehicle remains autonomous: device orientation bends the route, while
+ * its elevation is a simple two-state run / park control. A phone held
+ * upright parks the rover; laid forward it releases a modest cruise gain.
  */
 export class MobileControl {
   constructor(rover) {
@@ -26,6 +26,9 @@ export class MobileControl {
     this.neutral = 0;
     this.rawSteer = 0;
     this.filteredSteer = 0;
+    this.rawThrottle = 1;
+    this.filteredThrottle = 1;
+    this.tiltParked = false;
     this.lastSample = -Infinity;
     this.lastUi = '';
     this.longPress = false;
@@ -140,7 +143,18 @@ export class MobileControl {
   _screenRoll(beta, gamma) {
     const degrees = Number(screen.orientation?.angle ?? window.orientation ?? 0);
     const a = (Number.isFinite(degrees) ? degrees : 0) * Math.PI / 180;
-    return gamma * Math.cos(a) - beta * Math.sin(a);
+    /* Canvas screen-right must remain rover-right after rotation. The former
+       negative beta term was correct in portrait but mirrored both landscape
+       orientations. */
+    return gamma * Math.cos(a) + beta * Math.sin(a);
+  }
+
+  _screenElevation(beta, gamma) {
+    const degrees = Number(screen.orientation?.angle ?? window.orientation ?? 0);
+    const a = (Number.isFinite(degrees) ? degrees : 0) * Math.PI / 180;
+    /* Elevation is unsigned: a device standing on either portrait/landscape
+       edge is parked, while a device laid forward is released to drive. */
+    return Math.min(90, Math.abs(beta * Math.cos(a) - gamma * Math.sin(a)));
   }
 
   _orientation(e) {
@@ -148,6 +162,8 @@ export class MobileControl {
     if (!Number.isFinite(beta) || !Number.isFinite(gamma)) return;
     const roll = this._screenRoll(beta, gamma);
     if (!Number.isFinite(roll)) return;
+    const elevation = this._screenElevation(beta, gamma);
+    if (!Number.isFinite(elevation)) return;
     this.lastSample = performance.now();
     if (this.calibrating) {
       this.samples.push(roll);
@@ -160,6 +176,13 @@ export class MobileControl {
       this.rawSteer = 0;
       return;
     }
+    /* Hysteresis prevents a hand-held phone near vertical from chattering
+       between PARK and RUN. RUN is intentionally only a small gain over the
+       autonomous pace, not a separate manual-driving mode. */
+    if (this.tiltParked ? elevation <= 68 : elevation >= 80) {
+      this.tiltParked = elevation >= 80;
+    }
+    this.rawThrottle = this.tiltParked ? 0 : 1.15;
     let delta = roll - this.neutral;
     delta = ((delta + 180) % 360 + 360) % 360 - 180;
     const magnitude = Math.abs(delta);
@@ -185,6 +208,10 @@ export class MobileControl {
     this.filteredSteer += (target - this.filteredSteer) * (1 - Math.exp(-dt / 0.18));
     if (Math.abs(this.filteredSteer) < 0.001) this.filteredSteer = 0;
     this.rover.mobileSteer = this.filteredSteer;
+    const throttleTarget = usable ? this.rawThrottle : 1;
+    this.filteredThrottle += (throttleTarget - this.filteredThrottle) * (1 - Math.exp(-dt / 0.22));
+    if (Math.abs(this.filteredThrottle - throttleTarget) < 0.002) this.filteredThrottle = throttleTarget;
+    this.rover.mobileThrottle = this.rover.operatorHold || missionHold || blocked ? 0 : this.filteredThrottle;
     this._syncUi(blocked, missionHold, released);
   }
 
@@ -199,6 +226,10 @@ export class MobileControl {
     if (!this.active) return;
     this.rover.operatorHold = false;
     this._zero();
+    this.rawThrottle = 1;
+    this.filteredThrottle = 1;
+    this.tiltParked = false;
+    this.rover.mobileThrottle = 1;
     if (this.permission === 'granted') this.recalibrate();
     this._syncUi(false, false, false);
   }
@@ -206,7 +237,7 @@ export class MobileControl {
   _syncUi(blocked, missionHold, released) {
     if (!this.active) return;
     const sensor = this.permission === 'granted'
-      ? (this.calibrating ? 'CALIBRATING · 수평 유지' : 'TILT READY · 기울여 조향')
+      ? (this.calibrating ? 'CALIBRATING · 수평 유지' : 'TILT READY · 기울여 조향 / 세우면 정지')
       : this.permission === 'pending' ? 'REQUESTING SENSOR'
       : this.permission === 'denied' ? 'AUTO COURSE · 센서 거절됨'
       : this.permission === 'unavailable' ? 'AUTO COURSE · 센서 미지원'
@@ -214,11 +245,13 @@ export class MobileControl {
     const state = blocked ? 'LINK SEQUENCE'
       : missionHold ? 'SURVEYING'
       : this.rover.operatorHold ? 'HOLD'
+      : this.tiltParked ? 'TILT PARK'
       : released ? 'AUTO DRIVE' : 'STANDBY';
     const hint = blocked ? '원격 몸체 연결 중'
       : missionHold ? '자동 측량 후 주행 재개'
       : this.rover.operatorHold ? '탭하여 탐사 재개'
-      : '탭하여 일시 정지';
+      : this.tiltParked ? '기울이면 출발'
+      : '세우면 정지 · 탭하여 일시 정지';
     const key = `${sensor}|${state}|${hint}|${blocked}`;
     if (key === this.lastUi) return;
     this.lastUi = key;

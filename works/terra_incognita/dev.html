@@ -103,9 +103,9 @@
   body.ti-prologue-out #ti-prologue{opacity:0;visibility:hidden}
   body.embed #ti-prologue{display:none}
 
-  /* Autonomous mobile driving: orientation bends the route, while the single
-     large control only pauses or resumes it. The signal dot is driven by the
-     rover's physical beacon uniform, never by an unrelated CSS animation. */
+  /* Autonomous mobile driving: orientation bends the route; standing the
+     device upright parks it and laying it forward resumes a modestly faster
+     course. The signal dot follows the rover's physical beacon uniform. */
   #ti-mobile-drive{display:none;position:fixed;z-index:33;left:50%;
     bottom:calc(var(--bar) + max(12px,env(safe-area-inset-bottom)));transform:translateX(-50%);
     width:min(330px,calc(100vw - max(28px,env(safe-area-inset-left)) - max(28px,env(safe-area-inset-right))));

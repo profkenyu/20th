@@ -173,6 +173,10 @@ export class Rover {
     this.missionHold = false;       // long autonomous survey pauses
     this.mobileMode = false;
     this.mobileSteer = 0;
+    /* Mobile inclination controls only this scalar. Steering remains an
+       independent, screen-relative correction so a viewer can park the rover
+       upright without losing the chosen heading. */
+    this.mobileThrottle = 1;
     this.operatorHold = false;
     this.arrayAuto = false;
     this.beaconLevel = 0;
@@ -299,7 +303,7 @@ export class Rover {
     if (this.mobileMode) {
       this.auto = true;
       steer = this.operatorHold || this.missionHold ? 0 : this.mobileSteer;
-      if (this.operatorHold) throttle = 0;
+      throttle = this.operatorHold || this.missionHold ? 0 : this.mobileThrottle;
     }
     let boosting = k.has('ShiftLeft') || k.has('ShiftRight');
 
@@ -630,6 +634,7 @@ export class Rover {
     this.missionHold = false;
     this.auto = true;
     this.mobileSteer = 0;
+    this.mobileThrottle = 1;
     this.operatorHold = false;
   }
 
@@ -646,6 +651,7 @@ export class Rover {
     this.mobileMode = !!active;
     this.arrayAuto = this.mobileMode;
     this.mobileSteer = 0;
+    this.mobileThrottle = 1;
     this.operatorHold = false;
     if (this.mobileMode && !this.disabled) this.lamps = true;
   }
