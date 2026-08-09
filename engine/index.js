@@ -58,6 +58,9 @@ export { Kiosk } from './core/kiosk.js';
 export { Ambient } from './core/ambient.js';
 export { PlanetTransfer } from './core/transfer.js';
 export { MobileControl } from './core/mobile-control.js';
+export { Restoration, RESTORATION_ITEMS } from './core/restoration.js';
+export { DockingSequence } from './core/docking.js';
+export { VoyageSequence } from './core/voyage.js';
 
 export { Power } from './vehicle/power.js';
 export { Rover } from './vehicle/rover.js';

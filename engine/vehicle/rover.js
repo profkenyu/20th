@@ -170,6 +170,7 @@ export class Rover {
        MacBook. Any driving key is a deliberate remote override; Space hands
        the route back to the autonomous mission. */
     this.auto = true;
+    this.autoSteer = 0;
     this.missionHold = false;       // long autonomous survey pauses
     this.mobileMode = false;
     this.mobileSteer = 0;
@@ -178,6 +179,11 @@ export class Rover {
        upright without losing the chosen heading. */
     this.mobileThrottle = 1;
     this.operatorHold = false;
+    /* Scripted return still uses the rover's traction, wheel spin and eight
+       contact points. Only throttle/steering are supplied by the docking
+       controller; `surfaceOverride` lets those contacts recognise the ramp. */
+    this.scriptedDrive = null;
+    this.surfaceOverride = null;
     this.arrayAuto = false;
     this.beaconLevel = 0;
     this.keys = new Set();
@@ -194,6 +200,17 @@ export class Rover {
     this.signalPower = 1;
     this.signalFast = false;
     this.wheelSpin = 0;
+
+    const glowMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffb21c, transparent: true, opacity: 0,
+      depthWrite: false, side: THREE.BackSide, blending: THREE.AdditiveBlending,
+    });
+    this.acquisitionGlow = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 1), glowMaterial);
+    this.acquisitionGlow.position.y = 0.18;
+    this.acquisitionGlow.scale.set(1.55, 0.78, 1.28);
+    this.acquisitionGlow.visible = false;
+    this.group.add(this.acquisitionGlow);
+    this.acquisitionGlowStart = -Infinity;
 
     let dragging = false, lx = 0, ly = 0;
     dom.addEventListener('pointerdown', e => { dragging = true; lx = e.clientX; ly = e.clientY; dom.setPointerCapture(e.pointerId); });
@@ -280,10 +297,14 @@ export class Rover {
       for (const dx of [-D.track, D.track]) {
         const x = this.pos.x + fx * dz + sx * dx;
         const z = this.pos.z + fz * dz + sz * dx;
+        const sample = (px, pz) => {
+          const terrain = this.h(px, pz);
+          return this.surfaceOverride ? this.surfaceOverride(px, pz, terrain) : terrain;
+        };
         const y = Math.max(
-          this.h(x - fx * foot, z - fz * foot),
-          this.h(x, z),
-          this.h(x + fx * foot, z + fz * foot));
+          sample(x - fx * foot, z - fz * foot),
+          sample(x, z),
+          sample(x + fx * foot, z + fz * foot));
         out.push({ x, z, y });
       }
     }
@@ -299,11 +320,18 @@ export class Rover {
     if (k.has('KeyS') || k.has('ArrowDown')) throttle -= 1;
     if (k.has('KeyA') || k.has('ArrowLeft')) steer += 1;
     if (k.has('KeyD') || k.has('ArrowRight')) steer -= 1;
-    if (this.auto && throttle === 0 && !this.missionHold) throttle = 1;
+    if (this.auto && throttle === 0 && !this.missionHold) {
+      throttle = 1;
+      if (steer === 0) steer = this.autoSteer;
+    }
     if (this.mobileMode) {
       this.auto = true;
       steer = this.operatorHold || this.missionHold ? 0 : this.mobileSteer;
       throttle = this.operatorHold || this.missionHold ? 0 : this.mobileThrottle;
+    }
+    if (this.scriptedDrive) {
+      throttle = this.scriptedDrive.throttle ?? 0;
+      steer = this.scriptedDrive.steer ?? 0;
     }
     let boosting = k.has('ShiftLeft') || k.has('ShiftRight');
 
@@ -484,6 +512,21 @@ export class Rover {
     }
     this.group.updateMatrixWorld(true);
 
+    if (this.acquisitionGlow) {
+      const age = (performance.now() - this.acquisitionGlowStart) / 1000;
+      const active = age >= 0 && age < 2.8;
+      this.acquisitionGlow.visible = active;
+      if (active) {
+        const rise = Math.min(1, age / 0.10);
+        const fall = Math.min(1, (2.8 - age) / 0.75);
+        const pulse = 0.58 + Math.sin(age * 20) * 0.16;
+        this.acquisitionGlow.material.opacity = rise * fall * pulse * 0.30;
+        const scale = 1 + Math.sin(Math.min(1, age / 1.5) * Math.PI) * 0.16;
+        this.acquisitionGlow.scale.set(1.55 * scale, 0.78 * scale, 1.28 * scale);
+        this.acquisitionGlow.rotation.y += 0.018;
+      }
+    }
+
     /* A restrained doublet, closer to a spacecraft status beacon than an
        automotive warning light. It accelerates only during transmission. */
     if (this.beaconPulse) {
@@ -633,9 +676,30 @@ export class Rover {
     this.transmitting = false;
     this.missionHold = false;
     this.auto = true;
+    this.autoSteer = 0;
     this.mobileSteer = 0;
     this.mobileThrottle = 1;
     this.operatorHold = false;
+    this.scriptedDrive = null;
+    this.surfaceOverride = null;
+    this.acquisitionGlowStart = -Infinity;
+    if (this.acquisitionGlow) this.acquisitionGlow.visible = false;
+  }
+
+  teleport(x, z, heading = this.heading) {
+    this.pos.set(x, 0, z);
+    this.heading = heading;
+    this.speed = 0;
+    this.settled = false;
+    this.sus.fill(0); this.susV.fill(0);
+    this.deckV = 0; this.pitchV = 0; this.rollV = 0;
+    this.camAt.set(0, 0, 0);
+    return this;
+  }
+
+  flashAcquisition(now = performance.now()) {
+    this.acquisitionGlowStart = now;
+    if (this.acquisitionGlow) this.acquisitionGlow.visible = true;
   }
 
   setSignalState(charge = 1, transmitting = false) {
@@ -653,6 +717,8 @@ export class Rover {
     this.mobileSteer = 0;
     this.mobileThrottle = 1;
     this.operatorHold = false;
+    this.acquisitionGlowStart = -Infinity;
+    if (this.acquisitionGlow) this.acquisitionGlow.visible = false;
     if (this.mobileMode && !this.disabled) this.lamps = true;
   }
 }

@@ -16,7 +16,7 @@ import {
   configure, deviceTier, universeSeed, DEV,
   Clipmap, Field, Scatter, Wake, Dust, Sandstorm, ResolutionTransferFX, Beam, buildSky,
   createRenderer, describeAdapter, unsupported, fatal, enableTimestamps, captureDeviceErrors,
-  Lens, Adaptive, Hud, Captions, Kiosk, Ambient, PlanetTransfer, MobileControl, Rover, Lander, Power,
+  Lens, Adaptive, Hud, Captions, Kiosk, Ambient, PlanetTransfer, MobileControl, Restoration, DockingSequence, VoyageSequence, Rover, Lander, Power,
   uObserverR, nuRatioCPU, uLampPower,
 } from '../../engine/index.js';
 import { T, BH } from './spec.js';
@@ -136,6 +136,25 @@ const TRANSFER_LINE = {
   r: 0, ko: '탐사 메모리 패킷 송신 · 원격 몸체 연결 대기', en: 'Survey memory is transmitted to the next body',
 };
 
+const DOCKING_LINES = Object.freeze({
+  recall: { r: 0, ko: '복원 키 8/8 · 귀환 좌표 압축', en: 'RECOVERY 8/8 · COORDINATE RECALL' },
+  ramp: { r: 0, ko: '착륙선 격납 경로 개방', en: 'LANDER · STOW PATH OPENING' },
+  approach: { r: 0, ko: '실접지 귀환 · 8륜 구동 유지', en: 'FINAL APPROACH · EIGHT CONTACTS LIVE' },
+  secure: { r: 0, ko: '격납 위치 고정 · 구조광 소거', en: 'ROVER SECURED · LOCATORS FALL SILENT' },
+  docked: { r: 0, ko: '탐사선 격납 완료 · 비행 잠금', en: 'ROVER STOWED · FLIGHT INTERLOCK' },
+});
+
+const VOYAGE_LINES = Object.freeze({
+  'flight-lock': { r: 0, ko: '격납 질량 고정 · 비행 인터록 해제', en: 'STOW MASS LOCKED · FLIGHT INTERLOCK RELEASED' },
+  fold: { r: 0, ko: '6개 착륙 지지계 수납', en: 'SIX LANDING LOAD PATHS · RETRACTING' },
+  lift: { r: 0, ko: '표면 기준 분리 · 저속 상승', en: 'SURFACE DATUM RELEASED · LOW ASCENT' },
+  transit: { r: 0, ko: '관성 기준 전환 · 목적지 좌표 동기', en: 'INERTIAL FRAME · DESTINATION COORDINATES LOCKED' },
+  descent: { r: 0, ko: '다음 행성 지표 획득 · 하강', en: 'NEXT BODY ACQUIRED · CONTROLLED DESCENT' },
+  touchdown: { r: 0, ko: '6점 접지 확인', en: 'SIX-POINT GROUND CONTACT CONFIRMED' },
+  egress: { r: 0, ko: '격납 해제 · 탐사선 재배치', en: 'STOW RELEASE · ROVER REDEPLOYMENT' },
+  deployed: { r: 0, ko: 'BODY 02 탐사 운행 재개', en: 'BODY 02 · SURVEY DRIVE RESUMED' },
+});
+
 const DESERT_ARRIVAL_LINE = {
   r: 0, ko: 'BODY 02 기동 대기 · 왕복 통신 응답 없음', en: 'REMOTE BODY 02 · RETURN CARRIER NOT ACQUIRED',
 };
@@ -198,6 +217,7 @@ const ROWS = [
                   ['lamps', 'Headlights'], ['susp', 'Suspension'], ['view', 'View']]],
   ['Power',      [['cell', 'Cell'], ['array', 'Array'], ['lid', 'Lid'], ['load', 'Load'],
                   ['endur', 'Endurance']]],
+  ['Reconstruction', [['recon', 'Lander modules']]],
   ['Metric',     [['r', 'r · observer'], ['region', 'Region'], ['lapse', '√(1−rs/r)'], ['nu', 'ν at barrier']]],
   ['Lens',       [['dpr', 'Pixel ratio'], ['focus', 'Focus'], ['score', 'Score']]],
   ['Gallery',    [['universe', 'Universe'], ['idle', 'Idle']]],
@@ -250,8 +270,9 @@ captureDeviceErrors(renderer, err => { running = false; fatal(err, 'gpu'); });
    that got past the adapter gate. Inside a top-level-await module that throw
    is an unhandled rejection, so the only symptom was a black screen.
    Declarations are hoisted; initialisations are not. */
-let scene, hud, captions, ambient, kiosk, ground, field, wake, dust, storm, transferFx, scatter, beam, sky, landmark, rover, lander, power, lens, adaptive, minimap, optics, survey, transmission, mobileControl;
+let scene, hud, captions, ambient, kiosk, ground, field, wake, dust, storm, transferFx, scatter, beam, sky, landmark, rover, lander, restoration, docking, voyage, power, lens, adaptive, minimap, optics, survey, transmission, mobileControl;
 let world = 'terra';
+let landerPresent = true;
 let archiveMode = false, lastArchiveFrame = 0, archiveCueTimer = 0;
 let arrivalHoldUntil = 0;
 let departureOrbit = null, arrivalOrbit = null;
@@ -292,10 +313,51 @@ landmark.visible = false;
 rover = new Rover(camera, canvas, heightCPU);
 mobileControl = new MobileControl(rover);
 lander = new Lander(heightCPU);
+restoration = new Restoration(lander);
 transferFx = new ResolutionTransferFX(rover.group);
+docking = new DockingSequence({
+  rover, lander, effect: transferFx, camera,
+  onCue: (phase, now) => {
+    openingShot = null;
+    const line = DOCKING_LINES[phase];
+    if (line) captions.force(line, now, phase === 'docked' ? 12000 : 4600);
+    if (phase === 'recall') {
+      transmission.trigger.disabled = true;
+      kiosk.last = now;
+    }
+    if (phase === 'docked') transmission.trigger.textContent = 'ROVER STOWED · FLIGHT LOCK';
+  },
+});
+voyage = new VoyageSequence({
+  rover, lander, camera, ambient,
+  onSwap: prepareVoyageDestination,
+  onSpace: active => {
+    sky.visible = !active; ground.mesh.visible = !active;
+    for (const mesh of scatter.meshes) mesh.visible = !active && PLANETS[world].metric;
+    for (const mesh of beam.meshes) mesh.visible = !active && PLANETS[world].metric;
+    landmark.visible = !active && world === 'desert';
+    if (active) { dust?.clear(); storm.setActive(false); }
+  },
+  onCue: (phase, now, destination) => {
+    const line = VOYAGE_LINES[phase];
+    if (line) captions.force(line, now, phase === 'transit' ? 11800 : 4800);
+    transmission.trigger.disabled = true;
+    transmission.trigger.textContent = phase === 'transit'
+      ? `${destination.id} · COORDINATE LOCK` : 'LANDER FLIGHT · SEQUENCE';
+    kiosk.last = now;
+  },
+  onComplete: (destination, now) => {
+    rover.auto = true; rover.missionHold = false; rover.disabled = false;
+    nextAutoPauseAt = now + 36000;
+    storm.setActive(destination.storm, { x: rover.pos.x, z: rover.pos.z });
+    transmission.trigger.disabled = true;
+    transmission.trigger.textContent = `${destination.id} · SURVEY ACTIVE`;
+    captions.force(destination.arrivalLine, now, 6200);
+  },
+});
 power = new Power(heightCPU, solarAccessCPU);
 minimap = new MiniMap(document.getElementById('ti-minimap'), BH.start, {
-  heightAt: heightCPU, id: 'BODY 01', label: 'SHEAR BODY',
+  heightAt: heightCPU, id: 'BODY 01', label: 'SHEAR BODY', restoration,
 });
 optics = new Optics();
 survey = new Survey(heightCPU, TERRA_SURVEY);
@@ -326,7 +388,7 @@ transmission = new PlanetTransfer({
 });
 transmission.bindRequest(() => requestNextPlanet('manual'));
 
-scene.add(sky, landmark, ground.mesh, ...scatter.meshes, ...beam.meshes, lander.group,
+scene.add(sky, landmark, ground.mesh, ...scatter.meshes, ...beam.meshes, lander.group, restoration.group, voyage.group,
           ...(dust ? [dust.points] : []), storm.points, rover.group, survey.group, transferFx.group);
 
 lens = (off('lens') || ARCHIVE_AT_BOOT) ? null : new Lens(renderer, scene, camera);
@@ -336,6 +398,29 @@ if (ARCHIVE_AT_BOOT) activateArchive('device', false);
 
 addEventListener('resize', () => renderer.setPixelRatio(adaptive.dpr));
 addEventListener('keydown', e => {
+  if (!e.repeat && (e.code === 'Equal' || e.code === 'NumpadEqual' || e.key === '=')) {
+    e.preventDefault();
+    if (!released) releasePrologue();
+    if (world === 'terra' && !transmission.active && !docking.started
+        && !voyage.active && !restoration.complete) {
+      const now = performance.now();
+      openingShot = null;
+      rover.setViewMode('rear');
+      const acquired = restoration.acquireAll({
+        x: rover.pos.x, z: rover.pos.z, heading: rover.heading,
+        ground: heightCPU(rover.pos.x, rover.pos.z),
+      }, now);
+      if (acquired) {
+        rover.flashAcquisition(now);
+        captions.force({
+          r: 0,
+          ko: '8개 표본 동시 획득 · 전체 복원 키 고정',
+          en: 'EIGHT SAMPLES ACQUIRED · ALL RECOVERY KEYS FIXED',
+        }, now, 5200);
+        kiosk.last = now;
+      }
+    }
+  }
   const target = PLANET_KEY_BY_CODE[e.code];
   if (target) {
     e.preventDefault();
@@ -402,6 +487,16 @@ window.TI_CAMERA = () => ({
   mode: rover.viewMode, yaw: rover.orbitYaw, pitch: rover.orbitPitch,
   distance: rover.orbitDist, cue: arrivalOrbit ? 'arrival' : departureOrbit ? 'departure' : 'none',
 });
+window.TI_RESTORATION = level => {
+  if (level == null) return restoration.snapshot();
+  restoration.reset(level);
+  return restoration.snapshot();
+};
+window.TI_SEQUENCE = () => ({
+  world, restoration: restoration.count,
+  docking: docking.phase, voyage: voyage.phase,
+  landerPresent, roverVisible: rover.group.visible,
+});
 queueLoop();
 
 /* ── releasing the prologue ────────────────────────────────────────────────
@@ -427,7 +522,7 @@ function releasePrologue() {
   document.body.classList.add('ti-prologue-out');
   rover.auto = true;
   rover.setViewMode('rear');
-  if (!transmission.active && !arrivalHoldUntil) transmission.trigger.disabled = false;
+  if (!transmission.active && !arrivalHoldUntil) transmission.trigger.disabled = !restoration.complete;
   const mobileStart = document.getElementById('ti-mobile-start');
   if (mobileStart) mobileStart.disabled = true;
   const now = performance.now();
@@ -512,6 +607,12 @@ async function frame() {
   const frameMs = now - tPrev;
   tPrev = now;
 
+  docking.beforeRover(now, dt);
+  if (world === 'terra' && docking.docked && !voyage.active) {
+    voyage.start(PLANETS.desert, now);
+  }
+  await voyage.beforeRover(now, dt);
+
   updateArrivalOrbit(now);
   if (arrivalHoldUntil && now >= arrivalHoldUntil) {
     arrivalHoldUntil = 0;
@@ -523,14 +624,15 @@ async function frame() {
     nextAutoPauseAt = now + 36000;
   }
   const arrivalWaiting = arrivalHoldUntil > now;
-  if (rover.auto && !transmission.active && !arrivalWaiting) {
+  const restorationHold = world === 'terra' && restoration.holding(now);
+  if (rover.auto && !transmission.active && !arrivalWaiting && !docking.started && !voyage.active) {
     if (!nextAutoPauseAt) nextAutoPauseAt = now + 32000;
     if (!autoPauseUntil && now >= nextAutoPauseAt) autoPauseUntil = now + 14000;
     if (autoPauseUntil && now >= autoPauseUntil) {
       autoPauseUntil = 0;
       nextAutoPauseAt = now + 46000;
     }
-    rover.missionHold = autoPauseUntil > now;
+    rover.missionHold = autoPauseUntil > now || restorationHold;
     if (rover.viewMode === 'rear') {
       const wide = 28.6 + Math.sin(now * 0.000085) * 3.0;
       rover.orbitDist += (wide - rover.orbitDist) * Math.min(1, dt * 0.18);
@@ -550,22 +652,40 @@ async function frame() {
       rover.orbitYaw += yawError * Math.min(1, dt * 1.0);
     }
   } else {
-    rover.missionHold = arrivalWaiting;
+    rover.missionHold = arrivalWaiting || restorationHold;
   }
+
+  /* The autonomous route is a chain of broad, overlapping survey arcs. The
+     odometer—not wall time—drives the curve, so pauses for samples do not make
+     the parked rover rotate, and every kiosk replay traces the same field. */
+  if (rover.auto && !docking.started && !voyage.active) {
+    const start = PLANETS[world].start;
+    const base = Math.atan2(start[0], start[1]);
+    const phase = rover.odometer * 0.020 + PLANETS[world].number * 1.17;
+    const desired = base + Math.sin(phase) * 0.34
+      + Math.sin(rover.odometer * 0.0065 + restoration.count * 0.83) * 0.17;
+    const error = Math.atan2(Math.sin(desired - rover.heading), Math.cos(desired - rover.heading));
+    rover.autoSteer = Math.max(-0.38, Math.min(0.38, error * 1.18));
+  } else rover.autoSteer = 0;
 
   mobileControl.update(now, dt, {
     released,
-    blocked: transmission.active || arrivalWaiting,
+    blocked: transmission.active || arrivalWaiting || docking.started || voyage.active,
     missionHold: rover.missionHold,
   });
   const v = rover.update(dt);
+  restoration.update(v, now, world === 'terra' && !transmission.active);
+  if (world === 'terra' && restoration.complete && !restoration.event
+      && lander.parts[7].state === 'solid' && !docking.started) docking.start(now);
   updateOpeningCamera(now);
+  docking.afterRover();
+  voyage.afterRover(now);
   optics.update(now, v, camera);
-  minimap.update(v, now, power.charge, !transmission.active);
+  minimap.update(v, now, power.charge, !transmission.active && !voyage.active);
   uObserverR.value = PLANETS[world].metric ? v.radius : 1e7;
 
   const prevX = ground.origin.x, prevZ = ground.origin.y;
-  if (ground.syncTo(rover.pos.x, rover.pos.z)) {
+  if (!voyage.inSpace && ground.syncTo(rover.pos.x, rover.pos.z)) {
     if (!off('wake')) await wake.shift(renderer, ground.origin.x - prevX, ground.origin.y - prevZ);
     await rebuild();
     adaptive.skip();          // this window contains a rebuild stall — discard
@@ -573,40 +693,46 @@ async function frame() {
   }
 
   /* two tracks, in the clipmap's local frame */
-  if (!off('wake')) await wake.step(renderer, dt,
+  if (!off('wake') && !voyage.active) await wake.step(renderer, dt,
     v.trackA[0] - ground.origin.x, v.trackA[1] - ground.origin.y,
     v.trackB[0] - ground.origin.x, v.trackB[1] - ground.origin.y);
-  dust?.update(dt, v);
-  storm.update(dt, v, now);
-  lander.update(now, world === 'terra');
+  if (!voyage.active) dust?.update(dt, v);
+  if (!voyage.active) storm.update(dt, v, now);
+  lander.update(now, landerPresent || voyage.active);
+  if (released && !transmission.active && !arrivalWaiting) {
+    transmission.trigger.disabled = world !== 'terra' || voyage.active || docking.started
+      || !restoration.complete || restoration.holding(now);
+  }
   await transmission.update(now);
 
   sky.position.copy(camera.position);
   if (lens) {
-    const focusTarget = openingShot ? openingCam.aim : rover.group.position;
+    const focusTarget = openingShot ? openingCam.aim
+      : (docking.started || voyage.active) ? lander.group.position : rover.group.position;
     lens.focusAt(camera.position.distanceTo(focusTarget));
     lens.render();
   }
   else renderer.render(scene, camera);
 
-  if (!transmission.active) await kiosk.update(now, returnToStart);
+  if (!transmission.active && !docking.active && !voyage.active) await kiosk.update(now, returnToStart);
   else kiosk.last = now;
   if (adaptive.sample(frameMs, now) === 'critical') activateArchive('measured');
   /* ── the second clock ─────────────────────────────────────────────── */
   const pw = power.update(dt, { ...v, radius: PLANETS[world].metric ? v.radius : 1e7, lamps: rover.lamps });
   rover.setSignalState(pw.charge, transmission.active || arrivalWaiting);
   mobileControl.syncSignal();
-  if (!transmission.active) survey.update(v, now, pw.charge);
+  if (!transmission.active && !voyage.active) survey.update(v, now, pw.charge);
 
-  if (!transmission.active && !arrivalWaiting) {
-    if (pw.dead) requestNextPlanet('power');
-    else if (survey.complete && survey.completedAt && now - survey.completedAt > 18000) requestNextPlanet('complete');
+  if (!transmission.active && !arrivalWaiting && !docking.started && !voyage.active) {
+    if (pw.dead && world === 'terra' && !restoration.complete) requestNextPlanet('power');
   }
-  rover.disabled = pw.dead;
+  rover.disabled = pw.dead && !docking.active && !voyage.active;
   rover.transmitting = transmission.active || arrivalHoldUntil > now;
   /* switch × supply. The ground, the filaments and the airborne dust all read
      the same uniform, so a jolt dims the whole lit world at once. */
-  uLampPower.value = rover.lamps ? pw.bus * transmission.light * openingLampGain(now) : 0;
+  const roverVisibleForFlight = !voyage.active || voyage.phase === 'egress' || voyage.phase === 'close';
+  uLampPower.value = rover.lamps && roverVisibleForFlight
+    ? pw.bus * transmission.light * openingLampGain(now) : 0;
   ambient.setPower((pw.dead ? 0 : pw.charge) * transmission.audio);
 
   const q = ambient.update(v.radius);
@@ -650,6 +776,9 @@ async function frame() {
       : (pw.endurance === Infinity ? `charging +${pw.net.toFixed(2)} %/s`
          : `${Math.floor(pw.endurance / 60)}m ${Math.round(pw.endurance % 60)}s`),
       pw.endurance < 90);
+    hud.set('recon', world === 'terra'
+      ? `${restoration.count} / 8 · ${restoration.complete ? 'material fixed' : 'wire recovery'}`
+      : `archive ${restoration.count} / 8`);
     hud.set('r', PLANETS[world].metric ? `${v.radius.toFixed(1)} m · ${(v.radius / BH.rs).toFixed(2)} rs`
       : world === 'desert' ? `${v.radius.toFixed(1)} m · yardang field`
                            : `${v.radius.toFixed(1)} m · granite plain`);
@@ -834,7 +963,12 @@ function updateArrivalOrbit(now) {
 
 function requestPlanet(targetKey, reason = 'manual') {
   if (!released || !PLANETS[targetKey] || targetKey === world || transmission.active
-      || arrivalHoldUntil > performance.now()) return false;
+      || arrivalHoldUntil > performance.now() || docking.started || voyage.active
+      || world !== 'terra') return false;
+  /* The ordinary route remains on BODY 01 until all eight material signatures
+     have fixed the lander. A power failure keeps its emergency relay path. */
+  if (world === 'terra' && !restoration.complete && reason !== 'power') return false;
+  if (world === 'terra' && restoration.holding(performance.now())) return false;
   const atlas = minimap.snapshot();
   if (reason === 'power') atlas.trail = atlas.trail.slice(-Math.max(1, Math.ceil(atlas.trail.length * 0.35)));
   const surveyState = survey.snapshot();
@@ -842,6 +976,7 @@ function requestPlanet(targetKey, reason = 'manual') {
   if (reason === 'power') live.trail = live.trail.slice(-Math.max(1, Math.ceil(live.trail.length * 0.35)));
   planetMemory.set(world, {
     atlas, live, survey: surveyState, charge: power.charge,
+    restoration: restoration.snapshot(),
     position: { x: rover.pos.x, z: rover.pos.z }, heading: rover.heading,
   });
   const snapshot = { ...surveyState, atlas, trail: atlas.trail, charge: power.charge, source: world };
@@ -855,6 +990,42 @@ function requestPlanet(targetKey, reason = 'manual') {
 function requestNextPlanet(reason = 'manual') {
   const next = ['terra', 'desert', 'granite'][PLANETS[world].number % 3];
   return requestPlanet(next, reason);
+}
+
+async function prepareVoyageDestination(destination) {
+  const planet = PLANETS[destination.key];
+  if (!planet) throw new Error(`Unknown voyage destination: ${destination.key}`);
+
+  docking.reset();
+  landerPresent = true;
+  world = planet.key; window.TI_WORLD = world; setWorldMode(planet.mode);
+  rover.metricEnabled = planet.metric;
+  document.body.classList.toggle('ti-desert', world === 'desert');
+  document.body.classList.toggle('ti-granite', world === 'granite');
+  document.body.classList.remove('fh-dead');
+  landmark.position.set(-230, heightCPU(-230, -340) + 8, -340);
+  landmark.visible = false;                 // space interval still owns frame
+  for (const mesh of scatter.meshes) mesh.visible = false;
+  for (const mesh of beam.meshes) mesh.visible = false;
+  storm.setActive(false); dust?.clear();
+
+  power.reset(planet.initialCharge);
+  const heading = Math.atan2(planet.start[0], planet.start[1]);
+  rover.reset(planet.start[0], planet.start[1], heading);
+  rover.auto = false; rover.disabled = false; rover.transmitting = false;
+  rover.lamps = true; rover.group.visible = false;
+  rover.setViewMode('cinematic', { yaw: 0.18, pitch: 0.22, dist: 13 });
+
+  lander.place(planet.start[0], planet.start[1], heading, true);
+  restoration.reset(8);
+  captions.lines = planet.lines; captions.rearm();
+  survey.reset(planet.survey);
+  minimap.reset(planet.start, { id: planet.id, label: planet.label, archives: [] });
+  uObserverR.value = planet.metric ? Math.hypot(...planet.start) : 1e7;
+  ground.syncTo(lander.group.position.x, lander.group.position.z);
+  if (!off('wake')) await wake.clear(renderer);
+  await rebuild();
+  lens?.focusAt(camera.position.distanceTo(lander.group.position));
 }
 
 async function enterPlanet(reason, snapshot, destination) {
@@ -880,8 +1051,12 @@ async function enterPlanet(reason, snapshot, destination) {
   const start = rememberedPosition ? [rememberedPosition.x, rememberedPosition.z] : planet.start;
   rover.lamps = true; rover.lidTilt = 0; rover.auto = false; rover.disabled = false; rover.transmitting = true;
   rover.reset(start[0], start[1], memory?.heading ?? Math.atan2(start[0], start[1]));
-  if (world === 'terra') lander.place(BH.start[0], BH.start[1], START_HEADING, true);
-  else lander.group.visible = false;
+  if (world === 'terra') {
+    landerPresent = true;
+    lander.place(BH.start[0], BH.start[1], START_HEADING, true);
+    restoration.reset(memory?.restoration?.count ?? restoration.count);
+  }
+  else { landerPresent = false; lander.group.visible = false; }
   rover.auto = false; rover.transmitting = true;
   /* The destination is reconstructed squarely toward the rover's face.  The
      post-arrival orbit begins only after every wheel has locked into place. */
@@ -907,15 +1082,20 @@ async function enterPlanet(reason, snapshot, destination) {
 }
 
 async function returnToStart() {
+  voyage.reset();
+  docking.reset();
   arrivalHoldUntil = 0; departureOrbit = null; arrivalOrbit = null;
   openingShot = null;
   camera.fov = CFG.atmosphere.fov; camera.updateProjectionMatrix();
   nextAutoPauseAt = 0; autoPauseUntil = 0;
   planetMemory.clear();
   world = 'terra'; window.TI_WORLD = world; setWorldMode('terra');
+  landerPresent = true;
   rover.metricEnabled = true;
   document.body.classList.remove('fh-dead', 'ti-desert', 'ti-granite');
-  transmission.reset(); storm.setActive(false);
+  transmission.reset();
+  transmission.trigger.textContent = '1 · 2 · 3  PLANET SELECT';
+  storm.setActive(false);
   landmark.visible = false;
   for (const mesh of scatter.meshes) mesh.visible = true;
   for (const mesh of beam.meshes) mesh.visible = true;
@@ -945,6 +1125,7 @@ async function returnToStart() {
   rover.reset(BH.start[0], BH.start[1], START_HEADING);
   mobileControl.reset();
   lander.place(BH.start[0], BH.start[1], START_HEADING, true);
+  restoration.reset(0);
   rover.auto = location.search.includes('embed');
   rover.setViewMode('rear');
   uObserverR.value = Math.hypot(...BH.start);

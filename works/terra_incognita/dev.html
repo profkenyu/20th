@@ -53,6 +53,11 @@
   body.ti-terminal #fh-pulse.on{background-color:#85f2a8}
   #survey-log{position:fixed;z-index:31;left:24px;top:calc(var(--bar) + 22px);width:min(360px,52vw);pointer-events:none;font-family:'DM Mono',ui-monospace,monospace;font-size:9px;line-height:1.7;letter-spacing:.1em;color:rgba(177,230,197,.38);text-transform:uppercase}
   #survey-log div{margin:0 0 4px;animation:survey-record 13s linear forwards}@keyframes survey-record{0%{opacity:0;transform:translateY(4px)}8%,68%{opacity:1;transform:none}100%{opacity:0}}
+  /* The canvas above is now the visible reconstruction instrument. This live
+     text remains only for assistive technology, so progress is not announced
+     twice on screen. */
+  #ti-restoration{position:fixed;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);
+    white-space:nowrap;pointer-events:none}
 
   /* arrival / departure, matching the other works */
   #arrive,#depart{position:fixed;inset:0;z-index:45;background:#050506;pointer-events:none}
@@ -157,8 +162,13 @@
 <div id="ti-terminal-screen" aria-hidden="true"></div>
 <div id="ti-terminal-cue" role="status" aria-live="polite" aria-hidden="true"><b>Archival Terminal</b>제한된 연산 자원 · 기록 신호로 전환<br>Low-compute telemetry recovered</div>
 <div id="ti-sensor" aria-hidden="true"></div>
-<canvas id="ti-minimap" width="308" height="352" aria-label="Local survey atlas showing the rover's live position and heading"></canvas>
+<canvas id="ti-minimap" width="308" height="352" aria-label="Lander reconstruction display showing eight wireframe and material modules"></canvas>
 <div id="survey-log" aria-live="polite"></div>
+<div id="ti-restoration" role="status" aria-live="polite" aria-label="Lander reconstruction progress">
+  <div class="head"><span>Lander Reconstruction</span><span id="ti-restoration-progress">0 / 8</span></div>
+  <div id="ti-restoration-cells" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div id="ti-restoration-label">Wire State · 8 Recovery Keys Required</div>
+</div>
 <div class="bar t"></div>
 <div class="bar b"></div>
 <div id="ti-mobile-drive" aria-label="모바일 로버 조작">

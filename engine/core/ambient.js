@@ -33,6 +33,7 @@ export class Ambient {
     this.muted = false;
     this.started = false;
     this.silenceUntil = 0;
+    this.voyageActive = false;
     const start = () => this.start();
     addEventListener('pointerdown', start, { once: true });
     addEventListener('keydown', start, { once: true });
@@ -87,6 +88,20 @@ export class Ambient {
     this.osc.forEach(o => { o.connect(this.droneGain); o.start(); });
     this.droneGain.connect(droneLp).connect(this.worldGain);
 
+    /* A restrained carrier for the interplanetary interval. It bypasses the
+       planetary world bus but not the visitor's master mute: a low 43 Hz
+       reference with an incommensurate 67 Hz edge, heard as communication
+       infrastructure rather than engine sound. */
+    this.voyageGain = ctx.createGain();
+    this.voyageGain.gain.value = this.voyageActive ? 0.022 : 0;
+    const voyageLp = ctx.createBiquadFilter();
+    voyageLp.type = 'lowpass'; voyageLp.frequency.value = 180; voyageLp.Q.value = 1.4;
+    this.voyageOsc = [ctx.createOscillator(), ctx.createOscillator()];
+    this.voyageOsc[0].type = 'sine'; this.voyageOsc[0].frequency.value = 43;
+    this.voyageOsc[1].type = 'triangle'; this.voyageOsc[1].frequency.value = 67.3;
+    this.voyageOsc.forEach(o => { o.connect(voyageLp); o.start(); });
+    voyageLp.connect(this.voyageGain).connect(this.master);
+
     /* ── breathing ──────────────────────────────────────────────────── */
     const lfo = ctx.createOscillator();
     lfo.frequency.value = A.breath;
@@ -121,6 +136,13 @@ export class Ambient {
 
   silenceFor(ms) {
     this.silenceUntil = Math.max(this.silenceUntil, performance.now() + ms);
+  }
+
+  setVoyage(active) {
+    this.voyageActive = !!active;
+    if (!this.ctx || !this.voyageGain) return;
+    this.voyageGain.gain.setTargetAtTime(this.voyageActive ? 0.022 : 0,
+      this.ctx.currentTime, this.voyageActive ? 0.8 : 1.4);
   }
 
   /** The score is powered by the same cell. As the charge falls the world goes

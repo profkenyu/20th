@@ -16,6 +16,10 @@ import {
 import { cfg } from '../config.js';
 
 const Y = new THREE.Vector3(0, 1, 0);
+const RESTORATION_PARTS = Object.freeze([
+  'FOUNDATION', 'LOAD PATHS', 'SERVICE CELLS', 'PRESSURE HULL',
+  'SENSOR VISOR', 'TRANSFER BRIDGE', 'SENSOR CROWN', 'SIGNAL CORE',
+]);
 
 function cylinderBetween(a, b, radius, material, radial = 12) {
   const av = new THREE.Vector3(...a), bv = new THREE.Vector3(...b);
@@ -42,11 +46,14 @@ function shaded(rgb, sheen = 0.08, gloss = 26) {
   mat.colorNode = Fn(() => {
     const n = normalize(normalWorld);
     const v = normalize(cameraPosition.sub(positionWorld));
-    const ndl = abs(dot(n, L));
+    /* One-sided solar incidence. `abs(dot)` lit the anti-solar underside as
+       brightly as the sun-facing armour and made the craft read like a studio
+       miniature in space. The low constant is instrument visibility only. */
+    const ndl = max(dot(n, L), float(0.0));
     const halfVector = normalize(L.add(v));
     const spec = pow(max(dot(n, halfVector), float(0.0)), float(gloss)).mul(sheen);
     const rim = pow(float(1.0).sub(abs(dot(n, v))), float(3.0)).mul(sheen * 0.14);
-    const lit = vec3(...rgb).mul(ndl.mul(1.32).add(0.075))
+    const lit = vec3(...rgb).mul(ndl.mul(1.36).add(0.052))
       .add(vec3(1.0, 0.97, 0.91).mul(spec))
       .add(vec3(0.28, 0.34, 0.40).mul(rim));
     const fog = float(1.0).sub(exp(positionView.length().mul(-C.atmosphere.fogDensity)));
@@ -93,6 +100,10 @@ class CryogenicPurge {
     this.burstIndex = 0;
     this.activeVent = 0;
     this.carry = 0;
+    this.forcedUntil = 0;
+    this.forcedVentStart = 0;
+    this.forcedVentCount = 1;
+    this.lastCarrierY = null;
     for (let i = 0; i < this.count; i++) this.pos[i * 3 + 1] = -1e6;
 
     const geometry = new THREE.BufferGeometry();
@@ -119,6 +130,8 @@ class CryogenicPurge {
     for (let i = 0; i < this.count; i++) this.pos[i * 3 + 1] = -1e6;
     this.carry = 0;
     this.burstStart = -1;
+    this.forcedUntil = 0;
+    this.lastCarrierY = null;
     this.points.geometry.attributes.position.needsUpdate = true;
     this.points.geometry.attributes.color.needsUpdate = true;
   }
@@ -139,11 +152,25 @@ class CryogenicPurge {
     this.nextBurst = this.active ? now + 4800 : 0;
   }
 
-  emit() {
+  forceBurst(now, ventStart = 0, ventCount = 1, duration = 2100) {
+    this.setActive(true, now);
+    this.burstIndex++;
+    this.burstStart = now;
+    this.forcedUntil = now + duration;
+    this.forcedVentStart = Math.max(0, Math.min(this.vents.length - 1, ventStart));
+    this.forcedVentCount = Math.max(1, Math.min(ventCount, this.vents.length - this.forcedVentStart));
+    this.nextBurst = this.forcedUntil + 9000;
+    this.last = now;
+  }
+
+  emit(forced = false) {
     const i = this.cursor++ % this.count, p = i * 3;
     const seed = this.cursor + this.burstIndex * 193;
-    const vent = this.vents[this.activeVent] ?? this.vents[0];
-    const speed = 3.5 + hash(seed + 3) * 5.5;
+    const ventIndex = forced
+      ? this.forcedVentStart + (this.cursor % this.forcedVentCount)
+      : this.activeVent;
+    const vent = this.vents[ventIndex] ?? this.vents[0];
+    const speed = forced ? 1.8 + hash(seed + 3) * 4.2 : 3.5 + hash(seed + 3) * 5.5;
     const dx = vent.direction[0] + (hash(seed + 11) - 0.5) * 0.58;
     const dy = vent.direction[1] + (hash(seed + 23) - 0.5) * 0.42;
     const dz = vent.direction[2] + (hash(seed + 43) - 0.5) * 0.58;
@@ -154,14 +181,18 @@ class CryogenicPurge {
     this.vel[p] = dx / length * speed;
     this.vel[p + 1] = dy / length * speed;
     this.vel[p + 2] = dz / length * speed;
-    this.life[i] = this.maxLife[i] = 0.65 + hash(seed + 59) * 0.82;
+    this.life[i] = this.maxLife[i] = forced
+      ? 1.05 + hash(seed + 59) * 1.45
+      : 0.65 + hash(seed + 59) * 0.82;
   }
 
-  update(now, active) {
+  update(now, active, carrierY = 0) {
     this.setActive(active, now);
     if (!active) return;
     const dt = Math.min(0.05, Math.max(0, (now - this.last) / 1000));
     this.last = now;
+    const carrierDeltaY = this.lastCarrierY == null ? 0 : carrierY - this.lastCarrierY;
+    this.lastCarrierY = carrierY;
 
     if (now >= this.nextBurst) {
       this.burstStart = now;
@@ -176,19 +207,26 @@ class CryogenicPurge {
         + 11000 + hash(this.burstIndex * 53) * 27000;
     }
     const age = now - this.burstStart;
-    const emitting = age >= 0 && (age <= this.pulseA
-      || (age >= this.pulseA + this.gap && age <= this.pulseA + this.gap + this.pulseB));
+    const forced = now < this.forcedUntil;
+    const emitting = forced || (age >= 0 && (age <= this.pulseA
+      || (age >= this.pulseA + this.gap && age <= this.pulseA + this.gap + this.pulseB)));
+    this.points.material.size = forced ? 2.6 : (this.count < 100 ? 0.72 : 0.60);
+    this.points.material.opacity = forced ? 0.28 : (this.count < 100 ? 0.31 : 0.36);
     if (emitting) {
-      const rate = 48 + hash(this.burstIndex * 67) * 46;
+      const rate = forced ? 210 : 48 + hash(this.burstIndex * 67) * 46;
       this.carry += rate * dt;
-      const emitCount = Math.min(5, Math.floor(this.carry));
+      const emitCount = Math.min(forced ? 12 : 5, Math.floor(this.carry));
       this.carry -= emitCount;
-      for (let i = 0; i < emitCount; i++) this.emit();
+      for (let i = 0; i < emitCount; i++) this.emit(forced);
     }
 
     for (let i = 0; i < this.count; i++) {
       if (this.life[i] <= 0) continue;
       const p = i * 3;
+      /* The point pool is parented for placement, but released condensate is
+         inertial. Counter the carrier's lift/descent so a purge remains near
+         the surface instead of being dragged upward with the spacecraft. */
+      this.pos[p + 1] -= carrierDeltaY;
       this.life[i] -= dt;
       /* Frozen grains, not gas parcels: after the flash expansion their only
          acceleration is the body's gravity. Their life is too short to fall
@@ -284,8 +322,8 @@ function sampleSite(heightAt, cx, cz, originX, originZ, dense = false) {
     maxResidual = Math.max(maxResidual, residual);
   }
   const feet = [];
-  for (let i = 0; i < 4; i++) {
-    const angle = Math.PI * 0.25 + i * Math.PI * 0.5 + yaw;
+  for (let i = 0; i < 6; i++) {
+    const angle = i * Math.PI / 3 + yaw;
     feet.push(heightAt(cx + Math.cos(angle) * 5.55, cz + Math.sin(angle) * 5.55));
   }
   const heights = samples.map(p => p.h).concat(feet);
@@ -358,8 +396,27 @@ export class Lander {
     this.beacon = uniform(0.0);
     this.legs = [];
     this.purge = null;
+    this.rampPivot = null;
+    this.ramp = null;
+    this.dockLights = [];
+    this.dock = {
+      hatchZ: -3.78, toeZ: -8.68, floorY: 2.04,
+      toeY: 0, openAngle: -0.36, progress: 0,
+    };
+    this.restorationLevel = 0;
+    this.parts = RESTORATION_PARTS.map((name, index) => ({
+      index, name, objects: [], wire: null, wireMaterial: null,
+      state: 'wire', started: 0,
+    }));
+    this._wireInverse = new THREE.Matrix4();
+    this._wireRelative = new THREE.Matrix4();
     this.group.add(this.core);
     this._build();
+    this._prepareRestoration();
+  }
+
+  _track(part, ...objects) {
+    this.parts[part].objects.push(...objects.filter(Boolean));
   }
 
   _build() {
@@ -395,9 +452,11 @@ export class Lander {
     const upperRail = lowerRail.clone();
     upperRail.position.y = 2.56;
     this.group.add(upperRail);
+    this._track(0, underbody, stage, lowerRail, upperRail);
 
     /* Four flush orange service bays replace the reference's historical foil
        boxes with a single modular colour field. */
+    const serviceCells = [];
     for (let i = 0; i < 4; i++) {
       const a = i * Math.PI * 0.5;
       const bay = new THREE.Mesh(new THREE.BoxGeometry(1.38, 0.88, 0.16), service);
@@ -408,14 +467,16 @@ export class Lander {
       slot.position.set(Math.sin(a) * 3.115, 2.13, Math.cos(a) * 3.115);
       slot.rotation.y = a;
       this.group.add(slot);
+      serviceCells.push(bay, slot);
     }
+    this._track(2, ...serviceCells);
 
     /* ── articulated landing system ──────────────────────────────────
-       Four thick two-segment arms, closer to robotic manipulators than Apollo
+       Six thick two-segment arms, closer to robotic manipulators than Apollo
        struts. Every pad later samples its own world-space terrain height. */
     const padRadius = 5.55;
-    for (let i = 0; i < 4; i++) {
-      const a = Math.PI * 0.25 + i * Math.PI * 0.5;
+    for (let i = 0; i < 6; i++) {
+      const a = i * Math.PI / 3;
       const shoulder = [Math.cos(a) * 2.62, 2.24, Math.sin(a) * 2.62];
       const elbow = [Math.cos(a) * 4.12, 1.35, Math.sin(a) * 4.12];
       const foot = [Math.cos(a) * padRadius, 0.16, Math.sin(a) * padRadius];
@@ -441,7 +502,11 @@ export class Lander {
       padCore.position.y += 0.10;
       this.group.add(padCore);
 
-      this.legs.push({ shoulder, elbow, foot, upper, lower, brace, elbowJoint, pad, padCore });
+      this.legs.push({
+        shoulder, elbow, foot, upper, lower, brace, elbowJoint, pad, padCore,
+        deployedElbow: elbow.slice(), deployedFoot: foot.slice(),
+      });
+      this._track(1, upper, lower, brace, shoulderJoint, elbowJoint, pad, padCore);
     }
 
     /* ── suspended pressure hull ──────────────────────────────────────
@@ -449,12 +514,14 @@ export class Lander {
        Five height rings form large planar armour facets and a roof spine. */
     const hull = new THREE.Mesh(facetedHullGeometry(), ceramic);
     this.core.add(hull);
+    this._track(3, hull);
 
     /* Four flat visor plates span only the forward 140 degrees. */
     const front = [
       [-3.35, -2.30], [-1.95, -3.28], [0, -3.65],
       [1.95, -3.28], [3.35, -2.30],
     ];
+    const sensorVisor = [];
     for (let i = 0; i < front.length - 1; i++) {
       const a = front[i], b = front[i + 1];
       const dx = b[0] - a[0], dz = b[1] - a[1];
@@ -465,6 +532,7 @@ export class Lander {
       visor.position.set(mx + mx / ml * 0.045, 4.08, mz + mz / ml * 0.045);
       visor.rotation.y = Math.atan2(-dz, dx);
       this.core.add(visor);
+      sensorVisor.push(visor);
     }
 
     /* Three large radial machine apertures quote 2592's cylindrical modules,
@@ -483,16 +551,59 @@ export class Lander {
       throat.position.copy(collar.position);
       throat.rotation.copy(collar.rotation);
       this.core.add(throat);
+      sensorVisor.push(collar, throat);
     }
+    this._track(4, ...sensorVisor);
 
-    /* A forward suspended transfer bridge gives the circular mass a clear
-       orientation and a future docking gesture. */
+    /* ── deployment bay ───────────────────────────────────────────────
+       The bay is intentionally unreadable as a room: a black receiving
+       volume, four load-frame edges and three paired locator lights. The
+       ramp is a real hinged surface and later becomes part of wheel contact. */
     const bridge = new THREE.Mesh(new THREE.BoxGeometry(1.55, 0.22, 1.45), graphite);
-    bridge.position.set(0, 2.78, -3.12);
+    bridge.position.set(0, 2.02, -2.52);
     this.core.add(bridge);
-    const bridgeLight = new THREE.Mesh(new THREE.BoxGeometry(1.08, 0.055, 0.045), beaconMat);
-    bridgeLight.position.set(0, 2.82, -3.86);
-    this.core.add(bridgeLight);
+    const bayBack = new THREE.Mesh(new THREE.BoxGeometry(2.34, 1.62, 0.16), dark);
+    bayBack.position.set(0, 2.72, -0.78);
+    this.core.add(bayBack);
+    const bayFloor = new THREE.Mesh(new THREE.BoxGeometry(2.30, 0.12, 3.05), dark);
+    bayFloor.position.set(0, 2.04, -2.25);
+    this.core.add(bayFloor);
+    const bayFrames = [];
+    for (const x of [-1.20, 1.20]) {
+      const side = new THREE.Mesh(new THREE.BoxGeometry(0.13, 1.70, 3.08), graphite);
+      side.position.set(x, 2.74, -2.28);
+      this.core.add(side); bayFrames.push(side);
+    }
+    const lintel = new THREE.Mesh(new THREE.BoxGeometry(2.52, 0.15, 3.08), metal);
+    lintel.position.set(0, 3.58, -2.28);
+    this.core.add(lintel); bayFrames.push(lintel);
+
+    this.rampPivot = new THREE.Group();
+    this.rampPivot.position.set(0, this.dock.floorY, this.dock.hatchZ);
+    this.group.add(this.rampPivot);
+    const rampLength = this.dock.hatchZ - this.dock.toeZ;
+    const rampGeometry = new THREE.BoxGeometry(2.34, 0.12, rampLength);
+    rampGeometry.translate(0, 0, -rampLength * 0.5);
+    this.ramp = new THREE.Mesh(rampGeometry, graphite);
+    this.rampPivot.add(this.ramp);
+    const rampRibA = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.13, rampLength), metal);
+    rampRibA.geometry.translate(0, 0, -rampLength * 0.5);
+    rampRibA.position.x = -1.07;
+    const rampRibB = rampRibA.clone(); rampRibB.position.x = 1.07;
+    this.rampPivot.add(rampRibA, rampRibB);
+
+    for (let pair = 0; pair < 3; pair++) {
+      for (const side of [-1, 1]) {
+        const material = new THREE.MeshBasicMaterial({
+          color: 0xffb21c, transparent: true, opacity: 0.92,
+          depthWrite: false, toneMapped: false,
+        });
+        const locator = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.055, 0.42), material);
+        locator.position.set(side * 1.02, 0.095, -0.82 - pair * 1.46);
+        this.rampPivot.add(locator);
+        this.dockLights.push(locator);
+      }
+    }
 
     /* Port-side residual volatile purge. The black aperture remains visible
        between events, so the brief cloud has a mechanical source. */
@@ -506,9 +617,15 @@ export class Lander {
     ventMouth.position.set(-3.75, 3.73, 0.15);
     ventMouth.rotation.z = Math.PI * 0.5;
     this.core.add(ventMouth);
+    this._track(5, bridge, bayBack, bayFloor, ...bayFrames,
+      this.ramp, rampRibA, rampRibB, ...this.dockLights, ventCollar, ventMouth);
     this.purge = new CryogenicPurge([
       { position: [-3.78, 3.73, 0.15], direction: [-1.0, 0.04, 0.12] },
       { position: [0.58, 6.89, 0.41], direction: [0.18, 0.94, 0.30] },
+      { position: [-1.70, 0.72, -0.72], direction: [-0.48, -0.78, -0.30] },
+      { position: [ 1.70, 0.72, -0.72], direction: [ 0.48, -0.78, -0.30] },
+      { position: [-1.35, 0.72,  1.08], direction: [-0.42, -0.80,  0.34] },
+      { position: [ 1.35, 0.72,  1.08], direction: [ 0.42, -0.80,  0.34] },
     ]);
     this.group.add(this.purge.points);
 
@@ -516,11 +633,14 @@ export class Lander {
        A scanning blade continues the faceted silhouette; no circular halo. */
     this.crown.position.set(0, 5.55, 0);
     this.core.add(this.crown);
+    const crownParts = [];
     const crownBase = new THREE.Mesh(new THREE.CylinderGeometry(1.35, 2.05, 0.42, 8), graphite);
     this.crown.add(crownBase);
+    crownParts.push(crownBase);
     const blade = new THREE.Mesh(new THREE.BoxGeometry(2.65, 0.18, 0.48), metal);
     blade.position.y = 0.52;
     this.crown.add(blade);
+    crownParts.push(blade);
     for (let i = 0; i < 3; i++) {
       const a = i * Math.PI * 2 / 3;
       const mast = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.72, 0.08), metal);
@@ -530,6 +650,7 @@ export class Lander {
       sensor.position.set(Math.cos(a) * 0.78, 1.10, Math.sin(a) * 0.78);
       sensor.rotation.y = -a;
       this.crown.add(sensor);
+      crownParts.push(mast, sensor);
     }
 
     /* The elevated thermal purge is deliberately visible from the gallery
@@ -545,6 +666,18 @@ export class Lander {
     upperMouth.position.copy(upperVent.position).addScaledVector(upperDirection, 0.15);
     upperMouth.quaternion.copy(upperVent.quaternion);
     this.crown.add(upperMouth);
+    crownParts.push(upperVent, upperMouth);
+    this._track(6, ...crownParts);
+
+    /* The eighth recovery key fixes the final navigation core into matter.
+       Its asymmetric rectangular housing keeps the roof architectural rather
+       than returning to a capsule silhouette. */
+    const coreHousing = new THREE.Mesh(new THREE.BoxGeometry(1.72, 0.46, 1.18), graphite);
+    coreHousing.position.set(-0.16, 0.34, 0.08);
+    this.crown.add(coreHousing);
+    const coreInset = new THREE.Mesh(new THREE.BoxGeometry(1.18, 0.13, 0.72), glass);
+    coreInset.position.set(-0.16, 0.49, -0.18);
+    this.crown.add(coreInset);
 
     const beaconBase = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.11, 0.10, 8), metal);
     beaconBase.position.set(0, 0.64, 0);
@@ -552,6 +685,125 @@ export class Lander {
     const beacon = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.065, 0.16, 8), beaconMat);
     beacon.position.set(0, 0.77, 0);
     this.crown.add(beacon);
+    this._track(7, coreHousing, coreInset, beaconBase, beacon);
+  }
+
+  _prepareRestoration() {
+    for (const part of this.parts) {
+      for (const object of part.objects) {
+        object.userData.restorationScale = object.scale.clone();
+        object.visible = false;
+      }
+      const material = new THREE.LineBasicMaterial({
+        color: 0x8fa8a3, transparent: true, opacity: 0.30,
+        depthWrite: false, depthTest: true,
+      });
+      const wire = new THREE.LineSegments(new THREE.BufferGeometry(), material);
+      wire.renderOrder = 2;
+      this.group.add(wire);
+      part.wire = wire;
+      part.wireMaterial = material;
+    }
+  }
+
+  _rebuildWireframes() {
+    this.group.updateMatrixWorld(true);
+    this._wireInverse.copy(this.group.matrixWorld).invert();
+    const point = new THREE.Vector3();
+    for (const part of this.parts) {
+      const vertices = [];
+      for (const object of part.objects) {
+        object.updateWorldMatrix(true, false);
+        this._wireRelative.multiplyMatrices(this._wireInverse, object.matrixWorld);
+        const edges = new THREE.EdgesGeometry(object.geometry, 18);
+        const position = edges.getAttribute('position');
+        for (let i = 0; i < position.count; i++) {
+          point.fromBufferAttribute(position, i).applyMatrix4(this._wireRelative);
+          vertices.push(point.x, point.y, point.z);
+        }
+        edges.dispose();
+      }
+      part.wire.geometry.dispose();
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+      geometry.computeBoundingSphere();
+      part.wire.geometry = geometry;
+    }
+  }
+
+  setRestorationLevel(level = 0) {
+    this.restorationLevel = Math.max(0, Math.min(this.parts.length, Math.floor(level)));
+    for (const part of this.parts) {
+      const restored = part.index < this.restorationLevel;
+      part.state = restored ? 'solid' : 'wire';
+      part.started = 0;
+      for (const object of part.objects) {
+        object.visible = restored;
+        object.scale.copy(object.userData.restorationScale);
+      }
+      part.wire.visible = !restored;
+      part.wireMaterial.color.setHex(0x8fa8a3);
+      part.wireMaterial.opacity = 0.30;
+    }
+    this.beacon.value = 0;
+    return this.restorationLevel;
+  }
+
+  restorePart(index, now = performance.now()) {
+    if (index !== this.restorationLevel || index < 0 || index >= this.parts.length) return false;
+    const part = this.parts[index];
+    part.state = 'materialising';
+    part.started = now;
+    part.wire.visible = true;
+    part.wireMaterial.color.setHex(0xffb21c);
+    part.wireMaterial.opacity = 0.92;
+    this.restorationLevel = index + 1;
+    return true;
+  }
+
+  restoreAll(now = performance.now()) {
+    if (this.restorationLevel >= this.parts.length) return false;
+    for (const part of this.parts) {
+      if (part.state === 'solid') continue;
+      part.state = 'materialising';
+      part.started = now;
+      part.wire.visible = true;
+      part.wireMaterial.color.setHex(0xffb21c);
+      part.wireMaterial.opacity = 0.92;
+    }
+    this.restorationLevel = this.parts.length;
+    return true;
+  }
+
+  _updateRestoration(now) {
+    for (const part of this.parts) {
+      if (part.state === 'wire') {
+        part.wire.visible = true;
+        part.wireMaterial.opacity = 0.25 + Math.sin(now * 0.00072 + part.index * 0.67) * 0.045;
+        continue;
+      }
+      if (part.state === 'solid') { part.wire.visible = false; continue; }
+      const progress = Math.max(0, Math.min(1, (now - part.started) / 2200));
+      const eased = progress * progress * (3 - 2 * progress);
+      const count = Math.max(1, part.objects.length);
+      for (let i = 0; i < count; i++) {
+        const object = part.objects[i];
+        const local = Math.max(0, Math.min(1, progress * 1.32 - i / count * 0.32));
+        const settle = local * local * (3 - 2 * local);
+        object.visible = local > 0.01;
+        object.scale.copy(object.userData.restorationScale).multiplyScalar(0.84 + settle * 0.16);
+      }
+      part.wire.visible = progress < 1;
+      part.wireMaterial.opacity = (1 - eased) * 0.92;
+      if (progress >= 1) {
+        part.state = 'solid';
+        part.wire.visible = false;
+        for (const object of part.objects) {
+          object.visible = true;
+          object.scale.copy(object.userData.restorationScale);
+        }
+      }
+    }
   }
 
   place(x, z, heading, visible = true) {
@@ -562,6 +814,18 @@ export class Lander {
     const { x: px, z: pz, y: baseY, yaw } = this.site;
     this.group.position.set(px, baseY, pz);
     this.group.rotation.y = yaw;
+
+    /* The toe is fitted once to terrain. The open ramp angle and the wheel
+       collision surface then share these exact endpoints. */
+    const sin = Math.sin(yaw), cos = Math.cos(yaw);
+    const toeX = px + this.dock.toeZ * sin;
+    const toeZ = pz + this.dock.toeZ * cos;
+    this.dock.toeY = this.h(toeX, toeZ) - baseY + 0.08;
+    const rampLength = this.dock.hatchZ - this.dock.toeZ;
+    this.dock.openAngle = Math.asin(Math.max(-0.82, Math.min(0.05,
+      (this.dock.toeY - this.dock.floorY) / rampLength)));
+    this.setRamp(0);
+    this.setDockLights(1);
 
     for (const leg of this.legs) {
       const local = new THREE.Vector3(leg.foot[0], 0, leg.foot[2])
@@ -577,19 +841,107 @@ export class Lander {
       leg.elbowJoint.position.set(...elbow);
       leg.pad.position.set(foot[0], footY + 0.08, foot[2]);
       leg.padCore.position.set(foot[0], footY + 0.18, foot[2]);
+      leg.deployedElbow = elbow.slice();
+      leg.deployedFoot = foot.slice();
     }
+    this.setLegFold(0);
+    /* Terrain fitting changes the articulated struts' Y scale. Preserve that
+       fitted scale as the restoration endpoint; otherwise materialisation
+       would silently snap every leg back to its flat-ground length. */
+    for (const part of this.parts) for (const object of part.objects)
+      object.userData.restorationScale.copy(object.scale);
+    this._rebuildWireframes();
     this.purge?.reset(typeof performance === 'undefined' ? 0 : performance.now());
     this.group.visible = visible;
   }
 
+  setRamp(progress = 0) {
+    this.dock.progress = Math.max(0, Math.min(1, progress));
+    if (!this.rampPivot) return;
+    const eased = this.dock.progress * this.dock.progress * (3 - 2 * this.dock.progress);
+    this.rampPivot.rotation.x = Math.PI * 0.5
+      + (this.dock.openAngle - Math.PI * 0.5) * eased;
+  }
+
+  setDockLights(fraction = 1) {
+    const remaining = Math.max(0, Math.min(1, fraction));
+    const pairs = 3;
+    for (let i = 0; i < this.dockLights.length; i++) {
+      const pair = Math.floor(i / 2);
+      this.dockLights[i].material.opacity = pair < Math.ceil(remaining * pairs) ? 0.92 : 0.025;
+    }
+  }
+
+  forceFlightPurge(now = performance.now(), duration = 2200) {
+    this.purge?.forceBurst(now, 2, 4, duration);
+  }
+
+  setLegFold(progress = 0) {
+    const p = Math.max(0, Math.min(1, progress));
+    const eased = p * p * (3 - 2 * p);
+    for (const leg of this.legs) {
+      const a = Math.atan2(leg.shoulder[2], leg.shoulder[0]);
+      const tuckedElbow = [Math.cos(a) * 2.78, 1.72, Math.sin(a) * 2.78];
+      const tuckedFoot = [Math.cos(a) * 3.08, 1.06, Math.sin(a) * 3.08];
+      const elbow = leg.deployedElbow.map((v, i) => v + (tuckedElbow[i] - v) * eased);
+      const foot = leg.deployedFoot.map((v, i) => v + (tuckedFoot[i] - v) * eased);
+      updateCylinderBetween(leg.upper, leg.shoulder, elbow);
+      updateCylinderBetween(leg.lower, elbow, foot);
+      updateCylinderBetween(leg.brace,
+        [leg.shoulder[0] * 0.93, leg.shoulder[1] - 0.30, leg.shoulder[2] * 0.93],
+        [foot[0], foot[1] + 0.18, foot[2]]);
+      leg.elbowJoint.position.set(...elbow);
+      leg.pad.position.set(foot[0], foot[1] - 0.08, foot[2]);
+      leg.padCore.position.set(foot[0], foot[1] + 0.02, foot[2]);
+    }
+    this.legFold = p;
+  }
+
+  /* Local deployment coordinates converted without allocating matrices. */
+  dockingPoint(localZ, localX = 0, localY = null) {
+    const yaw = this.group.rotation.y, sin = Math.sin(yaw), cos = Math.cos(yaw);
+    const y = localY == null
+      ? this.group.position.y + this.hangarHeight(localZ)
+      : this.group.position.y + localY;
+    return new THREE.Vector3(
+      this.group.position.x + localX * cos + localZ * sin,
+      y,
+      this.group.position.z - localX * sin + localZ * cos,
+    );
+  }
+
+  dockingLocal(x, z) {
+    const dx = x - this.group.position.x, dz = z - this.group.position.z;
+    const yaw = this.group.rotation.y, sin = Math.sin(yaw), cos = Math.cos(yaw);
+    return { x: dx * cos - dz * sin, z: dx * sin + dz * cos };
+  }
+
+  hangarHeight(localZ) {
+    if (localZ <= this.dock.toeZ) return this.dock.toeY;
+    if (localZ >= this.dock.hatchZ) return this.dock.floorY;
+    const p = (localZ - this.dock.toeZ) / (this.dock.hatchZ - this.dock.toeZ);
+    return this.dock.toeY + (this.dock.floorY - this.dock.toeY) * p;
+  }
+
+  dockingSurface(x, z, terrain) {
+    if (this.dock.progress < 0.98) return terrain;
+    const local = this.dockingLocal(x, z);
+    if (Math.abs(local.x) > 1.32 || local.z < this.dock.toeZ - 0.35 || local.z > 0.15) return terrain;
+    return Math.max(terrain, this.group.position.y + this.hangarHeight(local.z));
+  }
+
   update(now, active = true) {
     this.group.visible = active;
-    this.purge?.update(now, active);
+    this.purge?.update(now, active && this.restorationLevel >= 7, this.group.position.y);
     if (!active) return;
+    this._updateRestoration(now);
     const t = now * 0.001;
     /* The habitat mass stays planted; only its sensor crown searches. */
     this.core.position.y = 0;
-    this.crown.rotation.y = Math.sin(t * 0.095) * 0.16;
-    this.beacon.value = signalEnvelope(t - 0.90, 3.2);
+    /* Keep the final wire-state core registered with the roof. The crown only
+       begins its search motion after the eighth module has fully settled. */
+    this.crown.rotation.y = this.parts[7].state === 'solid'
+      ? Math.sin(t * 0.095) * 0.16 : 0;
+    this.beacon.value = this.restorationLevel >= 8 ? signalEnvelope(t - 0.90, 3.2) : 0;
   }
 }

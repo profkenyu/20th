@@ -19,6 +19,9 @@ export class MiniMap {
     this.detailLimit = options.detailLimit ?? 3072;
     this.coarseLimit = options.coarseLimit ?? 1024;
     this.trailLimit = options.trailLimit ?? 512;
+    /* Survey memory continues to record for transfer and archival logic, but
+       the visible instrument can be reassigned to the lander's material state. */
+    this.restoration = options.restoration ?? null;
     this.reset(start, {
       id: options.id ?? 'BODY 01', label: options.label ?? 'TERRA', archives: [],
     });
@@ -200,7 +203,122 @@ export class MiniMap {
     }
   }
 
+  drawRestoration(now) {
+    const c = this.ctx, W = this.canvas.width, H = this.canvas.height;
+    const source = this.restoration, count = source?.count ?? 0;
+    const active = source?.event?.index ?? -1;
+    const reducedPulse = REDUCED_MOTION ? 0.62 : 0.50 + Math.sin(now * 0.0052) * 0.18;
+    const scale = 1 - this.transfer * 0.84, alpha = 1 - this.transfer * 0.90;
+    const cx = W * 0.5, cy = 174;
+
+    c.clearRect(0, 0, W, H);
+    c.fillStyle = 'rgba(5,5,6,.82)'; c.fillRect(0, 0, W, H);
+    c.strokeStyle = 'rgba(217,221,226,.08)'; c.strokeRect(.5, .5, W - 1, H - 1);
+    c.font = '15px DM Mono, monospace'; c.fillStyle = 'rgba(217,221,226,.42)';
+    c.fillText('LANDER MATERIAL STATE', 12, 20);
+    c.font = '10px DM Mono, monospace'; c.fillStyle = 'rgba(143,168,163,.28)';
+    c.fillText(`ARK–01 · MODULE RECOVERY · ${count}/8`, 12, 39);
+
+    c.save();
+    c.translate(cx, cy); c.scale(scale, scale); c.translate(-cx, -cy);
+    c.globalAlpha = alpha;
+
+    const modules = [
+      { // 0 · foundation
+        fill: 'rgba(47,54,61,.88)', paths: [[[103,225],[205,225],[193,258],[115,258]]],
+      },
+      { // 1 · four load paths and pads
+        fill: 'rgba(126,139,145,.84)', paths: [
+          [[111,213],[122,219],[72,281],[57,277]], [[197,213],[186,219],[236,281],[251,277]],
+          [[128,218],[137,222],[104,291],[89,290]], [[180,218],[171,222],[204,291],[219,290]],
+          [[49,276],[78,276],[82,286],[45,286]], [[230,276],[259,276],[263,286],[226,286]],
+          [[84,287],[111,287],[115,297],[80,297]], [[197,287],[224,287],[228,297],[193,297]],
+        ],
+      },
+      { // 2 · orange service cells
+        fill: 'rgba(132,70,30,.90)', paths: [
+          [[111,196],[151,196],[148,220],[108,220]], [[157,196],[197,196],[200,220],[160,220]],
+        ],
+      },
+      { // 3 · faceted pressure hull
+        fill: 'rgba(105,115,121,.92)', paths: [
+          [[88,132],[104,102],[132,82],[176,82],[204,102],[220,132],[210,195],[98,195]],
+        ],
+      },
+      { // 4 · sensor visor
+        fill: 'rgba(11,38,48,.96)', paths: [
+          [[99,129],[112,109],[137,96],[171,96],[196,109],[209,129],[198,143],[110,143]],
+        ],
+      },
+      { // 5 · transfer bridge / ramp
+        fill: 'rgba(45,50,57,.92)', paths: [
+          [[132,188],[176,188],[188,239],[120,239]], [[122,239],[186,239],[202,266],[106,266]],
+        ],
+      },
+      { // 6 · planar sensor crown
+        fill: 'rgba(120,133,140,.90)', paths: [
+          [[129,80],[179,80],[173,65],[135,65]], [[112,55],[196,55],[196,66],[112,66]],
+          [[139,42],[146,42],[146,61],[139,61]], [[162,42],[169,42],[169,61],[162,61]],
+        ],
+      },
+      { // 7 · final signal core
+        fill: 'rgba(255,178,28,.92)', paths: [
+          [[137,67],[171,67],[168,82],[140,82]], [[149,39],[159,39],[162,49],[154,55],[146,49]],
+        ],
+      },
+    ];
+
+    const drawPolygon = (points, moduleIndex, fill) => {
+      const restored = moduleIndex < count;
+      const materialising = moduleIndex === active;
+      c.beginPath(); c.moveTo(points[0][0], points[0][1]);
+      for (let i = 1; i < points.length; i++) c.lineTo(points[i][0], points[i][1]);
+      c.closePath();
+      c.fillStyle = restored ? fill : 'rgba(4,7,8,.72)'; c.fill();
+      c.lineWidth = materialising ? 2.3 : restored ? 1.25 : 1.05;
+      c.strokeStyle = materialising
+        ? `rgba(255,178,28,${.62 + reducedPulse * .34})`
+        : restored ? 'rgba(230,234,235,.42)' : 'rgba(143,168,163,.38)';
+      c.stroke();
+      if (!restored || materialising) {
+        let mx = 0, my = 0;
+        for (const point of points) { mx += point[0]; my += point[1]; }
+        mx /= points.length; my /= points.length;
+        c.lineWidth = .65;
+        c.strokeStyle = materialising
+          ? `rgba(255,178,28,${.28 + reducedPulse * .20})` : 'rgba(143,168,163,.17)';
+        for (let i = 0; i < points.length; i += Math.max(1, Math.floor(points.length / 4))) {
+          c.beginPath(); c.moveTo(mx, my); c.lineTo(points[i][0], points[i][1]); c.stroke();
+        }
+      }
+    };
+
+    /* Legs first, then the suspended mass: the diagram preserves the same
+       load hierarchy as the actual three-dimensional lander. */
+    for (const index of [1, 0, 5, 2, 3, 4, 6, 7])
+      for (const path of modules[index].paths) drawPolygon(path, index, modules[index].fill);
+
+    c.restore(); c.globalAlpha = 1;
+
+    const next = source?.items?.[Math.min(count, 7)];
+    const status = source?.complete ? 'MATERIAL STATE · COMPLETE'
+      : source?.event ? `ACQUIRED · ${source.event.item.sample}`
+      : `NEXT · ${next?.sample ?? 'RECOVERY KEY'}`;
+    c.font = '10px DM Mono, monospace'; c.fillStyle = 'rgba(143,168,163,.42)';
+    c.fillText(status, 12, 318);
+    const gap = 5, slotW = (W - 24 - gap * 7) / 8;
+    for (let i = 0; i < 8; i++) {
+      const x = 12 + i * (slotW + gap), done = i < count, current = i === active;
+      c.fillStyle = done ? 'rgba(255,178,28,.62)' : 'rgba(4,7,8,.88)';
+      c.fillRect(x, 329, slotW, 11);
+      c.strokeStyle = current ? `rgba(255,178,28,${.65 + reducedPulse * .3})`
+        : done ? 'rgba(255,199,91,.72)' : 'rgba(143,168,163,.24)';
+      c.strokeRect(x + .5, 329.5, slotW - 1, 10);
+    }
+  }
+
   draw(v, now) {
+    if (this.restoration) { this.drawRestoration(now); return; }
     const c = this.ctx, W = this.canvas.width, H = this.canvas.height;
     const mx = 12, my = 50, mw = W - 24, mh = H - 124;
     const cx = mx + mw / 2, cy = my + mh / 2, k = mw / this.span;
