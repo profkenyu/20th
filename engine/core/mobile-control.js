@@ -1,10 +1,10 @@
 /**
  * Mobile rover controls.
  *
- * The vehicle remains autonomous: device orientation selects a heading inside
- * a restrained ±40° corridor around the current course, while elevation is a
- * simple two-state run / park control. A phone held upright parks the rover;
- * laid forward it releases a modest cruise gain.
+ * The vehicle remains autonomous: screen-relative roll behaves like a steering
+ * wheel capped at ±40°, while elevation is a two-state run / park control. A
+ * phone held upright parks the rover; laid forward it releases a modest cruise
+ * gain. Returning the phone to centre holds the newly chosen driving direction.
  */
 export class MobileControl {
   constructor(rover) {
@@ -27,8 +27,6 @@ export class MobileControl {
     this.neutral = 0;
     this.rawSteer = 0;
     this.filteredSteer = 0;
-    this.courseHeading = rover.heading;
-    this.wasUsable = false;
     this.rawThrottle = 1;
     this.filteredThrottle = 1;
     this.tiltParked = false;
@@ -168,6 +166,13 @@ export class MobileControl {
     const elevation = this._screenElevation(beta, gamma);
     if (!Number.isFinite(elevation)) return;
     this.lastSample = performance.now();
+    /* Speed posture remains live during steering calibration. This prevents a
+       parked rover from unexpectedly moving while the neutral roll is being
+       reacquired after a screen rotation. */
+    if (this.tiltParked ? elevation <= 68 : elevation >= 80) {
+      this.tiltParked = elevation >= 80;
+    }
+    this.rawThrottle = this.tiltParked ? 0 : 1.15;
     if (this.calibrating) {
       this.samples.push(roll);
       if (this.samples.length >= 20) {
@@ -175,18 +180,10 @@ export class MobileControl {
         this.neutral = (this.samples[9] + this.samples[10]) * 0.5;
         this.samples.length = 0;
         this.calibrating = false;
-        this.courseHeading = this.rover.heading;
       }
       this.rawSteer = 0;
       return;
     }
-    /* Hysteresis prevents a hand-held phone near vertical from chattering
-       between PARK and RUN. RUN is intentionally only a small gain over the
-       autonomous pace, not a separate manual-driving mode. */
-    if (this.tiltParked ? elevation <= 68 : elevation >= 80) {
-      this.tiltParked = elevation >= 80;
-    }
-    this.rawThrottle = this.tiltParked ? 0 : 1.15;
     let delta = roll - this.neutral;
     delta = ((delta + 180) % 360 + 360) % 360 - 180;
     const magnitude = Math.abs(delta);
@@ -203,7 +200,6 @@ export class MobileControl {
     this.rawSteer = 0;
     this.filteredSteer = 0;
     this.rover.mobileSteer = 0;
-    this.wasUsable = false;
   }
 
   update(now, dt, { released = false, blocked = false, missionHold = false } = {}) {
@@ -211,21 +207,22 @@ export class MobileControl {
     const usable = this.permission === 'granted' && !this.calibrating
       && now - this.lastSample <= 700 && released && !blocked
       && !missionHold && !this.rover.operatorHold;
-    if (usable && !this.wasUsable) this.courseHeading = this.rover.heading;
-    this.wasUsable = usable;
     const target = usable ? this.rawSteer : 0;
     this.filteredSteer += (target - this.filteredSteer) * (1 - Math.exp(-dt / 0.34));
     if (Math.abs(this.filteredSteer) < 0.001) this.filteredSteer = 0;
-    /* The sensor never directly integrates yaw. It selects a target inside a
-       40° corridor around the autonomous course; the rover eases toward it
-       at a restrained rate and returns to the course when levelled. */
-    const limit = 40 * Math.PI / 180;
-    const desired = this.courseHeading + this.filteredSteer * limit;
-    const headingError = Math.atan2(Math.sin(desired - this.rover.heading), Math.cos(desired - this.rover.heading));
-    const steering = Math.max(-1, Math.min(1, headingError / (limit * 0.46))) * 0.42;
-    this.rover.mobileSteer = usable ? steering : 0;
-    const throttleTarget = usable ? this.rawThrottle : 1;
-    this.filteredThrottle += (throttleTarget - this.filteredThrottle) * (1 - Math.exp(-dt / 0.22));
+    /* Roll is a wheel angle, not an absolute compass target: left tilt turns
+       left, right tilt turns right, and returning to centre keeps the current
+       heading. The logical wheel is capped at ±40° and mapped to a restrained
+       42% of the rover's full skid-steer authority. */
+    const maxWheelAngle = 40 * Math.PI / 180;
+    const wheelAngle = this.filteredSteer * maxWheelAngle;
+    const steering = wheelAngle / maxWheelAngle * 0.42;
+    this.rover.mobileSteer = usable && !this.tiltParked ? steering : 0;
+    /* Once permission exists, retain the last measured run/park posture during
+       a short sensor pause or recalibration instead of silently resuming. */
+    const sensorOwnsSpeed = this.permission === 'granted' && released;
+    const throttleTarget = sensorOwnsSpeed ? this.rawThrottle : 1;
+    this.filteredThrottle += (throttleTarget - this.filteredThrottle) * (1 - Math.exp(-dt / 0.36));
     if (Math.abs(this.filteredThrottle - throttleTarget) < 0.002) this.filteredThrottle = throttleTarget;
     this.rover.mobileThrottle = this.rover.operatorHold || missionHold || blocked ? 0 : this.filteredThrottle;
     this._syncUi(blocked, missionHold, released);
@@ -246,7 +243,6 @@ export class MobileControl {
     this.filteredThrottle = 1;
     this.tiltParked = false;
     this.rover.mobileThrottle = 1;
-    this.courseHeading = this.rover.heading;
     if (this.permission === 'granted') this.recalibrate();
     this._syncUi(false, false, false);
   }
