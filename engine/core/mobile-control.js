@@ -1,9 +1,10 @@
 /**
  * Mobile rover controls.
  *
- * The vehicle remains autonomous: device orientation bends the route, while
- * its elevation is a simple two-state run / park control. A phone held
- * upright parks the rover; laid forward it releases a modest cruise gain.
+ * The vehicle remains autonomous: device orientation selects a heading inside
+ * a restrained ±40° corridor around the current course, while elevation is a
+ * simple two-state run / park control. A phone held upright parks the rover;
+ * laid forward it releases a modest cruise gain.
  */
 export class MobileControl {
   constructor(rover) {
@@ -26,6 +27,8 @@ export class MobileControl {
     this.neutral = 0;
     this.rawSteer = 0;
     this.filteredSteer = 0;
+    this.courseHeading = rover.heading;
+    this.wasUsable = false;
     this.rawThrottle = 1;
     this.filteredThrottle = 1;
     this.tiltParked = false;
@@ -172,6 +175,7 @@ export class MobileControl {
         this.neutral = (this.samples[9] + this.samples[10]) * 0.5;
         this.samples.length = 0;
         this.calibrating = false;
+        this.courseHeading = this.rover.heading;
       }
       this.rawSteer = 0;
       return;
@@ -186,17 +190,20 @@ export class MobileControl {
     let delta = roll - this.neutral;
     delta = ((delta + 180) % 360 + 360) % 360 - 180;
     const magnitude = Math.abs(delta);
-    if (magnitude <= 5) { this.rawSteer = 0; return; }
-    const t = Math.min(1, (magnitude - 5) / 19);
+    if (magnitude <= 8) { this.rawSteer = 0; return; }
+    /* A broad 32° input range gives both portrait and landscape a deliberate
+       wheel-like response rather than the earlier twitchy lateral response. */
+    const t = Math.min(1, (magnitude - 8) / 24);
     const response = t * t * (3 - 2 * t);
     /* Rover steer is positive-left, so screen-right tilt is negative. */
-    this.rawSteer = -Math.sign(delta) * response * 0.72;
+    this.rawSteer = -Math.sign(delta) * response;
   }
 
   _zero() {
     this.rawSteer = 0;
     this.filteredSteer = 0;
     this.rover.mobileSteer = 0;
+    this.wasUsable = false;
   }
 
   update(now, dt, { released = false, blocked = false, missionHold = false } = {}) {
@@ -204,10 +211,19 @@ export class MobileControl {
     const usable = this.permission === 'granted' && !this.calibrating
       && now - this.lastSample <= 700 && released && !blocked
       && !missionHold && !this.rover.operatorHold;
+    if (usable && !this.wasUsable) this.courseHeading = this.rover.heading;
+    this.wasUsable = usable;
     const target = usable ? this.rawSteer : 0;
-    this.filteredSteer += (target - this.filteredSteer) * (1 - Math.exp(-dt / 0.18));
+    this.filteredSteer += (target - this.filteredSteer) * (1 - Math.exp(-dt / 0.34));
     if (Math.abs(this.filteredSteer) < 0.001) this.filteredSteer = 0;
-    this.rover.mobileSteer = this.filteredSteer;
+    /* The sensor never directly integrates yaw. It selects a target inside a
+       40° corridor around the autonomous course; the rover eases toward it
+       at a restrained rate and returns to the course when levelled. */
+    const limit = 40 * Math.PI / 180;
+    const desired = this.courseHeading + this.filteredSteer * limit;
+    const headingError = Math.atan2(Math.sin(desired - this.rover.heading), Math.cos(desired - this.rover.heading));
+    const steering = Math.max(-1, Math.min(1, headingError / (limit * 0.46))) * 0.42;
+    this.rover.mobileSteer = usable ? steering : 0;
     const throttleTarget = usable ? this.rawThrottle : 1;
     this.filteredThrottle += (throttleTarget - this.filteredThrottle) * (1 - Math.exp(-dt / 0.22));
     if (Math.abs(this.filteredThrottle - throttleTarget) < 0.002) this.filteredThrottle = throttleTarget;
@@ -230,6 +246,7 @@ export class MobileControl {
     this.filteredThrottle = 1;
     this.tiltParked = false;
     this.rover.mobileThrottle = 1;
+    this.courseHeading = this.rover.heading;
     if (this.permission === 'granted') this.recalibrate();
     this._syncUi(false, false, false);
   }
