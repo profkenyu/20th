@@ -9,6 +9,7 @@
     "build": "node --experimental-vm-modules tools/build.mjs",
     "fonts": "node tools/fonts.mjs",
     "smoke": "node tools/smoke.mjs",
+    "smoke:sequence": "SEQUENCE=1 node tools/smoke.mjs",
     "harness": "node tools/harness.mjs",
     "terrain": "node tools/terrain.mjs",
     "verify": "node tools/verify.mjs"

@@ -29,7 +29,6 @@
   #ti-sensor{position:fixed;inset:0;z-index:19;pointer-events:none;opacity:.034;mix-blend-mode:screen;background:radial-gradient(ellipse at center,transparent 54%,rgba(2,5,4,.3) 100%),repeating-linear-gradient(0deg,rgba(190,255,215,.045) 0 1px,transparent 1px 4px);animation:sensor-breathe 8s ease-in-out infinite}
   body.sensor-stutter #ti-sensor{opacity:.07}@keyframes sensor-breathe{50%{opacity:.048}}
   body.ti-desert #ti-sensor{opacity:.032;background:radial-gradient(ellipse at center,transparent 42%,rgba(73,32,13,.28) 100%),linear-gradient(90deg,transparent 0 36%,rgba(205,132,67,.018) 56%,transparent 78%),repeating-linear-gradient(0deg,rgba(255,190,128,.018) 0 1px,transparent 1px 5px)}
-  body.ti-granite #ti-sensor{opacity:.030;background:radial-gradient(ellipse at center,transparent 48%,rgba(28,34,43,.31) 100%),linear-gradient(103deg,transparent 0 43%,rgba(151,127,172,.018) 58%,transparent 74%),repeating-linear-gradient(0deg,rgba(206,220,213,.015) 0 1px,transparent 1px 6px)}
   /* Low compute becomes a distinct archival state. The low backing resolution,
      not this colour treatment, is what saves fill-rate. One static compositor
      layer is kept deliberately faint to avoid CRT moire on photographed screens. */
@@ -59,16 +58,32 @@
   #ti-restoration{position:fixed;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);
     white-space:nowrap;pointer-events:none}
 
+  /* Two composed still points interrupt the instrument view: the restored
+     vehicle on BODY 01, and the final coordinate on BODY 02. The letterbox
+     remains, but operational overlays withdraw so these read as images rather
+     than game states. */
+  #ti-minimap,#survey-log,#universe-id,#ti-mobile-drive{transition:opacity 1.2s ease}
+  body.ti-completion-tableau #ti-minimap,
+  body.ti-completion-tableau #survey-log,
+  body.ti-completion-tableau #fh-hud,
+  body.ti-completion-tableau #ti-mobile-drive,
+  body.ti-epilogue #ti-minimap,
+  body.ti-epilogue #survey-log,
+  body.ti-epilogue #fh-hud,
+  body.ti-epilogue #ti-mobile-drive,
+  body.ti-epilogue #universe-id{opacity:0!important;pointer-events:none!important}
+  body.ti-epilogue-quiet #fh-cap-line{opacity:0!important}
+
   /* arrival / departure, matching the other works */
   #arrive,#depart{position:fixed;inset:0;z-index:45;background:#050506;pointer-events:none}
   #arrive{opacity:1;transition:opacity 1.4s ease}
   #depart{opacity:0;transition:opacity .6s ease}
   body.embed #arrive,body.embed #depart,body.embed #universe-id{display:none}
 
-  /* The first frame is a mission transmission, not a loading screen. */
+  /* The first frame is the mission statement, not a loading screen. */
   /* The prologue is bilingual, and the two languages are NOT equals on the
      page. Korean is the reading language of the room, set in a clear gothic at
-     full size; English is the transmission it was translated from, set
+     full size; English is its secondary field notation, set
      smaller and dimmer beneath. Printing both at the same weight would make
      the visitor choose, and a visitor who is choosing is not reading. */
   #ti-prologue{position:fixed;inset:0;z-index:44;display:grid;place-items:center;
@@ -197,17 +212,17 @@
   <div class="inner">
     <h1>Terra Incognita</h1>
     <div class="rule"></div>
-    <p class="ko">지도 이전의 표면에 착륙선이 내려앉는다.
-      그 안에서 한 대의 무인 로버가 깨어나고, 착륙선은 최초의 좌표로 남는다.
-      로버는 햇빛을 전력으로 바꾸어 지형과 중력, 방사선과 미량 대기를 기록한다.
-      전력이 끝나기 전, 탐사의 기억은 다음 행성의 몸체로 전송된다.
-      한 행성의 마지막 좌표가 다른 행성의 첫 신호가 된다.</p>
-    <p class="en">Before there is a map, a lander settles onto an unknown surface. An unmanned rover wakes within it, while the lander remains as the first coordinate. Converting sunlight into motion, the rover records terrain, gravity, radiation, and atmospheric trace. Before power is exhausted, its survey memory is transmitted to a body waiting on the next world. The final coordinate of one planet becomes the first signal of another.</p>
-    <span class="mission">Autonomous Survey · Memory Relay 01<span id="ti-terminal-state">Archival Terminal · Low Bandwidth</span></span>
+    <p class="ko">지도 이전의 표면에 착륙선의 와이어 상태가 남아 있다.
+      그 안에서 깨어난 무인 로버는 햇빛을 전력으로 바꾸어 지형과 중력, 방사선과 미량 대기를 기록하고 여덟 개의 물질 표본을 회수한다.
+      각 표본은 착륙선의 한 구조를 물질로 고정한다.
+      복원이 끝나면 로버는 귀환해 격납되고, 완성된 착륙선은 다음 행성을 향해 이륙한다.
+      한 세계에서 회수된 물질이 다른 세계의 첫 좌표가 된다.</p>
+    <p class="en">Before there is a map, a lander remains in wire-state on an unknown surface. An unmanned rover converts sunlight into motion, recording terrain, gravity, radiation, and atmospheric trace while recovering eight material signatures. Each recovery fixes one structure of the lander into matter. When reconstruction is complete, the rover returns to stowage and the restored lander departs for the next world. Matter recovered on one world becomes the first coordinate of another.</p>
+    <span class="mission">Autonomous Survey · Material Passage 01<span id="ti-terminal-state">Archival Terminal · Low Bandwidth</span></span>
     <span class="skip desktop-start">아무 키나 눌러 탐사 시작 · Press any key to begin</span>
     <button id="ti-mobile-start" class="skip" type="button" disabled>탐사 시작 · ENABLE TILT</button>
   </div>
-  <div class="controls"><span class="desktop-controls"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 수동 조작 &nbsp;·&nbsp; <kbd>Shift</kbd> 고속 주행 &nbsp;·&nbsp; <kbd>Space</kbd> 자동 주행 복귀 &nbsp;·&nbsp; <kbd>C</kbd> 1인칭·후방·정면 시점 &nbsp;·&nbsp; <kbd>L</kbd> 전조등 &nbsp;·&nbsp; <kbd>[</kbd><kbd>]</kbd> 태양광 패널 &nbsp;·&nbsp; <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> 행성 이동</span><span class="mobile-controls">기기를 좌우로 기울여 조향 · 자동주행 기본 · 하단 버튼으로 정지/재개<br>Tilt to steer · Autonomous drive · Drag to observe</span></div>
+  <div class="controls"><span class="desktop-controls"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 수동 조작 &nbsp;·&nbsp; <kbd>Shift</kbd> 고속 주행 &nbsp;·&nbsp; <kbd>Space</kbd> 자동 주행 복귀 &nbsp;·&nbsp; <kbd>C</kbd> 1인칭·후방·정면 시점 &nbsp;·&nbsp; <kbd>L</kbd> 전조등 &nbsp;·&nbsp; <kbd>[</kbd><kbd>]</kbd> 태양광 패널</span><span class="mobile-controls">기기를 좌우로 기울여 조향 · 자동주행 기본 · 하단 버튼으로 정지/재개<br>Tilt to steer · Autonomous drive · Drag to observe</span></div>
 </section>
 
 <script>

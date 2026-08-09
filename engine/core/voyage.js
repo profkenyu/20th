@@ -3,6 +3,7 @@ import * as THREE from 'three';
 const clamp01 = value => Math.max(0, Math.min(1, value));
 const smooth = value => { const p = clamp01(value); return p * p * (3 - 2 * p); };
 const wrap = angle => Math.atan2(Math.sin(angle), Math.cos(angle));
+const EPILOGUE_MS = 18000;
 const hash = n => {
   const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
   return x - Math.floor(x);
@@ -271,10 +272,33 @@ export class VoyageSequence {
     if (this.phase === 'close') {
       this.lander.setRamp(1 - smooth(elapsed / 2200));
       if (elapsed >= 2200) {
-        this.lander.setRamp(0); this.rover.scriptedDrive = null; this.rover.speed = 0;
-        this.rover.auto = true; this.phase = 'idle';
-        this.onCue?.('deployed', now, this.destination); this.onComplete?.(this.destination, now);
+        this.lander.setRamp(0); this.rover.speed = 0;
+        this.rover.auto = false; this.rover.missionHold = true;
+        this.rover.scriptedDrive = { throttle: 0, steer: 0 };
+        this.phase = 'epilogue'; this.t0 = now;
+        document.body.classList.add('ti-epilogue');
+        this.onCue?.('epilogue', now, this.destination);
       }
+      return;
+    }
+    if (this.phase === 'epilogue') {
+      this.rover.auto = false; this.rover.missionHold = true;
+      const lookBack = 1 - smooth((elapsed - 3900) / 1200);
+      this.rover.scriptedDrive = elapsed < 5200
+        ? { throttle: 0.11 * lookBack, steer: -0.22 * lookBack }
+        : { throttle: 0, steer: 0 };
+      const pulseAge = (elapsed - 2700) / 1000;
+      const finalPulse = pulseAge < 0 || pulseAge > 0.48 ? 0
+        : pulseAge < 0.018 ? pulseAge / 0.018
+          : Math.exp(-(pulseAge - 0.018) / 0.075);
+      this.lander.setBeaconOverride(finalPulse);
+      if (elapsed >= 6200) document.body.classList.add('ti-epilogue-quiet');
+      if (elapsed >= EPILOGUE_MS) {
+        this.phase = 'ended';
+        this.lander.setBeaconOverride(0);
+        this.onComplete?.(this.destination, now);
+      }
+      return;
     }
   }
 
@@ -289,9 +313,18 @@ export class VoyageSequence {
       z = -13.5 - retreat * 48;
       y = 7 + (-2.2 - retreat * 6.5 - 7) * underside;
     }
+    if (this.phase === 'epilogue' || this.phase === 'ended') {
+      const elapsed = this.phase === 'epilogue' ? now - this.t0 : EPILOGUE_MS;
+      const settle = smooth(Math.min(1, elapsed / 4800));
+      z = -23.5;
+      x = 21.5 + Math.sin(settle * Math.PI) * 0.65;
+      y = 6.4 - settle * 0.35;
+    }
     this._camera.copy(this.lander.dockingPoint(z, x, y));
     this._aim.copy(this.lander.dockingPoint(flight ? 0 : -3.3, 0,
       this.phase === 'transit' ? 1.55 : flight ? 3.4 : 2.2));
+    if (this.phase === 'epilogue' || this.phase === 'ended')
+      this._aim.copy(this.lander.dockingPoint(-2.8, 0, 3.15));
     if (this.phase === 'transit') {
       const drift = (now - this.t0) * 0.00015;
       this._camera.x += Math.sin(drift) * 1.8;
@@ -306,7 +339,9 @@ export class VoyageSequence {
 
   reset() {
     this.phase = 'idle'; this.destination = null; this.swapped = false; this.swapPending = false;
-    this.group.visible = false; document.body.classList.remove('ti-voyage'); this.onSpace?.(false);
+    this.group.visible = false;
+    document.body.classList.remove('ti-voyage', 'ti-epilogue', 'ti-epilogue-quiet');
+    this.onSpace?.(false);
     this.ambient?.setVoyage(false);
     this.destinationBody.material.opacity = 0;
     this.destinationBody.scale.setScalar(1);
@@ -317,6 +352,7 @@ export class VoyageSequence {
       layer.group.scale.set(1, 1, 1);
     });
     this.rover.scriptedDrive = null; this.rover.surfaceOverride = null;
+    this.lander.setBeaconOverride(null);
     this.lander.setLegFold(0);
   }
 }

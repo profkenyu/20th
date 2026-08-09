@@ -394,6 +394,7 @@ export class Lander {
     this.core = new THREE.Group();
     this.crown = new THREE.Group();
     this.beacon = uniform(0.0);
+    this.beaconOverride = null;
     this.legs = [];
     this.purge = null;
     this.rampPivot = null;
@@ -806,6 +807,34 @@ export class Lander {
     }
   }
 
+  /** A final wire-to-matter registration pass used only by the 8/8 tableau.
+      It changes no restoration state: solid geometry remains solid while a
+      thin orange-white contour travels from the foundation to the signal
+      core, then disappears before physical recall begins. */
+  setCompletionHighlight(progress = null) {
+    if (progress == null) {
+      for (const part of this.parts) {
+        part.wire.visible = part.state !== 'solid';
+        part.wireMaterial.color.setHex(0x8fa8a3);
+        part.wireMaterial.opacity = part.state === 'wire' ? 0.30 : 0;
+      }
+      return;
+    }
+    const p = Math.max(0, Math.min(1, progress));
+    for (const part of this.parts) {
+      const centre = 0.08 + part.index * 0.075;
+      const distance = Math.abs(p - centre);
+      const leading = Math.max(0, 1 - distance / 0.18);
+      const residue = Math.max(0, 1 - p) * 0.12;
+      const opacity = Math.min(0.82, leading * 0.78 + residue);
+      part.wire.visible = opacity > 0.012;
+      part.wireMaterial.color.setHex(part.index === 7 ? 0xffd57a : 0xffb21c);
+      part.wireMaterial.opacity = opacity;
+    }
+    const core = Math.max(0, 1 - Math.abs(p - 0.72) / 0.10);
+    this.beacon.value = Math.max(this.beacon.value, core);
+  }
+
   place(x, z, heading, visible = true) {
     const key = `${x.toFixed(3)}:${z.toFixed(3)}:${heading.toFixed(5)}`;
     if (!this.site || this.site.key !== key) {
@@ -870,6 +899,10 @@ export class Lander {
       const pair = Math.floor(i / 2);
       this.dockLights[i].material.opacity = pair < Math.ceil(remaining * pairs) ? 0.92 : 0.025;
     }
+  }
+
+  setBeaconOverride(value = null) {
+    this.beaconOverride = value == null ? null : Math.max(0, Math.min(1, value));
   }
 
   forceFlightPurge(now = performance.now(), duration = 2200) {
@@ -942,6 +975,7 @@ export class Lander {
        begins its search motion after the eighth module has fully settled. */
     this.crown.rotation.y = this.parts[7].state === 'solid'
       ? Math.sin(t * 0.095) * 0.16 : 0;
-    this.beacon.value = this.restorationLevel >= 8 ? signalEnvelope(t - 0.90, 3.2) : 0;
+    const normalSignal = this.restorationLevel >= 8 ? signalEnvelope(t - 0.90, 3.2) : 0;
+    this.beacon.value = this.beaconOverride == null ? normalSignal : this.beaconOverride;
   }
 }

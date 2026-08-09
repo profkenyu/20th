@@ -25,6 +25,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TARGET = process.argv[2] ?? `file://${ROOT}/index.html`;
 const DWELL = Number(process.env.DWELL ?? 15000);
+const SEQUENCE = process.env.SEQUENCE === '1';
 
 const browser = await chromium.launch({
   headless: process.env.HEADED ? false : true,
@@ -41,19 +42,43 @@ page.on('requestfailed', r => errors.push(`request failed: ${r.url().slice(0, 90
 console.log(`→ ${TARGET}`);
 await page.goto(TARGET, { waitUntil: 'load', timeout: 60000 });
 
-/* let it settle, then walk for a while so a recentre and a caption both fire */
-await page.waitForTimeout(3000);
-await page.keyboard.down('ShiftLeft');
-await page.keyboard.down('KeyW');
-await page.waitForTimeout(DWELL);
-await page.keyboard.up('KeyW');
-await page.keyboard.up('ShiftLeft');
-await page.waitForTimeout(1200);
-/* Chase view is the only camera that exposes the vehicle itself. The work now
-   opens wide by default, so toggle only if a future work starts on the mast. */
-const view = await page.locator('[data-v="view"]').textContent();
-if (!view?.includes('chase')) await page.keyboard.press('KeyC');
-await page.waitForTimeout(900);
+const sequencePhases = [];
+let sequenceComplete = !SEQUENCE;
+if (SEQUENCE) {
+  /* `=` is the curatorial full-sequence shortcut. Follow every authored state
+     through the BODY 02 epilogue and the kiosk's return to a fresh BODY 01. */
+  await page.waitForTimeout(1800);
+  await page.keyboard.press('Equal');
+  const deadline = Date.now() + 150000;
+  let last = '', sawEpilogue = false;
+  while (Date.now() < deadline) {
+    const state = await page.evaluate(() => window.TI_SEQUENCE?.() ?? null);
+    if (state) {
+      const key = `${state.world}|${state.tableau}|${state.docking}|${state.voyage}|${state.restoration}`;
+      if (key !== last) { sequencePhases.push(key); console.log(`  · ${key}`); last = key; }
+      if (state.voyage === 'epilogue' || state.voyage === 'ended') sawEpilogue = true;
+      if (sawEpilogue && state.world === 'terra' && state.restoration === 0
+          && state.tableau === 'idle' && state.docking === 'idle' && state.voyage === 'idle') {
+        sequenceComplete = true;
+        break;
+      }
+    }
+    await page.waitForTimeout(400);
+  }
+} else {
+  /* let it settle, then walk for a while so a recentre and a caption both fire */
+  await page.waitForTimeout(3000);
+  await page.keyboard.down('ShiftLeft');
+  await page.keyboard.down('KeyW');
+  await page.waitForTimeout(DWELL);
+  await page.keyboard.up('KeyW');
+  await page.keyboard.up('ShiftLeft');
+  await page.waitForTimeout(1200);
+  /* Chase view is the only camera that exposes the vehicle itself. */
+  const view = await page.locator('[data-v="view"]').textContent();
+  if (!view?.includes('chase')) await page.keyboard.press('KeyC');
+  await page.waitForTimeout(900);
+}
 
 const report = await page.evaluate(() => {
   const read = k => document.querySelector(`[data-v="${k}"]`)?.textContent ?? '—';
@@ -70,18 +95,20 @@ const report = await page.evaluate(() => {
     filaments: read('fcount'), vertices: read('fverts'),
   };
 });
+report.sequenceComplete = sequenceComplete;
 
-await page.screenshot({ path: `${ROOT}/dist/smoke.png` });
+await page.screenshot({ path: `${ROOT}/dist/${SEQUENCE ? 'sequence-smoke' : 'smoke'}.png` });
 await browser.close();
 
 const pad = s => String(s).padEnd(22);
 console.log('');
 for (const [k, v] of Object.entries(report)) console.log(`  ${pad(k)} ${v}`);
-console.log(`\n  screenshot            dist/smoke.png`);
+console.log(`\n  screenshot            dist/${SEQUENCE ? 'sequence-smoke' : 'smoke'}.png`);
 
 const fatal = [];
 if (!report.started) fatal.push('module never reached first frame');
 if (report.gate) fatal.push(`adapter gate fired: ${report.gate}`);
+if (!sequenceComplete) fatal.push('authored sequence did not return from BODY 02 to a fresh BODY 01');
 if (errors.length) fatal.push(`${errors.length} console/page error(s)`);
 if (report.divergence !== '—' && /mm/.test(report.divergence)) fatal.push(`CPU/GPU divergence in mm: ${report.divergence}`);
 
