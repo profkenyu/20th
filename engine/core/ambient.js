@@ -129,7 +129,7 @@ export class Ambient {
       : phase < 19 ? 1 - smooth((phase - 15) / 4)
       : phase < 36 ? 0
       : phase < 41 ? smooth((phase - 36) / 5) : 1;
-    if (performance.now() < this.silenceUntil) presence = 0;
+    if (performance.now() < this.silenceUntil || this.voyageActive) presence = 0;
     this.worldGain.gain.setTargetAtTime(presence, t, 0.85);
     return q;
   }
@@ -141,6 +141,8 @@ export class Ambient {
   setVoyage(active) {
     this.voyageActive = !!active;
     if (!this.ctx || !this.voyageGain) return;
+    this.worldGain?.gain.setTargetAtTime(this.voyageActive ? 0 : 1,
+      this.ctx.currentTime, this.voyageActive ? 0.8 : 1.4);
     this.voyageGain.gain.setTargetAtTime(this.voyageActive ? 0.022 : 0,
       this.ctx.currentTime, this.voyageActive ? 0.8 : 1.4);
   }
@@ -157,9 +159,11 @@ export class Ambient {
     if (!this.ctx || this.muted || !this.master) return;
     const ctx = this.ctx, t = ctx.currentTime;
     const profile = {
-      charge:  [34, 58, 4.8, .075],
-      release: [52, 24, 1.9, .13],
-      arrival: [27, 49, 4.6, .10],
+      charge:  [34, 58, 4.8, .055],
+      mass:    [29, 35, 1.4, .045],
+      release: [52, 24, 1.9, .060],
+      arrival: [27, 49, 4.6, .055],
+      contact: [33, 26, 1.2, .035],
       online:  [47, 31, 2.8, .018],
     }[kind] ?? [38, 30, 1.5, .06];
     const [f0, f1, duration, level] = profile;
@@ -172,7 +176,7 @@ export class Ambient {
     edge.frequency.setValueAtTime(f0 * 2.02, t); edge.frequency.exponentialRampToValueAtTime(f1 * 1.51, t + duration);
     filter.type = 'lowpass'; filter.frequency.setValueAtTime(310, t); filter.frequency.exponentialRampToValueAtTime(95, t + duration);
     bus.gain.setValueAtTime(.0001, t);
-    bus.gain.exponentialRampToValueAtTime(level, t + Math.min(.22, duration * .16));
+    bus.gain.exponentialRampToValueAtTime(level, t + Math.min(.80, duration * .58));
     bus.gain.exponentialRampToValueAtTime(.0001, t + duration);
     low.connect(filter); edge.connect(filter); filter.connect(bus).connect(this.master);
     low.start(t); edge.start(t); low.stop(t + duration + .05); edge.stop(t + duration + .05);

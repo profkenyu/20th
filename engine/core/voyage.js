@@ -53,38 +53,12 @@ function starLayer(count, colour, size, seed) {
   return { group, points, trails, positions, trailPositions };
 }
 
-function destinationBody() {
-  const geometry = new THREE.SphereGeometry(1, 48, 28);
-  const normals = geometry.getAttribute('normal');
-  const colours = new Float32Array(normals.count * 3);
-  const sun = new THREE.Vector3(-0.72, 0.36, 0.59).normalize();
-  for (let i = 0; i < normals.count; i++) {
-    const nx = normals.getX(i), ny = normals.getY(i), nz = normals.getZ(i);
-    const light = Math.max(0, nx * sun.x + ny * sun.y + nz * sun.z);
-    const limb = Math.max(0, 1 - Math.abs(nz));
-    const value = 0.018 + light * 0.16 + limb * 0.012;
-    colours[i * 3] = value * 0.78;
-    colours[i * 3 + 1] = value * 0.84;
-    colours[i * 3 + 2] = value * 0.90;
-  }
-  geometry.setAttribute('color', new THREE.BufferAttribute(colours, 3));
-  const material = new THREE.MeshBasicMaterial({
-    vertexColors: true, transparent: true, opacity: 0,
-    depthWrite: false, fog: false,
-  });
-  const body = new THREE.Mesh(geometry, material);
-  body.position.set(-26, -12, -112);
-  body.rotation.set(-0.14, 0.32, 0.08);
-  body.frustumCulled = false;
-  return body;
-}
-
 /* A 15-second relational passage, not a flight simulator. The lander remains
-   the scale-bearing silhouette while three star layers slide at different
-   rates. A destination surface is rebuilt behind that interval, then revealed
-   only when the descent begins. */
+   the only scale-bearing silhouette while three star layers slide at different
+   rates. The destination is deliberately withheld; the surface is revealed
+   only when descent begins. */
 export class VoyageSequence {
-  constructor({ lander, rover, camera, ambient, onSwap, onSpace, onCue, onComplete }) {
+  constructor({ lander, rover, camera, ambient, onSwap, onSpace, onCue, onComplete, onLandingDust }) {
     this.lander = lander;
     this.rover = rover;
     this.camera = camera;
@@ -93,6 +67,7 @@ export class VoyageSequence {
     this.onSpace = onSpace;
     this.onCue = onCue;
     this.onComplete = onComplete;
+    this.onLandingDust = onLandingDust;
     this.phase = 'idle';
     this.t0 = 0;
     this.destination = null;
@@ -102,6 +77,9 @@ export class VoyageSequence {
     this.egressPlaced = false;
     this.takeoffPurge = false;
     this.landingPurge = false;
+    this.landingRegolith = false;
+    this.liftReleased = false;
+    this.foldCued = false;
     this._camera = new THREE.Vector3();
     this._aim = new THREE.Vector3();
     this._target = new THREE.Vector3();
@@ -113,8 +91,7 @@ export class VoyageSequence {
       starLayer(104, 0xb9c0c6, 0.70, 233),
       starLayer(38, 0xe0c9a8, 0.86, 701),
     ];
-    this.destinationBody = destinationBody();
-    this.group.add(this.destinationBody, ...this.layers.map(layer => layer.group));
+    this.group.add(...this.layers.map(layer => layer.group));
     this.group.visible = false;
 
     const style = document.createElement('style'); style.textContent = CSS; document.head.appendChild(style);
@@ -124,7 +101,7 @@ export class VoyageSequence {
     this.route = this.overlay.querySelector('#ti-voyage-route');
   }
 
-  get active() { return this.phase !== 'idle'; }
+  get active() { return this.phase !== 'idle' && this.phase !== 'arrived'; }
   get inSpace() { return this.phase === 'transit'; }
 
   start(destination, now = performance.now()) {
@@ -132,10 +109,13 @@ export class VoyageSequence {
     this.destination = destination;
     this.phase = 'hold'; this.t0 = now; this.baseY = this.lander.group.position.y;
     this.swapped = false; this.swapPending = false; this.egressPlaced = false;
-    this.takeoffPurge = false; this.landingPurge = false;
+    this.takeoffPurge = false; this.landingPurge = false; this.landingRegolith = false;
+    this.liftReleased = false; this.foldCued = false;
+    this.lander.group.scale.setScalar(1);
     this.rover.auto = false;
     this.rover.scriptedDrive = { throttle: 0, steer: 0 };
     this.rover.surfaceOverride = null;
+    this.ambient?.setVoyage(true);
     this.route.innerHTML = `<b>${destination.id} · ${destination.label}</b><span>DEST X ${destination.start[0] >= 0 ? '+' : ''}${destination.start[0].toFixed(0)} · Z ${destination.start[1] >= 0 ? '+' : ''}${destination.start[1].toFixed(0)}</span>`;
     this.onCue?.('flight-lock', now, destination);
     return true;
@@ -147,28 +127,42 @@ export class VoyageSequence {
     this.rover.scriptedDrive = { throttle: 0, steer: 0 };
 
     if (this.phase === 'hold') {
-      if (elapsed >= 1500) { this.phase = 'fold'; this.t0 = now; this.onCue?.('fold', now, this.destination); }
-      return;
-    }
-    if (this.phase === 'fold') {
-      this.lander.setRamp(0);
-      this.lander.setLegFold(smooth(elapsed / 3200));
-      if (!this.takeoffPurge && elapsed >= 900) {
-        this.takeoffPurge = true;
-        this.lander.forceFlightPurge(now, 3600);
-      }
-      if (elapsed >= 3200) {
-        this.lander.setLegFold(1); this.phase = 'lift'; this.t0 = now; this.baseY = this.lander.group.position.y;
-        this.ambient?.transferCue('release'); this.onCue?.('lift', now, this.destination);
+      if (elapsed >= 1500) {
+        /* Loaded thrust builds against six planted legs before the first
+           centimetres of separation.  Retraction begins only once airborne. */
+        this.phase = 'lift'; this.t0 = now; this.baseY = this.lander.group.position.y;
+        this.lander.setRamp(0); this.lander.setLegFold(0);
+        this.ambient?.transferCue('mass'); this.onCue?.('lift', now, this.destination);
       }
       return;
     }
     if (this.phase === 'lift') {
-      this.lander.group.position.y = this.baseY + smooth(elapsed / 4200) * 28;
-      if (elapsed >= 4200) {
+      const buildMs = 650, flightMs = 4750;
+      if (elapsed < buildMs) {
+        this.lander.group.position.y = this.baseY + smooth(elapsed / buildMs) * 0.018;
+      } else {
+        const p = smooth((elapsed - buildMs) / flightMs);
+        this.lander.group.position.y = this.baseY + 0.018 + p * 27.982;
+      }
+      if (!this.liftReleased && elapsed >= buildMs) {
+        this.liftReleased = true;
+        this.ambient?.transferCue('release');
+      }
+      const fold = smooth((elapsed - 920) / 3100);
+      this.lander.setLegFold(fold);
+      if (!this.foldCued && elapsed >= 920) {
+        this.foldCued = true; this.onCue?.('fold', now, this.destination);
+      }
+      if (!this.takeoffPurge && elapsed >= 720) {
+        this.takeoffPurge = true;
+        this.lander.forceFlightPurge(now, 1050);
+      }
+      if (elapsed >= buildMs + flightMs) {
+        this.lander.group.position.y = this.baseY + 28;
+        this.lander.setLegFold(1);
         this.phase = 'transit'; this.t0 = now;
         this.group.visible = true; document.body.classList.add('ti-voyage');
-        this.onSpace?.(true); this.ambient?.setVoyage(true);
+        this.onSpace?.(true);
         this.ambient?.transferCue('charge'); this.onCue?.('transit', now, this.destination);
       }
       return;
@@ -199,10 +193,11 @@ export class VoyageSequence {
         }
         layer.trails.geometry.attributes.position.needsUpdate = true;
       });
-      const bodyReveal = smooth((p - 0.44) / 0.38);
-      this.destinationBody.material.opacity = envelope * bodyReveal * 0.92;
-      this.destinationBody.scale.setScalar(3.2 + bodyReveal * 27);
-      this.destinationBody.rotation.y += 0.00018;
+      /* The craft does not carry the frame into the next world. Once the
+         transit has taken hold it recedes to a final point, then disappears
+         before the descent image is allowed to exist. */
+      const vanish = smooth((p - 0.12) / 0.88);
+      this.lander.group.scale.setScalar(1 - vanish * 0.955);
       if (!this.swapped && !this.swapPending && elapsed >= 6400) {
         this.swapPending = true;
         await this.onSwap?.(this.destination);
@@ -213,7 +208,8 @@ export class VoyageSequence {
       }
       if (elapsed >= 15000 && this.swapped) {
         this.group.visible = false; document.body.classList.remove('ti-voyage');
-        this.ambient?.setVoyage(false); this.onSpace?.(false);
+        this.onSpace?.(false);
+        this.lander.group.scale.setScalar(1);
         this.phase = 'descent'; this.t0 = now; this.baseY = this.lander.site.y;
         this.ambient?.transferCue('arrival'); this.onCue?.('descent', now, this.destination);
       }
@@ -221,20 +217,41 @@ export class VoyageSequence {
     }
     if (this.phase === 'descent') {
       const p = smooth(elapsed / 5600);
-      this.lander.group.position.y = this.baseY + (1 - p) * 32;
-      this.lander.setLegFold(1 - smooth((p - 0.52) / 0.48));
-      if (!this.landingPurge && p >= 0.58) {
+      const altitude = (1 - p) * 32;
+      this.lander.group.position.y = this.baseY + altitude;
+      this.lander.setLegFold(1 - smooth((p - 0.42) / 0.50));
+      if (!this.landingPurge && altitude <= 8.0) {
         this.landingPurge = true;
-        this.lander.forceFlightPurge(now, 3800);
+        this.lander.forceFlightPurge(now, 1100);
+      }
+      if (!this.landingRegolith && altitude <= 2.7) {
+        this.landingRegolith = true;
+        this.onLandingDust?.({
+          x: this.lander.group.position.x,
+          y: this.baseY,
+          z: this.lander.group.position.z,
+        }, now, this.destination);
       }
       if (elapsed >= 5600) {
         this.lander.group.position.y = this.baseY; this.lander.setLegFold(0);
-        this.phase = 'settle'; this.t0 = now; this.onCue?.('touchdown', now, this.destination);
+        this.phase = 'settle'; this.t0 = now;
+        this.ambient?.transferCue('contact'); this.onCue?.('touchdown', now, this.destination);
       }
       return;
     }
     if (this.phase === 'settle') {
-      if (elapsed >= 1100) { this.phase = 'deploy'; this.t0 = now; this.lander.setDockLights(1); }
+      /* 11 cm load stroke: quick attack, long rebound.  Pads are counter-moved
+         by Lander.setLegCompression so they do not sink through the terrain. */
+      const attack = smooth(elapsed / 160);
+      const release = 1 - smooth((elapsed - 160) / 940);
+      const compression = elapsed < 160 ? attack : release;
+      this.lander.group.position.y = this.baseY - compression * 0.11;
+      this.lander.setLegCompression(compression, 0.11);
+      if (elapsed >= 1100) {
+        this.lander.group.position.y = this.baseY; this.lander.setLegCompression(0);
+        this.ambient?.setVoyage(false);
+        this.phase = 'deploy'; this.t0 = now; this.lander.setDockLights(1);
+      }
       return;
     }
     if (this.phase === 'deploy') {
@@ -275,9 +292,17 @@ export class VoyageSequence {
         this.lander.setRamp(0); this.rover.speed = 0;
         this.rover.auto = false; this.rover.missionHold = true;
         this.rover.scriptedDrive = { throttle: 0, steer: 0 };
-        this.phase = 'epilogue'; this.t0 = now;
-        document.body.classList.add('ti-epilogue');
-        this.onCue?.('epilogue', now, this.destination);
+        if (this.destination?.mission) {
+          this.phase = 'arrived'; this.t0 = now;
+          this.rover.scriptedDrive = null;
+          this.rover.surfaceOverride = null;
+          document.body.classList.remove('ti-epilogue', 'ti-epilogue-quiet');
+          this.onComplete?.(this.destination, now);
+        } else {
+          this.phase = 'epilogue'; this.t0 = now;
+          document.body.classList.add('ti-epilogue');
+          this.onCue?.('epilogue', now, this.destination);
+        }
       }
       return;
     }
@@ -304,33 +329,8 @@ export class VoyageSequence {
 
   afterRover(now = performance.now()) {
     if (!this.active) return;
-    const flight = ['lift', 'transit', 'descent'].includes(this.phase);
-    let z = flight ? -13.5 : -7.0, x = flight ? 13.0 : 9.0, y = flight ? 7.0 : 2.7;
-    if (this.phase === 'transit') {
-      const p = clamp01((now - this.t0) / 15000), retreat = smooth(p);
-      const underside = smooth(p / 0.20);
-      x = 13 + retreat * 35;
-      z = -13.5 - retreat * 48;
-      y = 7 + (-2.2 - retreat * 6.5 - 7) * underside;
-    }
-    if (this.phase === 'epilogue' || this.phase === 'ended') {
-      const elapsed = this.phase === 'epilogue' ? now - this.t0 : EPILOGUE_MS;
-      const settle = smooth(Math.min(1, elapsed / 4800));
-      z = -23.5;
-      x = 21.5 + Math.sin(settle * Math.PI) * 0.65;
-      y = 6.4 - settle * 0.35;
-    }
-    this._camera.copy(this.lander.dockingPoint(z, x, y));
-    this._aim.copy(this.lander.dockingPoint(flight ? 0 : -3.3, 0,
-      this.phase === 'transit' ? 1.55 : flight ? 3.4 : 2.2));
-    if (this.phase === 'epilogue' || this.phase === 'ended')
-      this._aim.copy(this.lander.dockingPoint(-2.8, 0, 3.15));
-    if (this.phase === 'transit') {
-      const drift = (now - this.t0) * 0.00015;
-      this._camera.x += Math.sin(drift) * 1.8;
-      this._camera.y += Math.cos(drift * 0.73) * 0.7;
-    }
-    this.camera.position.copy(this._camera); this.camera.up.set(0, 1, 0); this.camera.lookAt(this._aim);
+    /* ShotDirector owns the camera. The star field only follows the resolved
+       five-shot frame so it stays an inertial backdrop during transit. */
     this.group.position.copy(this.camera.position);
     this.group.quaternion.copy(this.camera.quaternion);
     if (!this.egressPlaced || ['hold', 'fold', 'lift', 'transit', 'descent', 'settle', 'deploy'].includes(this.phase))
@@ -343,8 +343,7 @@ export class VoyageSequence {
     document.body.classList.remove('ti-voyage', 'ti-epilogue', 'ti-epilogue-quiet');
     this.onSpace?.(false);
     this.ambient?.setVoyage(false);
-    this.destinationBody.material.opacity = 0;
-    this.destinationBody.scale.setScalar(1);
+    this.lander.group.scale.setScalar(1);
     this.layers.forEach(layer => {
       layer.points.material.opacity = 0;
       layer.trails.material.opacity = 0;
@@ -354,5 +353,6 @@ export class VoyageSequence {
     this.rover.scriptedDrive = null; this.rover.surfaceOverride = null;
     this.lander.setBeaconOverride(null);
     this.lander.setLegFold(0);
+    this.lander.setLegCompression?.(0);
   }
 }

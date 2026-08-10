@@ -182,7 +182,7 @@ class CryogenicPurge {
     this.vel[p + 1] = dy / length * speed;
     this.vel[p + 2] = dz / length * speed;
     this.life[i] = this.maxLife[i] = forced
-      ? 1.05 + hash(seed + 59) * 1.45
+      ? 0.35 + hash(seed + 59) * 0.35
       : 0.65 + hash(seed + 59) * 0.82;
   }
 
@@ -210,12 +210,12 @@ class CryogenicPurge {
     const forced = now < this.forcedUntil;
     const emitting = forced || (age >= 0 && (age <= this.pulseA
       || (age >= this.pulseA + this.gap && age <= this.pulseA + this.gap + this.pulseB)));
-    this.points.material.size = forced ? 2.6 : (this.count < 100 ? 0.72 : 0.60);
-    this.points.material.opacity = forced ? 0.28 : (this.count < 100 ? 0.31 : 0.36);
+    this.points.material.size = forced ? 0.62 : (this.count < 100 ? 0.72 : 0.60);
+    this.points.material.opacity = forced ? 0.38 : (this.count < 100 ? 0.31 : 0.36);
     if (emitting) {
-      const rate = forced ? 210 : 48 + hash(this.burstIndex * 67) * 46;
+      const rate = forced ? 120 : 48 + hash(this.burstIndex * 67) * 46;
       this.carry += rate * dt;
-      const emitCount = Math.min(forced ? 12 : 5, Math.floor(this.carry));
+      const emitCount = Math.min(forced ? 8 : 5, Math.floor(this.carry));
       this.carry -= emitCount;
       for (let i = 0; i < emitCount; i++) this.emit(forced);
     }
@@ -231,7 +231,7 @@ class CryogenicPurge {
       /* Frozen grains, not gas parcels: after the flash expansion their only
          acceleration is the body's gravity. Their life is too short to fall
          far, but the slight arc prevents a screen-space smoke look. */
-      this.vel[p + 1] -= 3.71 * dt;
+      this.vel[p + 1] -= cfg().dust.gravity * dt;
       this.pos[p] += this.vel[p] * dt;
       this.pos[p + 1] += this.vel[p + 1] * dt;
       this.pos[p + 2] += this.vel[p + 2] * dt;
@@ -401,7 +401,7 @@ export class Lander {
     this.ramp = null;
     this.dockLights = [];
     this.dock = {
-      hatchZ: -3.78, toeZ: -8.68, floorY: 2.04,
+      hatchZ: -3.78, toeZ: -8.68, floorY: 2.04, halfWidth: 1.45,
       toeY: 0, openAngle: -0.36, progress: 0,
     };
     this.restorationLevel = 0;
@@ -474,7 +474,9 @@ export class Lander {
 
     /* ── articulated landing system ──────────────────────────────────
        Six thick two-segment arms, closer to robotic manipulators than Apollo
-       struts. Every pad later samples its own world-space terrain height. */
+       struts. Every pad later samples its own world-space terrain height.
+       The order is an alternating tripod, so recall reads as load transfer
+       through the hull rather than six identical bars sliding at once. */
     const padRadius = 5.55;
     for (let i = 0; i < 6; i++) {
       const a = i * Math.PI / 3;
@@ -506,6 +508,7 @@ export class Lander {
       this.legs.push({
         shoulder, elbow, foot, upper, lower, brace, elbowJoint, pad, padCore,
         deployedElbow: elbow.slice(), deployedFoot: foot.slice(),
+        foldOffset: [0, 2, 4, 1, 3, 5].indexOf(i) / 5,
       });
       this._track(1, upper, lower, brace, shoulderJoint, elbowJoint, pad, padCore);
     }
@@ -558,39 +561,36 @@ export class Lander {
 
     /* ── deployment bay ───────────────────────────────────────────────
        The bay is intentionally unreadable as a room: a black receiving
-       volume, four load-frame edges and three paired locator lights. The
+       volume, a tall clear-span portal and three paired locator lights. The
        ramp is a real hinged surface and later becomes part of wheel contact. */
-    const bridge = new THREE.Mesh(new THREE.BoxGeometry(1.55, 0.22, 1.45), graphite);
-    bridge.position.set(0, 2.02, -2.52);
-    this.core.add(bridge);
-    const bayBack = new THREE.Mesh(new THREE.BoxGeometry(2.34, 1.62, 0.16), dark);
-    bayBack.position.set(0, 2.72, -0.78);
-    this.core.add(bayBack);
-    const bayFloor = new THREE.Mesh(new THREE.BoxGeometry(2.30, 0.12, 3.05), dark);
-    bayFloor.position.set(0, 2.04, -2.25);
+    /* The open bay is a clear receiving volume.  The former centre bridge and
+       rear sculpture occupied the rover's wheel and hull envelope, so the
+       interior now contains only a flush structural floor and perimeter. */
+    const bayFloor = new THREE.Mesh(new THREE.BoxGeometry(3.14, 0.12, 3.05), dark);
+    bayFloor.position.set(0, this.dock.floorY - 0.06, -2.25);
     this.core.add(bayFloor);
     const bayFrames = [];
-    for (const x of [-1.20, 1.20]) {
-      const side = new THREE.Mesh(new THREE.BoxGeometry(0.13, 1.70, 3.08), graphite);
-      side.position.set(x, 2.74, -2.28);
+    for (const x of [-1.66, 1.66]) {
+      const side = new THREE.Mesh(new THREE.BoxGeometry(0.15, 2.60, 3.08), graphite);
+      side.position.set(x, 3.34, -2.28);
       this.core.add(side); bayFrames.push(side);
     }
-    const lintel = new THREE.Mesh(new THREE.BoxGeometry(2.52, 0.15, 3.08), metal);
-    lintel.position.set(0, 3.58, -2.28);
+    const lintel = new THREE.Mesh(new THREE.BoxGeometry(3.48, 0.18, 3.08), metal);
+    lintel.position.set(0, 4.96, -2.28);
     this.core.add(lintel); bayFrames.push(lintel);
 
     this.rampPivot = new THREE.Group();
     this.rampPivot.position.set(0, this.dock.floorY, this.dock.hatchZ);
     this.group.add(this.rampPivot);
     const rampLength = this.dock.hatchZ - this.dock.toeZ;
-    const rampGeometry = new THREE.BoxGeometry(2.34, 0.12, rampLength);
+    const rampGeometry = new THREE.BoxGeometry(3.14, 0.12, rampLength);
     rampGeometry.translate(0, 0, -rampLength * 0.5);
     this.ramp = new THREE.Mesh(rampGeometry, graphite);
     this.rampPivot.add(this.ramp);
     const rampRibA = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.13, rampLength), metal);
     rampRibA.geometry.translate(0, 0, -rampLength * 0.5);
-    rampRibA.position.x = -1.07;
-    const rampRibB = rampRibA.clone(); rampRibB.position.x = 1.07;
+    rampRibA.position.x = -1.47;
+    const rampRibB = rampRibA.clone(); rampRibB.position.x = 1.47;
     this.rampPivot.add(rampRibA, rampRibB);
 
     for (let pair = 0; pair < 3; pair++) {
@@ -600,7 +600,7 @@ export class Lander {
           depthWrite: false, toneMapped: false,
         });
         const locator = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.055, 0.42), material);
-        locator.position.set(side * 1.02, 0.095, -0.82 - pair * 1.46);
+        locator.position.set(side * 1.40, 0.095, -0.82 - pair * 1.46);
         this.rampPivot.add(locator);
         this.dockLights.push(locator);
       }
@@ -618,7 +618,7 @@ export class Lander {
     ventMouth.position.set(-3.75, 3.73, 0.15);
     ventMouth.rotation.z = Math.PI * 0.5;
     this.core.add(ventMouth);
-    this._track(5, bridge, bayBack, bayFloor, ...bayFrames,
+    this._track(5, bayFloor, ...bayFrames,
       this.ramp, rampRibA, rampRibB, ...this.dockLights, ventCollar, ventMouth);
     this.purge = new CryogenicPurge([
       { position: [-3.78, 3.73, 0.15], direction: [-1.0, 0.04, 0.12] },
@@ -911,13 +911,19 @@ export class Lander {
 
   setLegFold(progress = 0) {
     const p = Math.max(0, Math.min(1, progress));
-    const eased = p * p * (3 - 2 * p);
     for (const leg of this.legs) {
+      /* Alternating tripod timing makes the body appear to hand its weight
+         from one load path to the next. The upper link draws the knee inward
+         first; the lower link follows after a short mechanical delay. */
+      const staged = Math.max(0, Math.min(1, (p - leg.foldOffset * 0.30) / 0.70));
+      const ease = value => value * value * (3 - 2 * value);
+      const upperEase = ease(Math.min(1, staged / 0.74));
+      const lowerEase = ease(Math.max(0, (staged - 0.16) / 0.84));
       const a = Math.atan2(leg.shoulder[2], leg.shoulder[0]);
       const tuckedElbow = [Math.cos(a) * 2.78, 1.72, Math.sin(a) * 2.78];
       const tuckedFoot = [Math.cos(a) * 3.08, 1.06, Math.sin(a) * 3.08];
-      const elbow = leg.deployedElbow.map((v, i) => v + (tuckedElbow[i] - v) * eased);
-      const foot = leg.deployedFoot.map((v, i) => v + (tuckedFoot[i] - v) * eased);
+      const elbow = leg.deployedElbow.map((v, i) => v + (tuckedElbow[i] - v) * upperEase);
+      const foot = leg.deployedFoot.map((v, i) => v + (tuckedFoot[i] - v) * lowerEase);
       updateCylinderBetween(leg.upper, leg.shoulder, elbow);
       updateCylinderBetween(leg.lower, elbow, foot);
       updateCylinderBetween(leg.brace,
@@ -928,6 +934,32 @@ export class Lander {
       leg.padCore.position.set(foot[0], foot[1] + 0.02, foot[2]);
     }
     this.legFold = p;
+  }
+
+  /** Short load-stroke after touchdown.  The carrier settles while the pads
+      remain registered to terrain; this method raises pad coordinates by the
+      same amount that VoyageSequence lowers the hull. */
+  setLegCompression(progress = 0, stroke = 0.11) {
+    const q = Math.max(0, Math.min(1, progress));
+    if (this.legFold > 0.001) return;
+    for (const leg of this.legs) {
+      const a = Math.atan2(leg.shoulder[2], leg.shoulder[0]);
+      const elbow = leg.deployedElbow.slice();
+      const foot = leg.deployedFoot.slice();
+      elbow[0] += Math.cos(a) * 0.14 * q;
+      elbow[1] -= 0.08 * q;
+      elbow[2] += Math.sin(a) * 0.14 * q;
+      foot[1] += stroke * q;
+      updateCylinderBetween(leg.upper, leg.shoulder, elbow);
+      updateCylinderBetween(leg.lower, elbow, foot);
+      updateCylinderBetween(leg.brace,
+        [leg.shoulder[0] * 0.93, leg.shoulder[1] - 0.30, leg.shoulder[2] * 0.93],
+        [foot[0], foot[1] + 0.18, foot[2]]);
+      leg.elbowJoint.position.set(...elbow);
+      leg.pad.position.set(foot[0], foot[1] - 0.08, foot[2]);
+      leg.padCore.position.set(foot[0], foot[1] + 0.02, foot[2]);
+    }
+    this.legCompression = q;
   }
 
   /* Local deployment coordinates converted without allocating matrices. */
@@ -959,7 +991,7 @@ export class Lander {
   dockingSurface(x, z, terrain) {
     if (this.dock.progress < 0.98) return terrain;
     const local = this.dockingLocal(x, z);
-    if (Math.abs(local.x) > 1.32 || local.z < this.dock.toeZ - 0.35 || local.z > 0.15) return terrain;
+    if (Math.abs(local.x) > this.dock.halfWidth || local.z < this.dock.toeZ - 0.35 || local.z > 0.15) return terrain;
     return Math.max(terrain, this.group.position.y + this.hangarHeight(local.z));
   }
 

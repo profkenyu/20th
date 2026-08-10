@@ -212,37 +212,9 @@ export class Rover {
     this.group.add(this.acquisitionGlow);
     this.acquisitionGlowStart = -Infinity;
 
-    let dragging = false, lx = 0, ly = 0;
-    dom.addEventListener('pointerdown', e => { dragging = true; lx = e.clientX; ly = e.clientY; dom.setPointerCapture(e.pointerId); });
-    dom.addEventListener('pointerup', () => { dragging = false; });
-    dom.addEventListener('pointercancel', () => { dragging = false; });
-    dom.addEventListener('pointermove', e => {
-      if (!dragging) return;
-      const s = cfg().vehicle.lookSpeed;
-      if (this.chase) {
-        /* in chase the drag orbits the probe rather than panning the mast —
-           the point of the view is to see the machine from any side while it
-           is moving, and a fixed rear pole only ever shows its back */
-        this.orbitYaw -= (e.clientX - lx) * s * 1.6;
-        this.orbitPitch = clamp(this.orbitPitch + (e.clientY - ly) * s * 1.2, D.orbitPitch[0], D.orbitPitch[1]);
-        this.viewMode = 'orbit';
-      } else {
-        this.lookYaw -= (e.clientX - lx) * s;
-        this.lookPitch = clamp(this.lookPitch - (e.clientY - ly) * s, -0.65, 0.45);
-      }
-      lx = e.clientX; ly = e.clientY;
-    }, { passive: true });
-
-    dom.addEventListener('wheel', e => {
-      if (!this.chase) return;
-      this.orbitDist = clamp(this.orbitDist * (1 + Math.sign(e.deltaY) * 0.10), D.orbitDist[0], D.orbitDist[1]);
-      this.viewMode = 'orbit';
-    }, { passive: true });
-
     addEventListener('keydown', e => {
       if (e.code === 'Space') { this.auto = !this.auto; e.preventDefault(); }
       if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) this.auto = false;
-      if (e.code === 'KeyC' && !this.transmitting) this.cycleViewMode();
       if (e.code === 'KeyL' && !this.mobileMode && !this.disabled) this.lamps = !this.lamps;
       this.keys.add(e.code);
     });
@@ -901,7 +873,7 @@ function buildRover() {
     mat.colorNode = Fn(() => {
       const n = normalize(normalWorld);
       const v = normalize(cameraPosition.sub(positionWorld));
-      const ndl = abs(dot(n, L));
+      const ndl = max(dot(n, L), float(0.0));
       const halfVector = normalize(L.add(v));
       const grainHash = fract(sin(dot(positionLocal, vec3(91.17, 47.31, 113.53))).mul(43758.5453));
       const surface = vec3(...rgb).mul(grainHash.mul(grain * 2).add(1.0 - grain));
@@ -940,7 +912,7 @@ function buildRover() {
   cell.colorNode = Fn(() => {
     const n = normalize(normalWorld);
     const v = normalize(cameraPosition.sub(positionWorld));
-    const ndl = abs(dot(n, L));
+    const ndl = max(dot(n, L), float(0.0));
     const halfVector = normalize(L.add(v));
     const crystal = sin(positionLocal.x.mul(83.0).add(positionLocal.z.mul(51.0)))
       .mul(0.5).add(0.5);

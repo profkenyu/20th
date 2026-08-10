@@ -146,6 +146,59 @@ export const G = Object.freeze({
   weatherFreq: 0.044,
   weatherOct: 3,
   weatherAmp: 0.46,
+  /* Two non-orthogonal cooling-joint families. Their narrow negative relief
+     breaks the old smooth-noise read into coherent granite slabs. */
+  jointAFreq: 0.041,
+  jointBFreq: 0.033,
+  jointWarp: 0.0095,
+  jointWarpAmp: 1.65,
+  jointLo: 0.020,
+  jointHi: 0.105,
+  jointDepth: 0.34,
+  /* Resistant tors emerge only where the dome and shelf registers overlap;
+     they are broad enough to remain load-bearing clipmap geometry. */
+  torFreq: 0.0092,
+  torOct: 3,
+  torLo: 0.70,
+  torHi: 0.91,
+  torAmp: 2.15,
+});
+
+/** BODY 02 — the only mission objective on the yardang world.
+ *
+ * This is water-equivalent hydrogen in a shaded, porous regolith lens, not an
+ * invented surface pool. The coordinates sit off the landing axis in a wadi
+ * floor. Runtime systems can use the acquisition block without duplicating
+ * thresholds, while renderers use `visual` to keep the evidence physical:
+ * lower thermal return, a dark hydrated-silica core and a pale salt rim. */
+export const BODY02_WATER_SITE = Object.freeze({
+  id: 'BODY02-H2O-01',
+  x: 52.0,
+  z: 428.0,
+  bearing: -0.31,
+  objective: 'H₂O',
+  scanRadius: 5.2,
+  acquireRadius: 3.8,
+  scanHoldMs: 4200,
+  signature: Object.freeze({
+    phase: 'SUBSURFACE PORE ICE / HYDRATED SILICA',
+    thermalDeltaK: -16.0,
+    absorptionBandsMicron: Object.freeze([1.4, 1.9, 2.9]),
+    evidence: Object.freeze([
+      'THERMAL INERTIA ANOMALY',
+      '1.9 µm ABSORPTION',
+      'HYDRATED SILICA DARKENING',
+    ]),
+  }),
+  visual: Object.freeze({
+    coreRadius: 7.5,
+    haloRadius: 15.0,
+    reliefDepth: 0.22,
+    thermalTint: Object.freeze([0.018, 0.052, 0.067]),
+    saltTint: Object.freeze([0.205, 0.245, 0.222]),
+    particleDensity: 0.28,
+    spectrumRingMicron: 1.9,
+  }),
 });
 
 /**
@@ -214,6 +267,25 @@ export const BH = Object.freeze({
 
      78 of 1440 headings satisfy the first two. This is the flattest. */
 });
+
+/** Eight material signatures planted in the measured terrain itself.
+ *
+ * They follow the inward survey corridor from the selected sunlit start. The
+ * alternating cross-track displacement keeps the route geological rather than
+ * reading as eight evenly spaced checkpoints; the autonomous navigator still
+ * has to approach each world-space coordinate before its spectrometer can
+ * integrate a result. Heights are deliberately not stored here — every site
+ * samples the same CPU terrain function used by the rover wheels. */
+export const TERRA_SAMPLE_SITES = Object.freeze([
+  Object.freeze({ x: 231.6, z: 543.4, bearing:  0.18 }),
+  Object.freeze({ x: 199.1, z: 516.1, bearing: -0.42 }),
+  Object.freeze({ x: 209.9, z: 471.4, bearing:  0.66 }),
+  Object.freeze({ x: 168.5, z: 445.3, bearing: -0.31 }),
+  Object.freeze({ x: 173.9, z: 391.9, bearing:  0.51 }),
+  Object.freeze({ x: 127.7, z: 352.8, bearing: -0.57 }),
+  Object.freeze({ x: 131.1, z: 294.2, bearing:  0.29 }),
+  Object.freeze({ x:  92.5, z: 247.9, bearing: -0.16 }),
+]);
 
 /** Amplitude normaliser for an `oct`-octave cascade at gain 0.5. */
 export function fbmNorm(oct) {

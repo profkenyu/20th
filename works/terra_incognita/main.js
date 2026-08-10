@@ -14,12 +14,12 @@
 import * as THREE from 'three';
 import {
   configure, deviceTier, universeSeed, DEV,
-  Clipmap, Field, Scatter, Wake, Dust, Sandstorm, ResolutionTransferFX, Beam, buildSky,
+  Clipmap, Field, Scatter, Wake, Dust, GraniteField, Sandstorm, ResolutionTransferFX, Beam, buildSky,
   createRenderer, describeAdapter, unsupported, fatal, enableTimestamps, captureDeviceErrors,
-  Lens, Adaptive, Hud, Captions, Kiosk, Ambient, MobileControl, Restoration, DockingSequence, VoyageSequence, Rover, Lander, Power,
+  Lens, Adaptive, Hud, Captions, Kiosk, Ambient, MobileControl, Restoration, WaterMission, DockingSequence, VoyageSequence, ShotDirector, Rover, Lander, Power,
   uObserverR, nuRatioCPU, uLampPower,
 } from '../../engine/index.js';
-import { T, BH } from './spec.js';
+import { T, BH, TERRA_SAMPLE_SITES, BODY02_WATER_SITE } from './spec.js';
 import {
   heightGPU, heightCPU, solarAccessCPU, potential, shadeGround, albedoGround,
   shadeBlade, shadeSky, setWorldMode,
@@ -47,9 +47,9 @@ const CFG = configure({
   },
   /* Deliberate survey pace: enough time for distance to register as distance. */
   vehicle: { cruise: 2.0, boost: 6.0 },
-  /* Exponential fog previously reached 50% at 42.0 m. At this density the
-     half-distance is 86.6 m, so the plain remains legible beyond 60 m. */
-  atmosphere: { fogDensity: 0.0080 },
+  /* Vacuum: no persistent distance fog.  The only suspended matter is emitted
+     by finite ballistic events with a mechanical or ground-contact source. */
+  atmosphere: { fogDensity: 0 },
   /* Full-colour optics retain a restrained halo around true signals while
      preserving the rover's facets and the terrain's crimson bands. Archive
      mode bypasses Lens entirely, so this has no low-tier cost. */
@@ -99,8 +99,8 @@ const TERRA_SURVEY = [
 
 const DESERT_SURVEY = [
   [500, 'COMMS · RETURN CARRIER / NOT ACQUIRED'],
-  [460, 'ATMOSPHERE · CHARGED SILICATE DRIFT'],
-  [350, 'WIND · EASTWARD SHEAR / 5.2 M·S⁻¹'],
+  [460, 'ELECTROSTATIC · CHARGED SILICATE HOPS'],
+  [350, 'THERMAL · NIGHT-SIDE INERTIA LOW'],
   [245, 'GROUND · YARDANG / SINTERED CRUST'],
   [140, 'MINERAL · GLASS PHASE / DISCONTINUOUS'],
   [90, 'BIOSCAN · LOCAL SIGNALS / 0'],
@@ -108,11 +108,25 @@ const DESERT_SURVEY = [
 
 const DESERT_LINES = [
   { r: 500, ko: '통신 반송파 미검출 · 원격 운용 채널 대기', en: 'COMMS · RETURN CARRIER NOT ACQUIRED' },
-  { r: 460, ko: '규산염 하전 입자 검출 · 저층 이류 활성', en: 'ATMOSPHERE · CHARGED SILICATE DRIFT' },
-  { r: 350, ko: '풍속 벡터 +X 5.2 m·s⁻¹ · 횡성분 0.72 m·s⁻¹', en: 'WIND · VECTOR +X 5.2 M·S⁻¹ / CROSS 0.72' },
+  { r: 460, ko: '규산염 하전 입자 검출 · 이동 경로 확인', en: 'ELECTROSTATIC · CHARGED SILICATE HOPS' },
+  { r: 350, ko: '야간 지표 열관성 저하', en: 'THERMAL · NIGHT-SIDE INERTIA LOW' },
   { r: 245, ko: '야르당 능선·소결 지각 교차 검출 · 표면 모델 갱신', en: 'GROUND · YARDANG / SINTERED CRUST' },
   { r: 140, ko: '유리질 광물상 불연속 분포 · 반사율 편차 증가', en: 'MINERAL · GLASS PHASE / ALBEDO VARIANCE' },
   { r: 90, ko: '주변 생체 신호 0 · 응답 패킷 0', en: 'BIOSCAN · LOCAL SIGNALS 0 / RETURN PACKETS 0' },
+];
+
+const GRANITE_SURVEY = [
+  [520, 'MISSION · DEFINITION PENDING'],
+  [410, 'LITHOLOGY · QUARTZ / FELDSPAR / MICA'],
+  [300, 'STRUCTURE · CONJUGATE JOINT SETS'],
+  [190, 'WEATHERING · EXFOLIATION DOMES'],
+];
+
+const GRANITE_LINES = [
+  { r: 520, ko: '임무 정의 대기 · 자율 목표 없음', en: 'MISSION DEFINITION PENDING · NO AUTONOMOUS OBJECTIVE' },
+  { r: 410, ko: '광물 반사 분리', en: 'LITHOLOGY · QUARTZ / FELDSPAR / MICA' },
+  { r: 300, ko: '두 절리 교차 · 산화면 검출', en: 'STRUCTURE · CONJUGATE JOINT SETS' },
+  { r: 190, ko: '풍화 구조 검출', en: 'WEATHERING · EXFOLIATION DOMES / TORS' },
 ];
 
 const DOCKING_LINES = Object.freeze({
@@ -140,12 +154,17 @@ const PLANETS = Object.freeze({
   terra: Object.freeze({
     key: 'terra', number: 1, id: 'BODY 01', label: 'SHEAR BODY', start: BH.start,
     mode: 'terra', metric: true, storm: false, initialCharge: 1,
-    lines: LINES, survey: TERRA_SURVEY,
+    lines: LINES, survey: TERRA_SURVEY, next: 'desert', mission: 'samples',
   }),
   desert: Object.freeze({
     key: 'desert', number: 2, id: 'BODY 02', label: 'YARDANG FIELD', start: DESERT_START,
-    mode: 'desert', metric: false, storm: true, initialCharge: 0.86,
-    lines: DESERT_LINES, survey: DESERT_SURVEY,
+    mode: 'desert', metric: false, storm: false, initialCharge: 0.86,
+    lines: DESERT_LINES, survey: DESERT_SURVEY, next: 'granite', mission: 'water',
+  }),
+  granite: Object.freeze({
+    key: 'granite', number: 3, id: 'BODY 03', label: 'JOINTED GRANITE', start: [120, 460],
+    mode: 'granite', metric: false, storm: false, initialCharge: 0.90,
+    lines: GRANITE_LINES, survey: GRANITE_SURVEY, next: null, mission: 'pending',
   }),
 });
 const COMPLETION_TABLEAU_MS = 5400;
@@ -219,7 +238,7 @@ captureDeviceErrors(renderer, err => { running = false; fatal(err, 'gpu'); });
    that got past the adapter gate. Inside a top-level-await module that throw
    is an unhandled rejection, so the only symptom was a black screen.
    Declarations are hoisted; initialisations are not. */
-let scene, hud, captions, ambient, kiosk, ground, field, wake, dust, storm, transferFx, scatter, beam, sky, landmark, rover, lander, restoration, docking, voyage, power, lens, adaptive, minimap, optics, survey, mobileControl;
+let scene, hud, captions, ambient, kiosk, ground, field, wake, dust, graniteField, storm, transferFx, scatter, beam, sky, landmark, rover, lander, restoration, waterMission, docking, voyage, shotDirector, power, lens, adaptive, minimap, optics, survey, mobileControl;
 let world = 'terra';
 let landerPresent = true;
 let archiveMode = false, lastArchiveFrame = 0, archiveCueTimer = 0;
@@ -241,6 +260,7 @@ kiosk = new Kiosk(CFG.kiosk.idleMs);
 
 wake = new Wake();                       // built first: the ground reads it
 dust = off('dust') ? null : new Dust(heightCPU);   // low-gravity ejecta returns to this terrain
+graniteField = new GraniteField(heightCPU);
 storm = new Sandstorm(heightCPU);
 ground = new Clipmap({
   height: heightGPU, shade: shadeGround(CFG.color),
@@ -261,13 +281,23 @@ landmark.visible = false;
 rover = new Rover(camera, canvas, heightCPU);
 mobileControl = new MobileControl(rover);
 lander = new Lander(heightCPU);
-restoration = new Restoration(lander);
+restoration = new Restoration(lander, heightCPU, TERRA_SAMPLE_SITES);
+waterMission = new WaterMission(heightCPU, BODY02_WATER_SITE, (_site, now) => {
+  captions.force({
+    r: 0,
+    ko: '수분 확인 · 수화 규산염과 수분 신호 일치',
+    en: 'H₂O CONFIRMED · HYDRATED SILICA / PORE ICE MATCH',
+  }, now, 5200);
+  kiosk.last = now;
+});
 transferFx = new ResolutionTransferFX(rover.group);
 docking = new DockingSequence({
   rover, lander, effect: transferFx, camera,
   onCue: (phase, now) => {
     openingShot = null;
-    const line = DOCKING_LINES[phase];
+    const line = world === 'desert' && phase === 'recall'
+      ? { r: 0, ko: '수분 확인 · 귀환 좌표 압축', en: 'H₂O CONFIRMED · COORDINATE RECALL' }
+      : DOCKING_LINES[phase];
     if (line) captions.force(line, now, phase === 'docked' ? 12000 : 4600);
     if (phase === 'recall') {
       kiosk.last = now;
@@ -281,8 +311,9 @@ voyage = new VoyageSequence({
     sky.visible = !active; ground.mesh.visible = !active;
     for (const mesh of scatter.meshes) mesh.visible = !active && PLANETS[world].metric;
     for (const mesh of beam.meshes) mesh.visible = !active && PLANETS[world].metric;
-    landmark.visible = !active && world === 'desert';
-    if (active) { dust?.clear(); storm.setActive(false); }
+    landmark.visible = false;
+    graniteField.mesh.visible = !active && world === 'granite';
+    if (active) { dust?.clear(); storm.setActive(false); graniteField.mesh.visible = false; }
   },
   onCue: (phase, now, destination) => {
     const line = VOYAGE_LINES[phase];
@@ -290,11 +321,24 @@ voyage = new VoyageSequence({
     if (phase === 'epilogue') ambient.silenceFor(24000);
     kiosk.last = now;
   },
-  onComplete: (_destination, now) => {
-    /* The ending owns the screen until the kiosk performs its normal black
-       close/reset/open cycle. No post-arrival gameplay is exposed. */
-    kiosk.last = now - kiosk.idle - 1;
+  onComplete: (destination, now) => {
+    kiosk.last = now;
+    const planet = PLANETS[destination.key];
+    if (planet?.mission === 'water') {
+      waterMission.activate(now);
+      rover.auto = true; rover.missionHold = false; rover.operatorHold = false;
+      storm.setActive(planet.storm);
+      captions.force({ r: 0, ko: '단일 임무 · 지표 수분 신호 확인', en: 'SINGLE OBJECTIVE · CONFIRM SURFACE WATER' }, now, 5200);
+    } else if (planet?.mission === 'pending') {
+      waterMission.reset();
+      rover.auto = false; rover.missionHold = false; rover.operatorHold = true;
+      captions.force({ r: 0, ko: 'BODY 03 · 임무 정의 대기', en: 'BODY 03 · MISSION DEFINITION PENDING' }, now, 7200);
+    }
   },
+  onLandingDust: source => dust?.landingBurst(source),
+});
+shotDirector = new ShotDirector({
+  camera, rover, lander, restoration, mission: waterMission, docking, voyage, heightAt: heightCPU,
 });
 power = new Power(heightCPU, solarAccessCPU);
 minimap = new MiniMap(document.getElementById('ti-minimap'), BH.start, {
@@ -303,7 +347,8 @@ minimap = new MiniMap(document.getElementById('ti-minimap'), BH.start, {
 optics = new Optics();
 survey = new Survey(heightCPU, TERRA_SURVEY);
 
-scene.add(sky, landmark, ground.mesh, ...scatter.meshes, ...beam.meshes, lander.group, restoration.group, voyage.group,
+scene.add(sky, landmark, ground.mesh, ...scatter.meshes, ...beam.meshes, graniteField.mesh,
+          lander.group, restoration.group, waterMission.group, voyage.group,
           ...(dust ? [dust.points] : []), storm.points, rover.group, survey.group, transferFx.group);
 
 lens = (off('lens') || ARCHIVE_AT_BOOT) ? null : new Lens(renderer, scene, camera);
@@ -332,6 +377,13 @@ addEventListener('keydown', e => {
           ko: '8개 표본 동시 획득 · 전체 복원 키 고정',
           en: 'EIGHT SAMPLES ACQUIRED · ALL RECOVERY KEYS FIXED',
         }, now, 5200);
+        kiosk.last = now;
+      }
+    }
+    if (world === 'desert' && waterMission.active && !docking.started) {
+      const now = performance.now();
+      if (waterMission.forceAcquire(now)) {
+        rover.flashAcquisition(now);
         kiosk.last = now;
       }
     }
@@ -390,8 +442,26 @@ window.TI_READY = true;                      // clears the watchdog in index.htm
 window.TI_WORLD = world;
 window.TI_RENDER_MODE = () => ({ archive: archiveMode, dpr: adaptive.dpr, lens: !!lens });
 window.TI_CAMERA = () => ({
-  mode: rover.viewMode, yaw: rover.orbitYaw, pitch: rover.orbitPitch,
-  distance: rover.orbitDist, cue: completionTableau ? 'completion' : voyage.active ? voyage.phase : 'none',
+  shot: shotDirector.rendered,
+  label: shotDirector.label,
+  transition: shotDirector.transition ? 'dissolve'
+    : performance.now() - shotDirector.lastCutAt < 100 ? 'hardcut' : 'none',
+});
+window.TI_ANOMALIES = () => restoration.sites.map((site, index) => ({
+  index,
+  x: site.data.x,
+  y: site.root.position.y,
+  z: site.data.z,
+  state: index < restoration.count ? 'acquired'
+    : restoration.event?.index === index ? 'scanning'
+    : index === restoration.count ? 'target' : 'latent',
+  distance: Math.hypot(rover.pos.x - site.data.x, rover.pos.z - site.data.z),
+}));
+window.TI_WATER = () => ({
+  ...waterMission.snapshot(),
+  x: BODY02_WATER_SITE.x,
+  y: heightCPU(BODY02_WATER_SITE.x, BODY02_WATER_SITE.z),
+  z: BODY02_WATER_SITE.z,
 });
 window.TI_RESTORATION = level => {
   if (level == null) return restoration.snapshot();
@@ -399,10 +469,13 @@ window.TI_RESTORATION = level => {
   return restoration.snapshot();
 };
 window.TI_SEQUENCE = () => ({
-  world, restoration: restoration.count,
+  world, planets: Object.keys(PLANETS).length, restoration: restoration.count,
+  mission: PLANETS[world].mission,
+  water: waterMission.state,
   docking: docking.phase, voyage: voyage.phase,
   tableau: completionTableau ? 'active' : 'idle',
   landerPresent, roverVisible: rover.group.visible,
+  cameraShot: shotDirector.rendered,
 });
 queueLoop();
 
@@ -519,13 +592,14 @@ async function frame() {
   }
 
   docking.beforeRover(now, dt);
-  if (world === 'terra' && docking.docked && !voyage.active) {
-    voyage.start(PLANETS.desert, now);
+  if (docking.docked && !voyage.active && PLANETS[world].next) {
+    voyage.start(PLANETS[PLANETS[world].next], now);
   }
   await voyage.beforeRover(now, dt);
 
   const missionEnding = voyage.phase === 'epilogue' || voyage.phase === 'ended';
   const restorationHold = world === 'terra' && restoration.holding(now);
+  const waterHold = world === 'desert' && waterMission.shouldHold({ x: rover.pos.x, z: rover.pos.z });
   if (rover.auto && !completionTableau && !docking.started && !voyage.active && !missionEnding) {
     if (!nextAutoPauseAt) nextAutoPauseAt = now + 32000;
     if (!autoPauseUntil && now >= nextAutoPauseAt) autoPauseUntil = now + 14000;
@@ -533,7 +607,7 @@ async function frame() {
       autoPauseUntil = 0;
       nextAutoPauseAt = now + 46000;
     }
-    rover.missionHold = autoPauseUntil > now || restorationHold;
+    rover.missionHold = autoPauseUntil > now || restorationHold || waterHold;
     if (rover.viewMode === 'rear') {
       const wide = 28.6 + Math.sin(now * 0.000085) * 3.0;
       rover.orbitDist += (wide - rover.orbitDist) * Math.min(1, dt * 0.18);
@@ -553,18 +627,23 @@ async function frame() {
       rover.orbitYaw += yawError * Math.min(1, dt * 1.0);
     }
   } else {
-    rover.missionHold = restorationHold || !!completionTableau || missionEnding;
+    rover.missionHold = restorationHold || waterHold || !!completionTableau || missionEnding;
   }
 
-  /* The autonomous route is a chain of broad, overlapping survey arcs. The
-     odometer—not wall time—drives the curve, so pauses for samples do not make
-     the parked rover rotate, and every kiosk replay traces the same field. */
+  /* Each leg resolves toward a material signature fixed to the measured
+     terrain. Small curvature remains, but the route can no longer collect a
+     sample merely by crossing an odometer threshold somewhere else. */
   if (rover.auto && !completionTableau && !docking.started && !voyage.active && !missionEnding) {
+    const target = world === 'terra' ? restoration.target
+      : world === 'desert' ? waterMission.target : null;
     const start = PLANETS[world].start;
-    const base = Math.atan2(start[0], start[1]);
-    const phase = rover.odometer * 0.020 + PLANETS[world].number * 1.17;
-    const desired = base + Math.sin(phase) * 0.34
-      + Math.sin(rover.odometer * 0.0065 + restoration.count * 0.83) * 0.17;
+    const base = target
+      ? Math.atan2(rover.pos.x - target.x, rover.pos.z - target.z)
+      : Math.atan2(start[0], start[1]);
+    const distance = target ? Math.hypot(rover.pos.x - target.x, rover.pos.z - target.z) : 100;
+    const curve = target ? Math.min(0.12, distance * 0.0012) : 0.34;
+    const phaseIndex = world === 'terra' ? restoration.count : 2;
+    const desired = base + Math.sin(rover.odometer * 0.017 + phaseIndex * 1.31) * curve;
     const error = Math.atan2(Math.sin(desired - rover.heading), Math.cos(desired - rover.heading));
     rover.autoSteer = Math.max(-0.38, Math.min(0.38, error * 1.18));
   } else rover.autoSteer = 0;
@@ -576,14 +655,20 @@ async function frame() {
   });
   const v = rover.update(dt);
   restoration.update(v, now, world === 'terra');
+  waterMission.update(v, now, world === 'desert');
+  if (world === 'desert' && waterMission.complete
+      && now - waterMission.confirmedAt >= 1100 && !docking.started) {
+    docking.start(now);
+  }
   if (world === 'terra' && restoration.complete && !restoration.event
       && lander.parts[7].state === 'solid' && !docking.started && !completionTableau) {
     beginCompletionTableau(now);
   }
   updateOpeningCamera(now);
   docking.afterRover();
-  voyage.afterRover(now);
   updateCompletionTableau(now);
+  shotDirector.update(now);
+  voyage.afterRover(now);
   optics.update(now, v, camera);
   minimap.update(v, now, power.charge, !voyage.active && !missionEnding);
   uObserverR.value = PLANETS[world].metric ? v.radius : 1e7;
@@ -595,12 +680,13 @@ async function frame() {
     adaptive.skip();          // this window contains a rebuild stall — discard
     hud.flash();
   }
+  if (!voyage.inSpace && world === 'granite') graniteField.syncTo(rover.pos.x, rover.pos.z);
 
   /* two tracks, in the clipmap's local frame */
   if (!off('wake') && !voyage.active) await wake.step(renderer, dt,
     v.trackA[0] - ground.origin.x, v.trackA[1] - ground.origin.y,
     v.trackB[0] - ground.origin.x, v.trackB[1] - ground.origin.y);
-  if (!voyage.active) dust?.update(dt, v);
+  if (!voyage.inSpace) dust?.update(dt, v);
   if (!voyage.active && !missionEnding) storm.update(dt, v, now);
   lander.update(now, landerPresent || voyage.active);
   if (completionTableau) lander.setCompletionHighlight(
@@ -608,9 +694,7 @@ async function frame() {
 
   sky.position.copy(camera.position);
   if (lens) {
-    const focusTarget = openingShot ? openingCam.aim
-      : (completionTableau || docking.started || voyage.active || missionEnding)
-        ? lander.group.position : rover.group.position;
+    const focusTarget = shotDirector.focus;
     lens.focusAt(camera.position.distanceTo(focusTarget));
     lens.render();
   }
@@ -624,7 +708,11 @@ async function frame() {
   const pw = power.update(dt, { ...v, radius: PLANETS[world].metric ? v.radius : 1e7, lamps: rover.lamps });
   rover.setSignalState(pw.charge, docking.started || voyage.active || missionEnding);
   mobileControl.syncSignal();
-  if (!completionTableau && !voyage.active && !missionEnding) survey.update(v, now, pw.charge);
+  if (!completionTableau && !voyage.active && !missionEnding) {
+    survey.setFocus(world === 'terra' ? restoration.scanFocus
+      : world === 'desert' ? waterMission.scanFocus : null);
+    survey.update(v, now, pw.charge);
+  }
 
   if (!completionTableau && !docking.started && !voyage.active && !missionEnding) {
     if (pw.dead && world === 'terra' && !restoration.complete && !failureResetAt) {
@@ -670,11 +758,7 @@ async function frame() {
       ? `${(v.artic * 100).toFixed(0)} / ${(v.travel * 100).toFixed(0)} cm · ${(v.stops * 8).toFixed(0)} on stops`
       : `${(v.artic * 100).toFixed(0)} / ${(v.travel * 100).toFixed(0)} cm`,
       v.slam > 0.05);
-    const viewLabel = v.viewMode === 'mast' ? 'Mast / 1인칭'
-      : v.viewMode === 'rear' ? `Rear chase / 3인칭 · ${v.chaseDist.toFixed(1)} m`
-      : v.viewMode === 'front' ? `Front inspection / 정면 · ${v.chaseDist.toFixed(1)} m`
-      : `${v.viewMode === 'cinematic' ? 'Cinematic' : 'Free orbit'} · ${v.chaseDist.toFixed(1)} m`;
-    hud.set('view', viewLabel);
+    hud.set('view', shotDirector.label);
     hud.set('lamps', v.lamps
       ? (pw.bus > 0.92 ? `on · ${CFG.headlight.reach.toFixed(0)} m reach`
                        : `on · bus ${(pw.bus * 100).toFixed(0)} %`)
@@ -689,9 +773,11 @@ async function frame() {
       pw.endurance < 90);
     hud.set('recon', world === 'terra'
       ? `${restoration.count} / 8 · ${restoration.complete ? 'material fixed' : 'wire recovery'}`
-      : `archive ${restoration.count} / 8`);
+      : world === 'desert'
+        ? `H₂O · ${waterMission.complete ? 'confirmed' : waterMission.state}`
+        : 'mission definition · pending');
     hud.set('r', PLANETS[world].metric ? `${v.radius.toFixed(1)} m · ${(v.radius / BH.rs).toFixed(2)} rs`
-      : `${v.radius.toFixed(1)} m · yardang field`);
+      : `${v.radius.toFixed(1)} m · ${world === 'granite' ? 'jointed granite' : 'yardang field'}`);
     hud.set('region', regionOf(v.radius), v.radius < BH.rs * 1.5);
     hud.set('lapse', PLANETS[world].metric ? v.lapse.toFixed(4) : '1.0000');
     hud.set('dpr', `${adaptive.dpr.toFixed(2)} · ${adaptive.changes} steps`);
@@ -869,12 +955,15 @@ async function prepareVoyageDestination(destination) {
   world = planet.key; window.TI_WORLD = world; setWorldMode(planet.mode);
   rover.metricEnabled = planet.metric;
   document.body.classList.toggle('ti-desert', world === 'desert');
+  document.body.classList.toggle('ti-granite', world === 'granite');
   document.body.classList.remove('fh-dead');
   landmark.position.set(-230, heightCPU(-230, -340) + 8, -340);
   landmark.visible = false;                 // space interval still owns frame
   for (const mesh of scatter.meshes) mesh.visible = false;
   for (const mesh of beam.meshes) mesh.visible = false;
-  storm.setActive(false); dust?.clear();
+  storm.setActive(false); dust?.clear(); waterMission.reset();
+  graniteField.setActive(world === 'granite', { x: planet.start[0], z: planet.start[1] });
+  if (voyage.inSpace) graniteField.mesh.visible = false;
 
   power.reset(planet.initialCharge);
   const heading = Math.atan2(planet.start[0], planet.start[1]);
@@ -885,8 +974,10 @@ async function prepareVoyageDestination(destination) {
 
   lander.place(planet.start[0], planet.start[1], heading, true);
   restoration.reset(8);
+  restoration.group.visible = false;
   captions.lines = planet.lines; captions.rearm();
   survey.reset(planet.survey);
+  minimap.restoration = null;
   minimap.reset(planet.start, { id: planet.id, label: planet.label, archives: [] });
   uObserverR.value = planet.metric ? Math.hypot(...planet.start) : 1e7;
   ground.syncTo(lander.group.position.x, lander.group.position.z);
@@ -897,6 +988,7 @@ async function prepareVoyageDestination(destination) {
 
 async function returnToStart() {
   voyage.reset();
+  shotDirector.reset();
   docking.reset();
   completionTableau = null;
   failureResetAt = 0;
@@ -908,8 +1000,10 @@ async function returnToStart() {
   world = 'terra'; window.TI_WORLD = world; setWorldMode('terra');
   landerPresent = true;
   rover.metricEnabled = true;
-  document.body.classList.remove('fh-dead', 'ti-desert');
+  document.body.classList.remove('fh-dead', 'ti-desert', 'ti-granite');
   storm.setActive(false);
+  graniteField.setActive(false);
+  waterMission.reset();
   landmark.visible = false;
   for (const mesh of scatter.meshes) mesh.visible = true;
   for (const mesh of beam.meshes) mesh.visible = true;
@@ -939,11 +1033,13 @@ async function returnToStart() {
   mobileControl.reset();
   lander.place(BH.start[0], BH.start[1], START_HEADING, true);
   restoration.reset(0);
+  restoration.group.visible = true;
   rover.auto = location.search.includes('embed');
   rover.setViewMode('rear');
   uObserverR.value = Math.hypot(...BH.start);
   captions.lines = LINES; captions.rearm();
   survey.reset(TERRA_SURVEY);
+  minimap.restoration = restoration;
   minimap.reset(BH.start, { id: 'BODY 01', label: 'SHEAR BODY', archives: [] });
   ground.syncTo(rover.pos.x, rover.pos.z);
   if (!off('wake')) await wake.clear(renderer);
@@ -953,6 +1049,7 @@ async function returnToStart() {
 
 function regionOf(r) {
   if (world === 'desert') return 'sintered archive';
+  if (world === 'granite') return 'jointed batholith';
   if (r > BH.rTrough) return 'outer basin';
   if (r > BH.rBarrier) return 'descent';
   if (r > BH.rs * 1.5) return 'inside barrier';

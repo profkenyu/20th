@@ -34,7 +34,8 @@ import {
   Fn, float, vec2, vec3, length, pow, smoothstep, mix, max, min, saturate, dot, abs, sqrt, sin, uniform,
 } from 'three/tsl';
 import { fbm, ridge, grain } from '../../engine/tsl/noise.js';
-import { T, D, G, BH } from './spec.js';
+import { cfg } from '../../engine/config.js';
+import { T, D, G, BH, BODY02_WATER_SITE } from './spec.js';
 import { heightCPU, normalCPU, veff, solarAccessCPU, setCPUWorldMix } from './surface.cpu.js';
 
 export const uWorldMix = uniform(0);
@@ -119,11 +120,21 @@ const desertGPU = p => {
   const mesaA = float(1.0).sub(smoothstep(float(0.72), float(1.08), ellA)).mul(a[4]);
   const mesaB = float(1.0).sub(smoothstep(float(0.74), float(1.10), ellB)).mul(b[4]);
 
+  /* BODY02-H2O-01 is a shallow cold-trap lens in the actual contact surface.
+     Its subdued sag is geological evidence, not a pickup pedestal. */
+  const waterDistance = length(p.sub(vec2(BODY02_WATER_SITE.x, BODY02_WATER_SITE.z)));
+  const waterLens = float(1.0).sub(smoothstep(
+    float(BODY02_WATER_SITE.visual.coreRadius),
+    float(BODY02_WATER_SITE.visual.haloRadius),
+    waterDistance,
+  ));
+
   return regional.sub(0.5).mul(5.5)
     .add(dune).sub(wadi).sub(bed.mul(0.65))
     .add(yardang).sub(crustCut)
     .add(rock.mul(skin.mul(1.35).add(0.45)))
     .add(mesaA).add(mesaB)
+    .sub(waterLens.mul(BODY02_WATER_SITE.visual.reliefDepth))
     .add(skin.sub(0.5).mul(0.18).mul(float(1.0).sub(rock.mul(0.75))));
 };
 
@@ -139,7 +150,15 @@ const graniteGPU = p => {
   const dome = smoothstep(float(G.domeLo), float(G.domeHi), domeSource);
   const weather = fbm(p.mul(G.weatherFreq).add(57.8), G.weatherOct).sub(0.5)
     .mul(G.weatherAmp).mul(dome.mul(0.45).add(0.55));
-  return macro.add(shelf).add(dome.mul(G.domeAmp)).add(weather);
+  const jointWarp = fbm(p.mul(G.jointWarp).add(311.8), 2).sub(0.5).mul(G.jointWarpAmp);
+  const jointA = abs(sin(p.x.mul(G.jointAFreq).add(p.y.mul(0.009)).add(jointWarp)));
+  const jointB = abs(sin(p.x.mul(-0.014).add(p.y.mul(G.jointBFreq)).sub(jointWarp.mul(0.73))));
+  const joints = float(1.0).sub(smoothstep(float(G.jointLo), float(G.jointHi), min(jointA, jointB)));
+  const torSource = fbm(p.mul(G.torFreq).add(404.2), G.torOct);
+  const tor = smoothstep(float(G.torLo), float(G.torHi), torSource)
+    .mul(dome.mul(0.62).add(0.38));
+  return macro.add(shelf).add(dome.mul(G.domeAmp)).add(weather)
+    .add(tor.mul(G.torAmp)).sub(joints.mul(G.jointDepth));
 };
 
 /* ── the surface, GPU ─────────────────────────────────────────────────── */
@@ -236,17 +255,39 @@ export const albedoGround = C => ({ slope, worldPos }) => {
   const crustLine = float(1.0).sub(smoothstep(float(0.025), float(0.115), min(crustA, crustB)))
     .mul(float(1.0).sub(smoothstep(float(0.10), float(0.30), slope)));
   const fused = mix(desertBase, vec3(0.012, 0.025, 0.045), glassPatch.mul(0.82));
-  const desert = mix(fused, vec3(0.070, 0.245, 0.225), crustLine.mul(0.64))
+  const waterDistance = length(p.sub(vec2(BODY02_WATER_SITE.x, BODY02_WATER_SITE.z)));
+  const waterCore = float(1.0).sub(smoothstep(
+    float(BODY02_WATER_SITE.visual.coreRadius * 0.42),
+    float(BODY02_WATER_SITE.visual.coreRadius),
+    waterDistance,
+  ));
+  const waterHaloOuter = float(1.0).sub(smoothstep(
+    float(BODY02_WATER_SITE.visual.coreRadius),
+    float(BODY02_WATER_SITE.visual.haloRadius),
+    waterDistance,
+  ));
+  const waterHalo = waterHaloOuter.mul(float(1.0).sub(waterCore));
+  const hydrated = mix(fused, vec3(...BODY02_WATER_SITE.visual.thermalTint), waterCore.mul(0.78));
+  const hydratedCrust = mix(hydrated, vec3(...BODY02_WATER_SITE.visual.saltTint), waterHalo.mul(0.48));
+  const desert = mix(hydratedCrust, vec3(0.070, 0.245, 0.225), crustLine.mul(0.64))
     .mul(float(0.975).add(windBand.mul(0.025)))
     .mul(float(0.88).add(grain(p.mul(0.72)).mul(0.10)));
 
   const granitePattern = fbm(p.mul(0.033).add(122.6), 3);
   const quartz = smoothstep(float(0.69), float(0.90), granitePattern);
   const feldspar = smoothstep(float(0.58), float(0.84), grain(p.mul(0.48).add(17.2)));
+  const mica = pow(grain(p.mul(1.74).add(63.9)), 9.0)
+    .mul(float(1.0).sub(smoothstep(float(0.20), float(0.56), slope)));
+  const jointWarp = fbm(p.mul(G.jointWarp).add(311.8), 2).sub(0.5).mul(G.jointWarpAmp);
+  const jointA = abs(sin(p.x.mul(G.jointAFreq).add(p.y.mul(0.009)).add(jointWarp)));
+  const jointB = abs(sin(p.x.mul(-0.014).add(p.y.mul(G.jointBFreq)).sub(jointWarp.mul(0.73))));
+  const jointStain = float(1.0).sub(smoothstep(float(G.jointLo), float(G.jointHi * 2.2), min(jointA, jointB)));
   const graniteBase = mix(vec3(0.042, 0.050, 0.058), vec3(0.185, 0.176, 0.194),
     saturate(slope.mul(0.76).add(granitePattern.mul(0.48))));
   const quartzFace = mix(graniteBase, vec3(0.285, 0.310, 0.315), quartz.mul(0.52));
-  const granite = mix(quartzFace, vec3(0.190, 0.135, 0.205), feldspar.mul(0.18))
+  const feldsparFace = mix(quartzFace, vec3(0.190, 0.135, 0.205), feldspar.mul(0.18));
+  const oxidisedJoint = mix(feldsparFace, vec3(0.075, 0.041, 0.030), jointStain.mul(0.58));
+  const granite = oxidisedJoint.add(vec3(0.31, 0.34, 0.39).mul(mica.mul(0.23)))
     .mul(float(0.91).add(grain(p.mul(0.92)).mul(0.11)));
   return mix(mix(terra, desert, uWorldMix), granite, uWorldGranite);
 };
@@ -274,36 +315,40 @@ export const shadeGround = C => ctx => {
   return lit.add(vec3(...C.crimson).mul(band).mul(0.34).mul(metricWorld));
 };
 
-/** The destination has a thin dusty atmosphere. The same sky dome changes
- * during blackout, avoiding a cut to a second scene. */
+/** All three bodies are airless.  Their sky differs only in black level and
+ * solar glare; colour never accumulates toward a fake atmospheric horizon. */
 export const shadeSky = ({ dir, elev, sunDot }) => {
+  const C = cfg();
   const terra = mix(vec3(0.0064, 0.0075, 0.0106), vec3(0.0031, 0.0031, 0.0035),
     pow(saturate(elev.mul(2.1)), 0.7))
     .add(vec3(0.055, 0.125, 0.132).mul(
       pow(saturate(float(1.0).sub(abs(elev.sub(0.018)).mul(7.5))), 9.0)).mul(0.28))
     .add(vec3(0.088, 0.094, 0.105).mul(pow(saturate(float(1.0).sub(abs(elev))), 26.0)).mul(0.22))
     .add(vec3(0.753, 0.082, 0.165).mul(pow(sunDot, 12.0)).mul(0.075));
-  const desertAtmosphere = mix(vec3(0.092, 0.054, 0.060), vec3(0.010, 0.004, 0.025),
+  const desertAtmosphere = mix(vec3(0.006, 0.004, 0.008), vec3(0.0012, 0.0010, 0.0024),
     pow(saturate(elev.mul(1.65)), 0.62))
-    .add(vec3(0.220, 0.160, 0.070).mul(pow(saturate(float(1.0).sub(abs(elev))), 18.0)).mul(0.21))
-    .add(vec3(0.175, 0.050, 0.205).mul(
-      pow(saturate(float(1.0).sub(abs(elev.sub(0.13)).mul(5.8))), 10.0)).mul(0.22))
-    .add(vec3(0.96, 0.62, 0.31).mul(pow(sunDot, 420.0)).mul(1.12));
-  /* A non-luminous nearby body. Its cold limb is scattered by the charged
-     silicate layer; it contributes no power and therefore does not invent a
-     second energy source for the rover. */
-  const bodyDot = dot(dir, vec3(-0.50, 0.075, -0.8628));
+    .add(vec3(0.96, 0.62, 0.31).mul(pow(sunDot, 520.0)).mul(1.08));
+  /* A non-luminous nearby body.  Its terminator reads the exact same world
+     solar vector as terrain, rover and lander; no second light is invented. */
+  const bodyCentre = vec3(-0.50, 0.075, -0.8628);
+  const bodyE1 = vec3(-0.8652, 0.0, 0.5014);
+  const bodyE2 = vec3(0.0376, 0.9972, 0.0649);
+  const bodyDot = dot(dir, bodyCentre);
   const body = smoothstep(float(0.9940), float(0.9965), bodyDot);
   const bodyRim = smoothstep(float(0.9895), float(0.9952), bodyDot)
     .mul(float(1.0).sub(body));
-  const desert = mix(desertAtmosphere, vec3(0.006, 0.013, 0.019), body.mul(0.92))
-    .add(vec3(0.120, 0.250, 0.240).mul(bodyRim).mul(0.18));
-  const granite = mix(vec3(0.088, 0.096, 0.112), vec3(0.006, 0.008, 0.017),
+  const bx = dot(dir, bodyE1).div(0.1094);
+  const by = dot(dir, bodyE2).div(0.1094);
+  const bz = sqrt(max(float(0), float(1).sub(bx.mul(bx).add(by.mul(by)))));
+  const bodyNormal = bodyE1.mul(bx).add(bodyE2.mul(by)).sub(bodyCentre.mul(bz));
+  const sl = Math.hypot(...C.sun) || 1;
+  const solar = vec3(C.sun[0] / sl, C.sun[1] / sl, C.sun[2] / sl);
+  const bodyLight = max(dot(bodyNormal, solar), float(0));
+  const bodyColour = vec3(0.011, 0.024, 0.029).mul(bodyLight.mul(0.92).add(0.045));
+  const desert = mix(desertAtmosphere, bodyColour, body.mul(0.92))
+    .add(vec3(0.120, 0.250, 0.240).mul(bodyRim).mul(bodyLight).mul(0.18));
+  const granite = mix(vec3(0.007, 0.008, 0.011), vec3(0.0014, 0.0017, 0.0032),
     pow(saturate(elev.mul(1.8)), 0.66))
-    .add(vec3(0.155, 0.178, 0.125).mul(
-      pow(saturate(float(1.0).sub(abs(elev))), 22.0)).mul(0.16))
-    .add(vec3(0.125, 0.055, 0.160).mul(
-      pow(saturate(float(1.0).sub(abs(elev.sub(0.20)).mul(5.2))), 12.0)).mul(0.14))
     .add(vec3(0.86, 0.82, 0.94).mul(pow(sunDot, 520.0)).mul(0.92));
   return mix(mix(terra, desert, uWorldMix), granite, uWorldGranite);
 };

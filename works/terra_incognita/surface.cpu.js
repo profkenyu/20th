@@ -29,7 +29,7 @@
  */
 
 import * as CPU from '../../engine/cpu/noise.js';
-import { T, D, G, BH } from './spec.js';
+import { T, D, G, BH, BODY02_WATER_SITE } from './spec.js';
 
 let worldMix = 0;
 let graniteMix = 0;
@@ -90,12 +90,19 @@ export function desertHeightCPU(x, z) {
   );
   const mesaA = (1 - CPU.smoothstep(0.72, 1.08, ellA)) * ah;
   const mesaB = (1 - CPU.smoothstep(0.74, 1.10, ellB)) * bh;
+  const waterDistance = Math.hypot(x - BODY02_WATER_SITE.x, z - BODY02_WATER_SITE.z);
+  const waterLens = 1 - CPU.smoothstep(
+    BODY02_WATER_SITE.visual.coreRadius,
+    BODY02_WATER_SITE.visual.haloRadius,
+    waterDistance,
+  );
 
   return (regional - 0.5) * 5.5
     + dune - wadi - bed * 0.65
     + yardang - crustCut
     + rock * (0.45 + 1.35 * skin)
     + mesaA + mesaB
+    - waterLens * BODY02_WATER_SITE.visual.reliefDepth
     + (skin - 0.5) * 0.18 * (1 - 0.75 * rock);
 }
 
@@ -112,7 +119,16 @@ export function graniteHeightCPU(x, z) {
   const weather = (CPU.fbm(
     x * G.weatherFreq + 57.8, z * G.weatherFreq + 57.8, G.weatherOct,
   ) - 0.5) * G.weatherAmp * (0.55 + dome * 0.45);
-  return macro + shelf + dome * G.domeAmp + weather;
+  const jointWarp = (CPU.fbm(
+    x * G.jointWarp + 311.8, z * G.jointWarp + 311.8, 2,
+  ) - 0.5) * G.jointWarpAmp;
+  const jointA = Math.abs(Math.sin(x * G.jointAFreq + z * 0.009 + jointWarp));
+  const jointB = Math.abs(Math.sin(x * -0.014 + z * G.jointBFreq - jointWarp * 0.73));
+  const joints = 1 - CPU.smoothstep(G.jointLo, G.jointHi, Math.min(jointA, jointB));
+  const torSource = CPU.fbm(x * G.torFreq + 404.2, z * G.torFreq + 404.2, G.torOct);
+  const tor = CPU.smoothstep(G.torLo, G.torHi, torSource) * (0.38 + dome * 0.62);
+  return macro + shelf + dome * G.domeAmp + weather
+    + tor * G.torAmp - joints * G.jointDepth;
 }
 
 export function veff(r) {

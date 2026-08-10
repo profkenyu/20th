@@ -84,7 +84,7 @@ export class Hud {
 
     const keys = document.createElement('div');
     keys.id = 'fh-keys';
-    keys.innerHTML = '<span class="mode">주행</span><b>W A S D</b> 수동 · <b>Shift</b> 고속 · <b>Space</b> 자동 복귀<br><span class="mode">시점</span><b>C</b> 1인칭 · 후방 · 정면 전환 · 드래그 회전 · 휠 줌 · <b>L</b> 전조등 · <b>[ ]</b> 패널<br><span class="mode">시스템</span><b>M</b> 음향 · <b>H</b> 계기판';
+    keys.innerHTML = '<span class="mode">주행</span><b>W A S D</b> 수동 · <b>Shift</b> 고속 · <b>Space</b> 자동 복귀<br><span class="mode">SHOT</span>5-SHOT DIRECTOR · AUTO FRAME · <b>L</b> 전조등 · <b>[ ]</b> 패널<br><span class="mode">시스템</span><b>M</b> 음향 · <b>H</b> 계기판';
     document.body.appendChild(keys);
 
     const wakeKeys = () => {

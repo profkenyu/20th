@@ -64,6 +64,29 @@ export class Dust {
     this.points.geometry.attributes.position.needsUpdate = true;
   }
 
+  /** Finite touchdown sheet.  Grains spread along the regolith during the
+      final metres, then disappear on first ground contact.  It is deliberately
+      separate from the lander's cryogenic vent particles. */
+  landingBurst(source, intensity = 1) {
+    const D = cfg().dust;
+    const count = Math.min(this.max, Math.round((this.max < 180 ? 72 : 126) * intensity));
+    for (let n = 0; n < count; n++) {
+      const i = this.cursor++ % this.max, p = i * 3;
+      const seed = i + this.cursor * 1.618 + n * 7.31;
+      const a = (seed * 2.399963229728653) % (Math.PI * 2);
+      const radius = 0.5 + ((Math.sin(seed * 12.9898) * 43758.5453) % 1 + 1) % 1 * 1.9;
+      const speed = 3 + ((Math.sin(seed * 4.17) * 15731.743) % 1 + 1) % 1 * 6;
+      this.pos[p] = source.x + Math.cos(a) * radius;
+      this.pos[p + 1] = this.heightAt(this.pos[p], source.z + Math.sin(a) * radius) + 0.045;
+      this.pos[p + 2] = source.z + Math.sin(a) * radius;
+      this.vel[p] = Math.cos(a) * speed;
+      this.vel[p + 1] = 0.2 + (((Math.sin(seed * 8.31) * 9631.417) % 1 + 1) % 1) * 1.0;
+      this.vel[p + 2] = Math.sin(a) * speed;
+      this.life[i] = Math.min(D.life, 0.15 + (((Math.sin(seed * 3.73) * 7919.123) % 1 + 1) % 1) * 0.55);
+    }
+    this.points.geometry.attributes.position.needsUpdate = true;
+  }
+
   update(dt, probe) {
     const D = cfg().dust;
     const moving = Math.max(0, probe.speed - D.minSpeed);

@@ -144,13 +144,6 @@ export class DockingSequence {
 
   afterRover() {
     if (!this.started || this.phase === 'compress-out') return;
-    const portrait = this.camera.aspect < 0.8;
-    this._camera.copy(this.lander.dockingPoint(
-      portrait ? -7.4 : -6.0, portrait ? 7.2 : 9.2, portrait ? 3.1 : 2.35));
-    this._aim.copy(this.lander.dockingPoint(-3.25, 0, 2.35));
-    this.camera.position.copy(this._camera);
-    this.camera.up.set(0, 1, 0);
-    this.camera.lookAt(this._aim);
     if (this.phase === 'closing' || this.phase === 'docked') this.rover.group.visible = false;
   }
 

@@ -38,6 +38,7 @@ export { Scatter } from './world/scatter.js';
 export { Wake } from './world/wake.js';
 export { Beam } from './world/beam.js';
 export { Dust } from './world/dust.js';
+export { GraniteField } from './world/granite-field.js';
 export { Sandstorm } from './world/sandstorm.js';
 export { ResolutionTransferFX } from './world/resolution-transfer.js';
 export { buildSky } from './world/sky.js';
@@ -61,6 +62,8 @@ export { MobileControl } from './core/mobile-control.js';
 export { Restoration, RESTORATION_ITEMS } from './core/restoration.js';
 export { DockingSequence } from './core/docking.js';
 export { VoyageSequence } from './core/voyage.js';
+export { WaterMission } from './core/water-mission.js';
+export { ShotDirector, CAMERA_SHOTS } from './core/shot-director.js';
 
 export { Power } from './vehicle/power.js';
 export { Rover } from './vehicle/rover.js';
