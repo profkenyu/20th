@@ -169,10 +169,6 @@ const PLANETS = Object.freeze({
 });
 const COMPLETION_TABLEAU_MS = 5400;
 const OPENING_CAMERA_MS = 6000;
-const openingCam = {
-  midpoint: new THREE.Vector3(), position: new THREE.Vector3(), aim: new THREE.Vector3(),
-  rearPosition: new THREE.Vector3(), rearQuaternion: new THREE.Quaternion(),
-};
 
 const ROWS = [
   ['Instrument', [['backend', 'Backend'], ['vendor', 'Vendor'], ['tier', 'Tier'], ['mode', 'Render mode'], ['limits', 'Limits']]],
@@ -358,6 +354,14 @@ if (ARCHIVE_AT_BOOT) activateArchive('device', false);
 
 addEventListener('resize', () => renderer.setPixelRatio(adaptive.dpr));
 addEventListener('keydown', e => {
+  if (!e.repeat && e.code === 'KeyC') {
+    e.preventDefault();
+    if (!released) releasePrologue();
+    if (shotDirector.cycle(performance.now())) {
+      openingShot = null;
+      kiosk.last = performance.now();
+    }
+  }
   if (!e.repeat && (e.code === 'Equal' || e.code === 'NumpadEqual' || e.key === '=')) {
     e.preventDefault();
     if (!released) releasePrologue();
@@ -394,12 +398,6 @@ addEventListener('keydown', e => {
     for (const m of scatter.meshes) m.visible = !on;
   }
 });
-canvas.addEventListener('pointerdown', () => {
-  if (!released) return;
-  openingShot = null;
-  camera.fov = CFG.atmosphere.fov;
-  camera.updateProjectionMatrix();
-}, { passive: true });
 
 const a = await describeAdapter();
 hud.set('backend', 'WebGPU');
@@ -444,6 +442,8 @@ window.TI_RENDER_MODE = () => ({ archive: archiveMode, dpr: adaptive.dpr, lens: 
 window.TI_CAMERA = () => ({
   shot: shotDirector.rendered,
   label: shotDirector.label,
+  source: shotDirector.source,
+  available: shotDirector.availableManualShots(),
   transition: shotDirector.transition ? 'dissolve'
     : performance.now() - shotDirector.lastCutAt < 100 ? 'hardcut' : 'none',
 });
@@ -472,6 +472,7 @@ window.TI_SEQUENCE = () => ({
   world, planets: Object.keys(PLANETS).length, restoration: restoration.count,
   mission: PLANETS[world].mission,
   water: waterMission.state,
+  waterDistance: waterMission.lastDistance,
   docking: docking.phase, voyage: voyage.phase,
   tableau: completionTableau ? 'active' : 'idle',
   landerPresent, roverVisible: rover.group.visible,
@@ -669,7 +670,7 @@ async function frame() {
   updateCompletionTableau(now);
   shotDirector.update(now);
   voyage.afterRover(now);
-  optics.update(now, v, camera);
+  optics.update(now, v);
   minimap.update(v, now, power.charge, !voyage.active && !missionEnding);
   uObserverR.value = PLANETS[world].metric ? v.radius : 1e7;
 
@@ -835,65 +836,9 @@ function orbitEase(p) {
 }
 
 function updateOpeningCamera(now) {
-  if (!openingShot || world !== 'terra' || !lander.group.visible) return;
-  if (rover.viewMode !== 'rear') {
-    openingShot = null;
-    camera.fov = CFG.atmosphere.fov;
-    camera.updateProjectionMatrix();
-    return;
-  }
-  const p = Math.max(0, Math.min(1, (now - openingShot.t0) / OPENING_CAMERA_MS));
-  if (p >= 1) {
-    openingShot = null;
-    camera.fov = CFG.atmosphere.fov;
-    camera.updateProjectionMatrix();
-    return;
-  }
-
-  /* Rover.update() has already produced the live rear-follow camera. Preserve
-     it as the destination, then override the eye with a low oblique view that
-     stacks the rover in the foreground and the habitat behind it. Aligning
-     mostly along their connecting axis keeps both masses inside a portrait
-     phone without reducing the habitat to a distant thumbnail. */
-  openingCam.rearPosition.copy(camera.position);
-  openingCam.rearQuaternion.copy(camera.quaternion);
-  const l = lander.group.position, r = rover.group.position;
-  let ux = r.x - l.x, uz = r.z - l.z;
-  const length = Math.hypot(ux, uz) || 1;
-  ux /= length; uz /= length;
-  const sx = -uz, sz = ux;
-  openingCam.midpoint.set(
-    l.x * 0.52 + r.x * 0.48,
-    l.y + 2.85,
-    l.z * 0.52 + r.z * 0.48,
-  );
-  /* A wide screen can hold the two machines in profile at nearly equal
-     camera distance, making their scale ratio explicit. A portrait phone
-     cannot: there the view folds them into depth so neither leaves frame. */
-  const portrait = camera.aspect < 0.80;
-  const along = portrait ? -31.0 : 0.0;
-  const lateral = portrait ? 20.0 : 22.0;
-  const cx = openingCam.midpoint.x + ux * along + sx * lateral;
-  const cz = openingCam.midpoint.z + uz * along + sz * lateral;
-  const cy = Math.max(l.y + 8.2, heightCPU(cx, cz) + 3.0);
-  openingCam.position.set(cx, cy, cz);
-  openingCam.aim.set(
-    l.x * (portrait ? 0.55 : 0.50) + r.x * (portrait ? 0.45 : 0.50),
-    Math.max(l.y + 2.95, rover.deckY + 0.75),
-    l.z * (portrait ? 0.55 : 0.50) + r.z * (portrait ? 0.45 : 0.50),
-  );
-  camera.position.copy(openingCam.position);
-  camera.up.set(0, 1, 0);
-  camera.lookAt(openingCam.aim);
-
-  /* Hold the scale image, then hand it to the already-running rear camera.
-     Position and orientation share the same quintic easing, so there is no
-     visible hinge at the edit. */
-  const blend = orbitEase(Math.max(0, (p - 0.60) / 0.40));
-  camera.fov = 52 + (CFG.atmosphere.fov - 52) * blend;
-  camera.updateProjectionMatrix();
-  camera.position.lerp(openingCam.rearPosition, blend);
-  camera.quaternion.slerp(openingCam.rearQuaternion, blend);
+  if (!openingShot) return;
+  if (world !== 'terra' || !lander.group.visible
+      || now - openingShot.t0 >= OPENING_CAMERA_MS) openingShot = null;
 }
 
 function openingLampGain(now) {
@@ -922,27 +867,12 @@ function updateCompletionTableau(now) {
   if (!completionTableau) return;
   const elapsed = now - completionTableau.t0;
   const p = Math.max(0, Math.min(1, elapsed / COMPLETION_TABLEAU_MS));
-  const portrait = camera.aspect < 0.8;
-  const drift = Math.sin(p * Math.PI) * (portrait ? 0.8 : 1.25);
-  const cameraPoint = lander.dockingPoint(
-    portrait ? -19.5 : -18.0,
-    (portrait ? 15.5 : 19.0) + drift,
-    portrait ? 9.6 : 8.2,
-  );
-  const aim = lander.dockingPoint(-0.7, 0, 3.7);
-  camera.position.copy(cameraPoint);
-  camera.up.set(0, 1, 0);
-  camera.lookAt(aim);
-  camera.fov = portrait ? 55 : 48;
-  camera.updateProjectionMatrix();
   rover.scriptedDrive = { throttle: 0, steer: 0 };
   if (p < 1) return;
 
   lander.setCompletionHighlight(null);
   document.body.classList.remove('ti-completion-tableau');
   completionTableau = null;
-  camera.fov = CFG.atmosphere.fov;
-  camera.updateProjectionMatrix();
   docking.start(now);
 }
 
@@ -975,6 +905,7 @@ async function prepareVoyageDestination(destination) {
   lander.place(planet.start[0], planet.start[1], heading, true);
   restoration.reset(8);
   restoration.group.visible = false;
+  shotDirector.clearManual();
   captions.lines = planet.lines; captions.rearm();
   survey.reset(planet.survey);
   minimap.restoration = null;
@@ -995,7 +926,6 @@ async function returnToStart() {
   lander.setCompletionHighlight(null);
   document.body.classList.remove('ti-completion-tableau');
   openingShot = null;
-  camera.fov = CFG.atmosphere.fov; camera.updateProjectionMatrix();
   nextAutoPauseAt = 0; autoPauseUntil = 0;
   world = 'terra'; window.TI_WORLD = world; setWorldMode('terra');
   landerPresent = true;

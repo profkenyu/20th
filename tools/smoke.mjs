@@ -44,6 +44,10 @@ await page.goto(TARGET, { waitUntil: 'load', timeout: 60000 });
 
 const sequencePhases = [];
 let sequenceComplete = !SEQUENCE;
+let cameraCycle = null;
+const sequenceShots = {
+  waterFarWide: false, waterConfirmedMacro: false, return: false, ascent: false,
+};
 if (SEQUENCE) {
   /* `=` fixes BODY 01, then confirms BODY 02's single water objective. Follow
      both transfers until BODY 03 arrives with its mission intentionally open. */
@@ -54,10 +58,21 @@ if (SEQUENCE) {
   while (Date.now() < deadline) {
     const state = await page.evaluate(() => window.TI_SEQUENCE?.() ?? null);
     if (state) {
+      if (state.world === 'desert' && state.water === 'searching'
+          && state.waterDistance > 8 && state.cameraShot === 'wide') {
+        sequenceShots.waterFarWide = true;
+      }
+      if (state.world === 'desert' && state.water === 'confirmed'
+          && state.cameraShot === 'macro') sequenceShots.waterConfirmedMacro = true;
+      if ((state.docking !== 'idle' || ['hold', 'settle', 'deploy', 'egress', 'close'].includes(state.voyage))
+          && state.cameraShot === 'return') sequenceShots.return = true;
+      if (['lift', 'transit', 'descent'].includes(state.voyage)
+          && state.cameraShot === 'ascent') sequenceShots.ascent = true;
       const key = `${state.world}|${state.mission}|${state.water}|${state.tableau}|${state.docking}|${state.voyage}|${state.restoration}|${state.cameraShot ?? '—'}`;
       if (key !== last) { sequencePhases.push(key); console.log(`  · ${key}`); last = key; }
       if (!waterShortcut && state.world === 'desert' && state.mission === 'water'
-          && state.water === 'searching' && state.voyage === 'arrived') {
+          && state.water === 'searching' && state.voyage === 'arrived'
+          && state.waterDistance > 8 && state.cameraShot === 'wide') {
         waterShortcut = true;
         await page.keyboard.press('Equal');
       }
@@ -73,6 +88,11 @@ if (SEQUENCE) {
 } else {
   /* let it settle, then walk for a while so a recentre and a caption both fire */
   await page.waitForTimeout(3000);
+  const before = await page.evaluate(() => window.TI_CAMERA?.() ?? null);
+  await page.keyboard.press('KeyC');
+  await page.waitForTimeout(250);
+  const after = await page.evaluate(() => window.TI_CAMERA?.() ?? null);
+  cameraCycle = { before, after };
   await page.keyboard.down('ShiftLeft');
   await page.keyboard.down('KeyW');
   await page.waitForTimeout(DWELL);
@@ -102,6 +122,8 @@ const report = await page.evaluate(() => {
   };
 });
 report.sequenceComplete = sequenceComplete;
+report.cameraCycle = cameraCycle;
+report.sequenceShots = sequenceShots;
 
 await page.screenshot({ path: `${ROOT}/dist/${SEQUENCE ? 'sequence-smoke' : 'smoke'}.png` });
 await browser.close();
@@ -116,8 +138,18 @@ if (!report.started) fatal.push('module never reached first frame');
 if (report.gate) fatal.push(`adapter gate fired: ${report.gate}`);
 if (!['wide', 'macro', 'tele', 'return', 'ascent'].includes(report.camera?.shot))
   fatal.push(`camera escaped five-shot grammar: ${report.camera?.shot ?? 'missing'}`);
+if (!SEQUENCE && (!cameraCycle?.before?.available?.length
+    || cameraCycle.before.shot === cameraCycle.after?.shot
+    || cameraCycle.after?.source !== 'manual')) {
+  fatal.push(`C did not change an available authored shot: ${JSON.stringify(cameraCycle)}`);
+}
 if (report.anomalies !== 8) fatal.push(`expected 8 terrain anomalies, found ${report.anomalies}`);
 if (!sequenceComplete) fatal.push('authored sequence did not reach BODY 03 with mission pending');
+if (SEQUENCE) {
+  for (const [name, seen] of Object.entries(sequenceShots)) {
+    if (!seen) fatal.push(`sequence never rendered required camera state: ${name}`);
+  }
+}
 if ((report.sequence?.planets ?? 0) !== 3) fatal.push(`expected 3 planets, found ${report.sequence?.planets ?? 0}`);
 if (errors.length) fatal.push(`${errors.length} console/page error(s)`);
 if (report.divergence !== '—' && /mm/.test(report.divergence)) fatal.push(`CPU/GPU divergence in mm: ${report.divergence}`);

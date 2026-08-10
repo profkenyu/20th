@@ -438,7 +438,8 @@ export class MiniMap {
     c.fillStyle = `rgba(255,250,247,${.98 * glow})`; c.fillText(coordinate, labelX + 12, labelY + 18);
     c.font = '13px DM Mono, monospace';
     c.fillStyle = `rgba(202,224,213,${.78 * glow})`;
-    c.fillText(`LIVE · HDG ${degrees}° · ${v.speed.toFixed(1)} M/S`, labelX + 12, labelY + 36);
+    const speed = Number.isFinite(v.speed) ? v.speed : 0;
+    c.fillText(`LIVE · HDG ${degrees}° · ${speed.toFixed(1)} M/S`, labelX + 12, labelY + 36);
     c.restore(); c.globalAlpha = 1;
 
     const st = this.stats;
@@ -463,7 +464,7 @@ export class MiniMap {
   }
 }
 
-export class Optics { update(now,v,camera){const g=1-Math.min(1,v.lapse??1), b=Math.sin(now*.00135); camera.fov+=b*(.035+g*.055); camera.updateProjectionMatrix(); camera.position.y+=Math.sin(now*.0031)*(.0015+g*.0035); document.body.classList.toggle('sensor-stutter',g>.52&&Math.sin(now*.021)>.975);} }
+export class Optics { update(now,v){const g=1-Math.min(1,v.lapse??1); document.body.classList.toggle('sensor-stutter',g>.52&&Math.sin(now*.021)>.975);} }
 
 export class Survey {
   constructor(heightAt, objectives = []) { this.heightAt=heightAt; this.group=new THREE.Group(); this.rings=[]; for(let k=0;k<3;k++){const n=72,g=new THREE.BufferGeometry(),p=new Float32Array(n*6),i=new Uint16Array(n*6); for(let q=0;q<n;q++){const a=q*2,b=(q+1)%n,c=a+2,d=(b+2)%(n*2),o=q*6;i.set([a,c,b,b,c,d],o)} g.setAttribute('position',new THREE.BufferAttribute(p,3));g.setIndex(new THREE.BufferAttribute(i,1));const m=new THREE.MeshBasicNodeMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending});m.colorNode=vec4(vec3(.46,.68,.54),.18);const mesh=new THREE.Mesh(g,m);mesh.visible=false;this.group.add(mesh);this.rings.push({mesh,m,p,n});} this.log=document.getElementById('survey-log'); this.reset(objectives); }

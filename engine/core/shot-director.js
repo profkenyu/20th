@@ -34,6 +34,7 @@ export class ShotDirector {
     this.current = 'wide';
     this.rendered = 'wide';
     this.transition = null;
+    this.manualShot = null;
     this.lastCutAt = -Infinity;
     this.focus = new THREE.Vector3();
     this._camera = new THREE.Vector3();
@@ -48,18 +49,64 @@ export class ShotDirector {
 
   get label() { return CAMERA_SHOTS[this.rendered.toUpperCase()] ?? this.rendered; }
 
+  get source() { return this.manualShot ? 'manual' : 'authored'; }
+
+  _authoredLock() {
+    return this.voyage.active || this.docking.started
+      || !!this.restoration.event || !!this.mission?.event;
+  }
+
+  availableManualShots() {
+    if (this._authoredLock() || this.restoration.complete) return [];
+    const shots = ['wide'];
+    const specimen = this.mission?.scanFocus ?? this.mission?.target
+      ?? this.restoration.scanFocus ?? this.restoration.target;
+    const specimenDistance = specimen
+      ? Math.hypot(this.rover.pos.x - specimen.x, this.rover.pos.z - specimen.z)
+      : Infinity;
+    /* A distant waypoint cannot become a macro composition: placing the eye
+       at its midpoint was the C-cycle framing error. */
+    if (this.mission?.scanFocus || this.restoration.scanFocus || specimenDistance <= 7) {
+      shots.push('macro');
+    }
+    if (this.lander.group.visible) shots.push('tele');
+    return shots;
+  }
+
+  /** C never revives Rover's obsolete mast/chase writers. It cycles only
+      compositions already inside the authored five-shot language. */
+  cycle(now = performance.now()) {
+    const shots = this.availableManualShots();
+    if (shots.length < 2) return false;
+    if (this.transition) {
+      this.current = this.rendered;
+      this.transition = null;
+      this.veil.style.opacity = '0';
+    }
+    const from = this.manualShot ?? this.rendered;
+    const at = shots.indexOf(from);
+    this.manualShot = shots[(at < 0 ? 0 : at + 1) % shots.length];
+    this.lastManualAt = now;
+    return true;
+  }
+
+  clearManual() { this.manualShot = null; }
+
   desiredShot() {
     if (this.voyage.active) {
       return ['lift', 'transit', 'descent'].includes(this.voyage.phase)
         ? 'ascent' : 'return';
     }
     if (this.docking.started) return 'return';
-    if (this.mission?.active || this.mission?.event
-        || (this.mission?.group?.visible && this.mission?.complete)) return 'macro';
     if (this.restoration.group.visible
         && (this.restoration.event?.committed || this.restoration.complete)) return 'tele';
     if (this.restoration.group.visible
         && (this.restoration.scanning || this.restoration.event)) return 'macro';
+    if (this.mission?.event) return 'macro';
+    if (this.manualShot && this.availableManualShots().includes(this.manualShot)) return this.manualShot;
+    const missionDistance = this.mission?.lastDistance ?? Infinity;
+    if (this.mission?.active && missionDistance <= 7.0) return 'macro';
+    if (this.mission?.group?.visible && this.mission?.complete) return 'macro';
     return 'wide';
   }
 
@@ -72,7 +119,17 @@ export class ShotDirector {
   }
 
   update(now) {
+    if (this.manualShot && !this.availableManualShots().includes(this.manualShot)) {
+      this.manualShot = null;
+    }
     const desired = this.desiredShot();
+    /* A physical event may begin during a dissolve. Do not let a stale manual
+       destination conceal the newly mandatory shot for another 2.4 seconds. */
+    if (this.transition && desired !== this.transition.to) {
+      this.current = this.rendered;
+      this.transition = null;
+      this.veil.style.opacity = '0';
+    }
     if (!this.transition && desired !== this.current) {
       if (this.transitionKind(this.current, desired) === 'cut') {
         this.current = desired;
@@ -139,7 +196,11 @@ export class ShotDirector {
       ?? this.restoration.scanFocus ?? this.restoration.target;
     const specimen = data
       ? { x: data.x, y: this.heightAt(data.x, data.z), z: data.z }
-      : this.restoration.group.position;
+      : {
+          x: this.rover.pos.x + fx * 1.35,
+          y: this.heightAt(this.rover.pos.x + fx * 1.35, this.rover.pos.z + fz * 1.35),
+          z: this.rover.pos.z + fz * 1.35,
+        };
     const wheelX = this.rover.pos.x + fx * 0.66 + sx * 0.62;
     const wheelZ = this.rover.pos.z + fz * 0.66 + sz * 0.62;
     const targetX = (wheelX + specimen.x) * 0.5;
@@ -180,6 +241,7 @@ export class ShotDirector {
     this.current = 'wide';
     this.rendered = 'wide';
     this.transition = null;
+    this.manualShot = null;
     this.lastCutAt = -Infinity;
     this.veil.style.opacity = '0';
   }

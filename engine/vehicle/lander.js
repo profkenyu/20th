@@ -16,6 +16,7 @@ import {
 import { cfg } from '../config.js';
 
 const Y = new THREE.Vector3(0, 1, 0);
+const BAY_CUT_HALF_ANGLE = 0.56;
 const RESTORATION_PARTS = Object.freeze([
   'FOUNDATION', 'LOAD PATHS', 'SERVICE CELLS', 'PRESSURE HULL',
   'SENSOR VISOR', 'TRANSFER BRIDGE', 'SENSOR CROWN', 'SIGNAL CORE',
@@ -37,6 +38,14 @@ function updateCylinderBetween(mesh, a, b) {
   mesh.position.copy(av).add(bv).multiplyScalar(0.5);
   mesh.quaternion.setFromUnitVectors(Y, dir.normalize());
   mesh.scale.y = len / mesh.userData.baseLength;
+}
+
+function cylinderWithBayCut(radiusTop, radiusBottom, height, radialSegments = 12) {
+  return new THREE.CylinderGeometry(
+    radiusTop, radiusBottom, height, radialSegments, 1, false,
+    Math.PI + BAY_CUT_HALF_ANGLE,
+    Math.PI * 2 - BAY_CUT_HALF_ANGLE * 2,
+  );
 }
 
 function shaded(rgb, sheen = 0.08, gloss = 26) {
@@ -271,6 +280,9 @@ function facetedHullGeometry() {
   const n = outline.length;
   for (let r = 0; r < rings.length - 1; r++) {
     for (let i = 0; i < n; i++) {
+      /* Remove the two central -Z facets through the portal height. The old
+         closed hull remained visible inside the nominal bay opening. */
+      if (r <= 2 && (i === 0 || i === n - 1)) continue;
       const a = r * n + i, b = r * n + (i + 1) % n;
       const d = (r + 1) * n + i, c = (r + 1) * n + (i + 1) % n;
       indices.push(a, d, b, b, d, c);
@@ -282,7 +294,7 @@ function facetedHullGeometry() {
   positions.push(0, rings.at(-1)[0], 0);
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
-    indices.push(bottom, i, j);
+    if (i !== 0 && i !== n - 1) indices.push(bottom, i, j);
     const offset = (rings.length - 1) * n;
     indices.push(top, offset + j, offset + i);
   }
@@ -402,7 +414,7 @@ export class Lander {
     this.dockLights = [];
     this.dock = {
       hatchZ: -3.78, toeZ: -8.68, floorY: 2.04, halfWidth: 1.45,
-      toeY: 0, openAngle: -0.36, progress: 0,
+      backZ: 0.80, toeY: 0, openAngle: -0.36, progress: 0,
     };
     this.restorationLevel = 0;
     this.parts = RESTORATION_PARTS.map((name, index) => ({
@@ -425,6 +437,9 @@ export class Lander {
     const graphite = shaded([0.055, 0.061, 0.070], 0.10, 30);
     const ceramic = shaded([0.285, 0.300, 0.310], 0.28, 50);
     const dark = shaded([0.010, 0.013, 0.018], 0.030, 16);
+    const bayVoid = new THREE.MeshBasicMaterial({
+      color: 0x010203, toneMapped: false, side: THREE.DoubleSide,
+    });
     const service = shaded([0.305, 0.145, 0.038], 0.20, 36);
     const metal = shaded([0.175, 0.190, 0.205], 0.38, 58);
     const glass = shaded([0.010, 0.035, 0.052], 0.42, 74);
@@ -441,8 +456,7 @@ export class Lander {
     underbody.position.y = 1.12;
     this.group.add(underbody);
 
-    const stage = new THREE.Mesh(
-      new THREE.CylinderGeometry(3.05, 3.05, 1.38, 8), graphite);
+    const stage = new THREE.Mesh(cylinderWithBayCut(3.05, 3.05, 1.38, 16), graphite);
     stage.position.y = 1.92;
     this.group.add(stage);
 
@@ -450,7 +464,7 @@ export class Lander {
       new THREE.CylinderGeometry(2.98, 2.98, 0.12, 8), metal);
     lowerRail.position.y = 1.26;
     this.group.add(lowerRail);
-    const upperRail = lowerRail.clone();
+    const upperRail = new THREE.Mesh(cylinderWithBayCut(2.98, 2.98, 0.12, 18), metal);
     upperRail.position.y = 2.56;
     this.group.add(upperRail);
     this._track(0, underbody, stage, lowerRail, upperRail);
@@ -459,6 +473,7 @@ export class Lander {
        boxes with a single modular colour field. */
     const serviceCells = [];
     for (let i = 0; i < 4; i++) {
+      if (i === 2) continue; // the -Z cell occupied the clear portal volume
       const a = i * Math.PI * 0.5;
       const bay = new THREE.Mesh(new THREE.BoxGeometry(1.38, 0.88, 0.16), service);
       bay.position.set(Math.sin(a) * 3.02, 1.90, Math.cos(a) * 3.02);
@@ -527,6 +542,7 @@ export class Lander {
     ];
     const sensorVisor = [];
     for (let i = 0; i < front.length - 1; i++) {
+      if (i === 1 || i === 2) continue;
       const a = front[i], b = front[i + 1];
       const dx = b[0] - a[0], dz = b[1] - a[1];
       const length = Math.hypot(dx, dz);
@@ -544,7 +560,6 @@ export class Lander {
     const ports = [
       { x: -3.35, z: 0.25, rz: Math.PI / 2 },
       { x:  3.35, z: 0.25, rz: Math.PI / 2 },
-      { x:  0.00, z: -3.35, rx: Math.PI / 2 },
     ];
     for (const p of ports) {
       const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.68, 0.78, 10), graphite);
@@ -560,24 +575,33 @@ export class Lander {
     this._track(4, ...sensorVisor);
 
     /* ── deployment bay ───────────────────────────────────────────────
-       The bay is intentionally unreadable as a room: a black receiving
-       volume, a tall clear-span portal and three paired locator lights. The
-       ramp is a real hinged surface and later becomes part of wheel contact. */
+       The bay is a black, unlit receiving void with no interior sculpture or
+       locator. The ramp is a real hinged surface and later becomes part of
+       wheel contact. */
     /* The open bay is a clear receiving volume.  The former centre bridge and
        rear sculpture occupied the rover's wheel and hull envelope, so the
        interior now contains only a flush structural floor and perimeter. */
-    const bayFloor = new THREE.Mesh(new THREE.BoxGeometry(3.14, 0.12, 3.05), dark);
-    bayFloor.position.set(0, this.dock.floorY - 0.06, -2.25);
+    const bayDepth = this.dock.backZ - this.dock.hatchZ;
+    const bayFloor = new THREE.Mesh(new THREE.BoxGeometry(3.02, 0.10, bayDepth), bayVoid);
+    bayFloor.position.set(0, this.dock.floorY - 0.05,
+      (this.dock.hatchZ + this.dock.backZ) * 0.5);
     this.core.add(bayFloor);
+    this.bayFloor = bayFloor;
+    const bayBack = new THREE.Mesh(new THREE.PlaneGeometry(3.02, 2.82), bayVoid);
+    bayBack.position.set(0, this.dock.floorY + 1.41, this.dock.backZ + 0.12);
+    bayBack.rotation.y = Math.PI;
+    this.core.add(bayBack);
+    this.bayBack = bayBack;
     const bayFrames = [];
     for (const x of [-1.66, 1.66]) {
-      const side = new THREE.Mesh(new THREE.BoxGeometry(0.15, 2.60, 3.08), graphite);
-      side.position.set(x, 3.34, -2.28);
+      const side = new THREE.Mesh(new THREE.BoxGeometry(0.15, 2.82, 0.18), graphite);
+      side.position.set(x, this.dock.floorY + 1.41, this.dock.hatchZ + 0.09);
       this.core.add(side); bayFrames.push(side);
     }
-    const lintel = new THREE.Mesh(new THREE.BoxGeometry(3.48, 0.18, 3.08), metal);
-    lintel.position.set(0, 4.96, -2.28);
+    const lintel = new THREE.Mesh(new THREE.BoxGeometry(3.48, 0.18, 0.18), metal);
+    lintel.position.set(0, 4.96, this.dock.hatchZ + 0.09);
     this.core.add(lintel); bayFrames.push(lintel);
+    this.portalFrames = bayFrames;
 
     this.rampPivot = new THREE.Group();
     this.rampPivot.position.set(0, this.dock.floorY, this.dock.hatchZ);
@@ -586,25 +610,14 @@ export class Lander {
     const rampGeometry = new THREE.BoxGeometry(3.14, 0.12, rampLength);
     rampGeometry.translate(0, 0, -rampLength * 0.5);
     this.ramp = new THREE.Mesh(rampGeometry, graphite);
+    this.ramp.position.y = -0.06;
     this.rampPivot.add(this.ramp);
     const rampRibA = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.13, rampLength), metal);
     rampRibA.geometry.translate(0, 0, -rampLength * 0.5);
     rampRibA.position.x = -1.47;
+    rampRibA.position.y = -0.065;
     const rampRibB = rampRibA.clone(); rampRibB.position.x = 1.47;
     this.rampPivot.add(rampRibA, rampRibB);
-
-    for (let pair = 0; pair < 3; pair++) {
-      for (const side of [-1, 1]) {
-        const material = new THREE.MeshBasicMaterial({
-          color: 0xffb21c, transparent: true, opacity: 0.92,
-          depthWrite: false, toneMapped: false,
-        });
-        const locator = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.055, 0.42), material);
-        locator.position.set(side * 1.40, 0.095, -0.82 - pair * 1.46);
-        this.rampPivot.add(locator);
-        this.dockLights.push(locator);
-      }
-    }
 
     /* Port-side residual volatile purge. The black aperture remains visible
        between events, so the brief cloud has a mechanical source. */
@@ -618,7 +631,7 @@ export class Lander {
     ventMouth.position.set(-3.75, 3.73, 0.15);
     ventMouth.rotation.z = Math.PI * 0.5;
     this.core.add(ventMouth);
-    this._track(5, bayFloor, ...bayFrames,
+    this._track(5, ...bayFrames,
       this.ramp, rampRibA, rampRibB, ...this.dockLights, ventCollar, ventMouth);
     this.purge = new CryogenicPurge([
       { position: [-3.78, 3.73, 0.15], direction: [-1.0, 0.04, 0.12] },
@@ -991,7 +1004,8 @@ export class Lander {
   dockingSurface(x, z, terrain) {
     if (this.dock.progress < 0.98) return terrain;
     const local = this.dockingLocal(x, z);
-    if (Math.abs(local.x) > this.dock.halfWidth || local.z < this.dock.toeZ - 0.35 || local.z > 0.15) return terrain;
+    if (Math.abs(local.x) > this.dock.halfWidth
+        || local.z < this.dock.toeZ - 0.35 || local.z > this.dock.backZ) return terrain;
     return Math.max(terrain, this.group.position.y + this.hangarHeight(local.z));
   }
 

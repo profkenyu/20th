@@ -101,10 +101,9 @@ const B = {
 /** Filled from cfg() on first construction — see the note above. */
 let D = null;
 
-/* C cycles only these three operator views. Scripted transfer and ending
-   shots use `cinematic`, while a dragged orbit becomes `orbit`; keeping those
-   names out of the cycle prevents an exhibition cue from being mistaken for
-   a fourth camera mode. */
+/* Legacy diagnostic views retained for the reusable rover harness. In the
+   artwork, C is owned by ShotDirector so these writers cannot escape the
+   authored five-shot language. */
 const VIEW_ORDER = ['mast', 'rear', 'front'];
 const VIEW_PRESET = {
   rear:  { yaw: 0.05, pitch: 0.30, dist: 28.5 },
