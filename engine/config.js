@@ -84,7 +84,7 @@ export function defaults(tier = deviceTier()) {
         wheelBase: 0.98,        // outer offset — half the pitch baseline
         track: 0.62,            // half the full track
         wheelR: 0.29,
-        wheelW: 0.17,
+        wheelW: 0.19,         // broad regolith footprint; +12% over the final narrow prototype
         clearance: 0.28,
         travel: 0.24,           // ± stroke, sized by measurement below
         camY: 0.92,
