@@ -312,7 +312,7 @@ export const shadeGround = C => ctx => {
   /* the false sun reddens only at grazing incidence — this work's one
      licensed untruth, and the only place crimson is allowed on the ground */
   const band = saturate(float(1.0).sub(abs(ndl.sub(0.055)).mul(16.0)));
-  return lit.add(vec3(...C.crimson).mul(band).mul(0.34).mul(metricWorld));
+  return lit.add(vec3(...C.crimson).mul(band).mul(0.08).mul(metricWorld));
 };
 
 /** All three bodies are airless.  Their sky differs only in black level and
@@ -368,6 +368,6 @@ export const shadeBlade = C => ({ t, seed, ndl, radius, dir, worldPos }) => {
   const align = abs(dot(dir, tangential));
   const circ = saturate(sqrt(float(BH.M).div(rE)).div(0.75));
 
-  const crim = vec3(...C.crimson).mul(pow(align, 3.0)).mul(pow(t, 2.2)).mul(circ).mul(0.90);
+  const crim = vec3(...C.crimson).mul(pow(align, 3.0)).mul(pow(t, 2.2)).mul(circ).mul(0.12);
   return base.mul(ndl.mul(1.55).add(0.06)).add(crim);
 };

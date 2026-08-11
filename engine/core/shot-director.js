@@ -37,6 +37,7 @@ export class ShotDirector {
     this.transition = null;
     this.manualShot = null;
     this.introActive = false;
+    this.openingActive = false;
     this.lastCutAt = -Infinity;
     this.focus = new THREE.Vector3();
     this._camera = new THREE.Vector3();
@@ -54,7 +55,7 @@ export class ShotDirector {
   get source() { return this.introActive ? 'intro' : this.manualShot ? 'manual' : 'authored'; }
 
   _authoredLock() {
-    return this.introActive || this.voyage.active || this.docking.started
+    return this.introActive || this.openingActive || this.voyage.active || this.docking.started
       || !!this.restoration.event || !!this.mission?.event;
   }
 
@@ -85,9 +86,12 @@ export class ShotDirector {
       this.transition = null;
       this.veil.style.opacity = '0';
     }
-    const from = this.manualShot ?? this.rendered;
-    const at = shots.indexOf(from);
-    this.manualShot = shots[(at < 0 ? 0 : at + 1) % shots.length];
+    if (!this.manualShot && shots.includes('rear')) this.manualShot = 'rear';
+    else {
+      const from = this.manualShot ?? this.rendered;
+      const at = shots.indexOf(from);
+      this.manualShot = shots[(at < 0 ? 0 : at + 1) % shots.length];
+    }
     this.lastManualAt = now;
     return true;
   }
@@ -99,8 +103,14 @@ export class ShotDirector {
     if (active) this.manualShot = null;
   }
 
+  setOpening(active) {
+    this.openingActive = !!active;
+    if (active) this.manualShot = null;
+  }
+
   desiredShot() {
     if (this.introActive) return 'rear';
+    if (this.openingActive) return 'wide';
     if (this.voyage.active) {
       return ['lift', 'transit', 'descent'].includes(this.voyage.phase)
         ? 'ascent' : 'return';
@@ -115,7 +125,10 @@ export class ShotDirector {
     const missionDistance = this.mission?.lastDistance ?? Infinity;
     if (this.mission?.active && missionDistance <= 7.0) return 'macro';
     if (this.mission?.group?.visible && this.mission?.complete) return 'macro';
-    return 'wide';
+    /* Exploration lives close to the machine. A distant waypoint is never
+       used as the macro subject (macro() substitutes the measured foreground),
+       so the rover remains legible while the route can still be long. */
+    return 'macro';
   }
 
   transitionKind(from, to) {
@@ -173,6 +186,7 @@ export class ShotDirector {
     else if (shot === 'return') this.lowSide(now);
     else if (shot === 'ascent') this.underside(now);
     else this.ultrawide(now);
+    this.applyPortraitSafeFrame(shot);
     this.camera.position.copy(this._camera);
     this.camera.up.set(0, 1, 0);
     this.camera.lookAt(this._aim);
@@ -216,7 +230,10 @@ export class ShotDirector {
     const sx = -fz, sz = fx;
     const data = this.mission?.scanFocus ?? this.mission?.target
       ?? this.restoration.scanFocus ?? this.restoration.target;
-    const specimen = data
+    const specimenDistance = data
+      ? Math.hypot(this.rover.pos.x - data.x, this.rover.pos.z - data.z)
+      : Infinity;
+    const specimen = data && specimenDistance <= 7
       ? { x: data.x, y: this.heightAt(data.x, data.z), z: data.z }
       : {
           x: this.rover.pos.x + fx * 1.35,
@@ -228,11 +245,25 @@ export class ShotDirector {
     const targetX = (wheelX + specimen.x) * 0.5;
     const targetZ = (wheelZ + specimen.z) * 0.5;
     const side = Math.sin(now * 0.00017) * 0.08;
-    const x = targetX + sx * (1.78 + side) - fx * 0.26;
-    const z = targetZ + sz * (1.78 + side) - fz * 0.26;
-    this._camera.set(x, this.heightAt(x, z) + 0.34, z);
-    this._aim.set(targetX, this.heightAt(targetX, targetZ) + 0.17, targetZ);
-    this.camera.fov = 29;
+    const x = targetX + sx * (2.34 + side) - fx * 0.38;
+    const z = targetZ + sz * (2.34 + side) - fz * 0.38;
+    this._camera.set(x, this.heightAt(x, z) + 0.76, z);
+    this._aim.set(targetX, this.heightAt(targetX, targetZ) + 0.30, targetZ);
+    this.camera.fov = 39;
+  }
+
+  applyPortraitSafeFrame(shot) {
+    const aspect = this.camera.aspect || 16 / 9;
+    if (aspect >= 1) return;
+    /* Preserve each shot's focal length and grammar. Only camera-to-subject
+       distance changes, which is the correct safe-frame operation for a
+       portrait installation crop. */
+    const scale = Math.min(1.66, 0.88 / Math.max(0.42, aspect));
+    this._camera.sub(this._aim).multiplyScalar(scale).add(this._aim);
+    if (shot !== 'ascent' && shot !== 'tele') {
+      this._camera.y = Math.max(this._camera.y,
+        this.heightAt(this._camera.x, this._camera.z) + (shot === 'macro' ? 0.30 : 0.42));
+    }
   }
 
   telephoto(now) {
@@ -265,6 +296,7 @@ export class ShotDirector {
     this.transition = null;
     this.manualShot = null;
     this.introActive = false;
+    this.openingActive = false;
     this.lastCutAt = -Infinity;
     this.veil.style.opacity = '0';
   }

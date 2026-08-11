@@ -67,6 +67,7 @@ export class GeologicalMemory {
     this.event = null;
     this.records = [];
     this.completedAt = 0;
+    this.finale = 0;
     this.compute = null;
     this.computeDispatches = 0;
     this.particleCount = 0;
@@ -232,6 +233,7 @@ export class GeologicalMemory {
     this.event = null;
     this.records = [];
     this.completedAt = 0;
+    this.finale = 0;
     this.computeDispatches = 0;
     this.state = 'searching';
     this.startedAt = now;
@@ -246,8 +248,13 @@ export class GeologicalMemory {
     this.event = null;
     this.records = [];
     this.completedAt = 0;
+    this.finale = 0;
     this.group.visible = false;
     this._clearVisuals();
+  }
+
+  setFinale(progress = 0) {
+    this.finale = clamp01(progress);
   }
 
   shouldHold(probe) {
@@ -282,7 +289,7 @@ export class GeologicalMemory {
     const t = now * 0.001;
     this.uTime.value = t;
     this.uCurrent.value = this.current;
-    this.uMissionVisible.value = 1;
+    this.uMissionVisible.value = 1 - this.finale;
     this.uIntegration.value = this.event && this.target
       ? clamp01((now - this.event.t0) / this.target.scanHoldMs) : 0;
     for (let index = 0; index < this.sites.length; index++) {
@@ -291,11 +298,12 @@ export class GeologicalMemory {
       const integration = active && this.event
         ? clamp01((now - this.event.t0) / site.data.scanHoldMs) : 0;
       const beat = 0.72 + Math.sin(t * 0.42 + site.data.phaseDelta) * 0.28;
+      const visible = 1 - this.finale;
       for (let i = 0; i < site.materialRings.length; i++) {
-        site.materialRings[i].material.opacity = completed ? 0.012
-          : (active ? 0.045 + integration * 0.075 : 0.018) * beat;
-        site.waterRings[i].material.opacity = completed ? 0.010
-          : (active ? 0.038 + integration * 0.085 : 0.015) * (1.18 - beat * 0.34);
+        site.materialRings[i].material.opacity = (completed ? 0.012
+          : (active ? 0.045 + integration * 0.075 : 0.018) * beat) * visible;
+        site.waterRings[i].material.opacity = (completed ? 0.010
+          : (active ? 0.038 + integration * 0.085 : 0.015) * (1.18 - beat * 0.34)) * visible;
       }
       site.mineralRoot.visible = !completed;
     }

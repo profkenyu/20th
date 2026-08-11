@@ -170,6 +170,7 @@ export class Rover {
        the route back to the autonomous mission. */
     this.auto = true;
     this.autoSteer = 0;
+    this.autoSpeedScale = 1;
     this.missionHold = false;       // long autonomous survey pauses
     this.mobileMode = false;
     this.mobileSteer = 0;
@@ -446,6 +447,7 @@ export class Rover {
     this.lapse = this.metricEnabled ? lapseAt(this.radius) : 1;
 
     const target = (boosting ? V.boost : V.cruise) * throttle
+                 * (this.auto ? this.autoSpeedScale : 1)
                  * this.traction * Math.max(0.004, this.lapse);
     this.speed += (target - this.speed) * Math.min(1, dt * 3.2);
     if (Math.abs(this.speed) < 1e-4) this.speed = 0;
@@ -648,6 +650,7 @@ export class Rover {
     this.missionHold = false;
     this.auto = true;
     this.autoSteer = 0;
+    this.autoSpeedScale = 1;
     this.mobileSteer = 0;
     this.mobileThrottle = 1;
     this.operatorHold = false;

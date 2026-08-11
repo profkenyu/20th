@@ -37,19 +37,45 @@ export class Lens {
     const P = cfg().post;
 
     this.uFocus = uniform(float(P.focusMax));
+    this.uFocalLength = uniform(float(P.focalLength));
+    this.uBokeh = uniform(float(P.bokeh));
+    this.uBloomStrength = uniform(float(P.bloomStrength));
+    this.uBloomRadius = uniform(float(P.bloomRadius));
+    this.uBloomThreshold = uniform(float(P.bloomThreshold));
 
     const scenePass = pass(scene, camera);
     const colour = scenePass.getTextureNode();
     const viewZ = scenePass.getViewZNode();
 
-    const defocused = dof(colour, viewZ, this.uFocus, float(P.focalLength), float(P.bokeh));
-    const glow = bloom(defocused, P.bloomStrength, P.bloomRadius, P.bloomThreshold);
+    const defocused = dof(colour, viewZ, this.uFocus, this.uFocalLength, this.uBokeh);
+    const glow = bloom(defocused, this.uBloomStrength, this.uBloomRadius, this.uBloomThreshold);
 
     /* PostProcessing was renamed to RenderPipeline in r185 */
     this.post = new THREE.RenderPipeline(renderer);
     this.post.outputNode = defocused.add(glow);
 
     this.scenePass = scenePass;
+    this.profile = '';
+  }
+
+  /** Lens behaviour belongs to a shot, not to a global beauty filter. */
+  setProfile(shot = 'wide') {
+    if (shot === this.profile) return;
+    this.profile = shot;
+    const profiles = {
+      wide:   [0.085, 0.18, 0.010, 0.24, 1.36],
+      rear:   [0.105, 0.34, 0.014, 0.27, 1.32],
+      macro:  [0.165, 0.92, 0.026, 0.32, 1.24],
+      tele:   [0.135, 0.58, 0.018, 0.29, 1.30],
+      return: [0.105, 0.34, 0.014, 0.27, 1.34],
+      ascent: [0.090, 0.22, 0.012, 0.25, 1.38],
+    };
+    const [focal, bokeh, strength, radius, threshold] = profiles[shot] ?? profiles.wide;
+    this.uFocalLength.value = focal;
+    this.uBokeh.value = bokeh;
+    this.uBloomStrength.value = strength;
+    this.uBloomRadius.value = radius;
+    this.uBloomThreshold.value = threshold;
   }
 
   /** Camera-space distance to the current subject, in metres. */

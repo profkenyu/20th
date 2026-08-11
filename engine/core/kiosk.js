@@ -46,6 +46,12 @@ export class Kiosk {
 
   get idleFor() { return this.state === 'live' ? (performance.now() - this.last) / 1000 : 0; }
 
+  requestReturn(now = performance.now()) {
+    if (this.state !== 'live') return false;
+    this.last = now - this.idle;
+    return true;
+  }
+
   /** `reset` is awaited between the fade out and the fade in. */
   async update(now, reset) {
     if (this.state === 'live') {

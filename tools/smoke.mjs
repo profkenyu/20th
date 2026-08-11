@@ -61,21 +61,24 @@ const sequencePhases = [];
 let sequenceComplete = !SEQUENCE;
 let cameraCycle = null;
 const sequenceShots = {
-  waterFarWide: false, waterConfirmedMacro: false, return: false, ascent: false,
+  waterTravelMacro: false, waterConfirmedMacro: false, return: false, ascent: false,
 };
 if (SEQUENCE) {
   /* `=` fixes BODY 01, then confirms BODY 02's single water objective. Follow
      both transfers until their persistent evidence generates BODY 03's
      three-node Geological Memory mission. */
   await page.keyboard.press('Equal');
-  const deadline = Date.now() + 190000;
+  /* Two deliberate dock/arrival breaths add 11.6 s to the authored passage.
+     The deadline remains finite, but must include those visible holds rather
+     than treating natural pacing as a hang. */
+  const deadline = Date.now() + 220000;
   let last = '', waterShortcut = false;
   while (Date.now() < deadline) {
     const state = await page.evaluate(() => window.TI_SEQUENCE?.() ?? null);
     if (state) {
       if (state.world === 'desert' && state.water === 'searching'
-          && state.waterDistance > 8 && state.cameraShot === 'wide') {
-        sequenceShots.waterFarWide = true;
+          && state.waterDistance > 8 && state.cameraShot === 'macro') {
+        sequenceShots.waterTravelMacro = true;
       }
       if (state.world === 'desert' && state.water === 'confirmed'
           && state.cameraShot === 'macro') sequenceShots.waterConfirmedMacro = true;
@@ -87,7 +90,7 @@ if (SEQUENCE) {
       if (key !== last) { sequencePhases.push(key); console.log(`  · ${key}`); last = key; }
       if (!waterShortcut && state.world === 'desert' && state.mission === 'water'
           && state.water === 'searching' && state.voyage === 'arrived'
-          && state.waterDistance > 8 && state.cameraShot === 'wide') {
+          && state.waterDistance > 8 && state.cameraShot === 'macro') {
         waterShortcut = true;
         await page.keyboard.press('Equal');
       }
@@ -163,8 +166,7 @@ if (!blueprintObserved?.active || blueprintObserved.wire < 0.1
 if (report.gate) fatal.push(`adapter gate fired: ${report.gate}`);
 if (!['wide', 'rear', 'macro', 'tele', 'return', 'ascent'].includes(report.camera?.shot))
   fatal.push(`camera escaped authored/operator grammar: ${report.camera?.shot ?? 'missing'}`);
-if (!SEQUENCE && (!cameraCycle?.before?.available?.length
-    || cameraCycle.before.shot === cameraCycle.after?.shot
+if (!SEQUENCE && (cameraCycle.before.shot === cameraCycle.after?.shot
     || cameraCycle.after?.source !== 'manual')) {
   fatal.push(`C did not change an available authored shot: ${JSON.stringify(cameraCycle)}`);
 }

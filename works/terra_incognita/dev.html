@@ -50,7 +50,10 @@
   body.ti-terminal #ti-terminal-state{display:block}
   body.ti-terminal #fh-hud .eyebrow,body.ti-terminal #fh-hud .v.warn{color:#85f2a8}
   body.ti-terminal #fh-pulse.on{background-color:#85f2a8}
-  #survey-log{position:fixed;z-index:31;left:24px;top:calc(var(--bar) + 22px);width:min(360px,52vw);pointer-events:none;font-family:'DM Mono',ui-monospace,monospace;font-size:9px;line-height:1.7;letter-spacing:.1em;color:rgba(177,230,197,.38);text-transform:uppercase}
+  /* Survey evidence is already voiced by the timed central caption. Keeping
+     a second live transcript in the corner turned the gallery HUD back into
+     an engineering dashboard, so it remains semantic-only. */
+  #survey-log{display:none;position:fixed;z-index:31;left:24px;top:calc(var(--bar) + 22px);width:min(360px,52vw);pointer-events:none;font-family:'DM Mono',ui-monospace,monospace;font-size:9px;line-height:1.7;letter-spacing:.1em;color:rgba(177,230,197,.38);text-transform:uppercase}
   #survey-log div{margin:0 0 4px;animation:survey-record 13s linear forwards}@keyframes survey-record{0%{opacity:0;transform:translateY(4px)}8%,68%{opacity:1;transform:none}100%{opacity:0}}
   /* The canvas above is now the visible reconstruction instrument. This live
      text remains only for assistive technology, so progress is not announced
@@ -67,6 +70,11 @@
   body.ti-completion-tableau #survey-log,
   body.ti-completion-tableau #fh-hud,
   body.ti-completion-tableau #ti-mobile-drive,
+  body.ti-memory-tableau #ti-minimap,
+  body.ti-memory-tableau #survey-log,
+  body.ti-memory-tableau #fh-hud,
+  body.ti-memory-tableau #ti-mobile-drive,
+  body.ti-memory-tableau #universe-id,
   body.ti-epilogue #ti-minimap,
   body.ti-epilogue #survey-log,
   body.ti-epilogue #fh-hud,
@@ -159,7 +167,7 @@
   .mobile-controls{display:none}
   @media (max-width:760px){
     #universe-id{right:max(14px,env(safe-area-inset-right));bottom:calc(var(--bar) + max(14px,env(safe-area-inset-bottom)))}
-    #ti-minimap{right:max(14px,env(safe-area-inset-right));transform:scale(.82);transform-origin:top right}
+    #ti-minimap{right:max(14px,env(safe-area-inset-right));transform:scale(.62);transform-origin:top right}
     #ti-terminal-cue{left:max(14px,env(safe-area-inset-left));right:auto;width:min(46vw,180px);text-align:left}
   }
   @media (pointer:coarse), (max-width:760px){
@@ -212,17 +220,16 @@
   <div class="inner">
     <h1>Terra Incognita</h1>
     <div class="rule"></div>
-    <p class="ko">지도 이전의 표면에 착륙선의 와이어 상태가 남아 있다.
-      그 안에서 깨어난 무인 로버는 햇빛을 전력으로 바꾸어 지형과 중력, 방사선과 미량 대기를 기록하고 여덟 개의 물질 표본을 회수한다.
-      각 표본은 착륙선의 한 구조를 물질로 고정한다.
-      복원이 끝나면 로버는 귀환해 격납되고, 완성된 착륙선은 다음 행성을 향해 이륙한다.
-      한 세계에서 회수된 물질이 다른 세계의 첫 좌표가 된다.</p>
-    <p class="en">Before there is a map, a lander remains in wire-state on an unknown surface. An unmanned rover converts sunlight into motion, recording terrain, gravity, radiation, and atmospheric trace while recovering eight material signatures. Each recovery fixes one structure of the lander into matter. When reconstruction is complete, the rover returns to stowage and the restored lander departs for the next world. Matter recovered on one world becomes the first coordinate of another.</p>
-    <span class="mission">Autonomous Survey · Material Passage 01<span id="ti-terminal-state">Archival Terminal · Low Bandwidth</span></span>
+    <p class="ko">지도 이전의 세 표면을 하나의 기억이 통과한다.
+      무인 로버는 첫 행성에서 여덟 물질을 회수해 착륙선을 복원하고,
+      두 번째 행성에서 수분을 확인한다.
+      두 세계의 증거는 세 번째 행성의 지질 기억으로 다시 나타난다.</p>
+    <p class="en">One memory crosses three unmapped surfaces. Eight material signatures restore the lander on Body 01; water is confirmed on Body 02. Their combined evidence reappears as geological memory on Body 03.</p>
+    <span class="mission">Three-Body Autonomous Survey · Matter / Water / Memory<span id="ti-terminal-state">Archival Terminal · Low Bandwidth</span></span>
     <span class="skip desktop-start">아무 키나 눌러 로버 구성 시작 · Resolve rover to begin</span>
     <button id="ti-mobile-start" class="skip" type="button" disabled>로버 구성 시작 · ENABLE TILT</button>
   </div>
-  <div class="controls"><span class="desktop-controls"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 수동 조작 &nbsp;·&nbsp; <kbd>Shift</kbd> 고속 주행 &nbsp;·&nbsp; <kbd>Space</kbd> 자동 주행 복귀 &nbsp;·&nbsp; <kbd>C</kbd> 후면 포함 숏 전환 &nbsp;·&nbsp; <kbd>L</kbd> 전조등 &nbsp;·&nbsp; <kbd>[</kbd><kbd>]</kbd> 태양광 패널</span><span class="mobile-controls">기기를 좌우로 기울여 조향 · 자동주행 기본 · 하단 버튼으로 정지/재개<br>Tilt to steer · Autonomous drive</span></div>
+  <div class="controls"><span class="desktop-controls">AUTONOMOUS BY DEFAULT &nbsp;·&nbsp; <kbd>C</kbd> REAR SHOT &nbsp;·&nbsp; <kbd>H</kbd> ENGINEERING</span><span class="mobile-controls">기기를 좌우로 기울여 조향 · 자동주행 기본<br>Tilt to steer · Autonomous drive</span></div>
 </section>
 
 <script>

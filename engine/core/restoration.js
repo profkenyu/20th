@@ -16,6 +16,13 @@ export const RESTORATION_ITEMS = Object.freeze([
 ]);
 
 const clamp01 = value => Math.max(0, Math.min(1, value));
+const DETECT_RADIUS = 12.0;
+const HOLD_RADIUS = 1.95;
+const SCAN_RADIUS = 2.0;
+const CANCEL_RADIUS = 2.85;
+const SCAN_SPEED = 0.12;
+const SCAN_MS = 3600;
+const EVENT_MS = 5400;
 const hash = n => {
   const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
   return x - Math.floor(x);
@@ -55,6 +62,8 @@ export class Restoration {
     this.count = 0;
     this.event = null;
     this.holdUntil = 0;
+    this.state = 'approach';
+    this.lastDistance = Infinity;
 
     this.root = document.getElementById('ti-restoration');
     this.progress = document.getElementById('ti-restoration-progress');
@@ -176,10 +185,18 @@ export class Restoration {
 
   get complete() { return this.count >= this.items.length; }
   get completion() { return this.count / this.items.length; }
+  get scanning() { return !!this.event && !this.event.committed; }
   holding(now) { return !!this.event && now < this.holdUntil; }
+  shouldHold(probe) {
+    if (this.complete || !probe || !this.target) return false;
+    return Math.hypot(probe.x - this.target.x, probe.z - this.target.z) <= HOLD_RADIUS;
+  }
   get target() { return this.sites[this.count]?.data ?? null; }
   get scanFocus() { return this.event ? this.sites[this.event.index]?.data ?? null : null; }
-  snapshot() { return { count: this.count, complete: this.complete }; }
+  snapshot() {
+    return { count: this.count, complete: this.complete, state: this.state,
+      distance: this.lastDistance, scanning: this.scanning };
+  }
 
   _syncUi(message = '') {
     if (this.progress) this.progress.textContent = `${this.count} / ${this.items.length}`;
@@ -221,8 +238,9 @@ export class Restoration {
     this.particleMaterial.color.setHex(item.color);
     this._seedParticles(index);
     this.event = { index, item, t0: now, committed: false };
-    this.holdUntil = now + 4200;
-    this._syncUi(`SCANNING · ${item.sign}`);
+    this.state = 'scanning';
+    this.holdUntil = now + EVENT_MS;
+    this._syncUi(`CONTACT SCAN · ${item.sign}`);
     this.root?.classList.add('active');
   }
 
@@ -247,7 +265,7 @@ export class Restoration {
       all: true,
     };
     this.count = this.items.length;
-    this.holdUntil = now + 4200;
+    this.holdUntil = now + EVENT_MS;
     this.group.visible = true;
     this.root?.classList.add('active');
     this._syncUi('8 SAMPLES ACQUIRED · SIMULTANEOUS');
@@ -256,15 +274,16 @@ export class Restoration {
 
   _animate(now) {
     const age = Math.max(0, (now - this.event.t0) / 1000);
-    const appear = clamp01(age / 0.36);
-    const dissolve = 1 - clamp01((age - 2.45) / 1.15);
+    const integration = clamp01(age / (SCAN_MS / 1000));
+    const appear = clamp01(age / 0.44);
+    const dissolve = 1 - clamp01((age - 4.25) / 0.95);
     const envelope = appear * dissolve;
     this.sample.position.y = this.sampleBaseY + Math.sin(age * 3.1) * 0.035 + clamp01(age / 1.1) * 0.18;
     this.sample.rotation.y += 0.018;
     this.sample.scale.setScalar(0.72 + envelope * 0.52);
-    this.ring.scale.setScalar(0.28 + age * 0.78);
-    this.ringMaterial.opacity = envelope * 0.52;
-    this.particleMaterial.opacity = envelope * 0.68;
+    this.ring.scale.setScalar(0.42 + integration * 1.48);
+    this.ringMaterial.opacity = envelope * (0.20 + integration * 0.38);
+    this.particleMaterial.opacity = envelope * (0.28 + integration * 0.44);
     for (let i = 0; i < this.particleCount; i++) {
       const p = i * 3, phase = (age + hash(i * 31) * 0.58) % 1.25;
       this.positions[p] = this.origins[p] + this.velocities[p] * phase;
@@ -285,30 +304,45 @@ export class Restoration {
     }
     if (!this.event) {
       const target = this.target;
-      if (!this.complete && target && Math.hypot(v.x - target.x, v.z - target.z) <= 4.8) this._begin(v, now);
+      this.lastDistance = target ? Math.hypot(v.x - target.x, v.z - target.z) : Infinity;
+      if (this.complete) {
+        this.state = 'complete';
+      } else if (target) {
+        this.state = this.lastDistance <= SCAN_RADIUS ? 'settling'
+          : this.lastDistance <= DETECT_RADIUS ? 'detected' : 'approach';
+        if (this.lastDistance <= SCAN_RADIUS && Math.abs(v.speed) <= SCAN_SPEED) {
+          this._begin(v, now);
+        } else if (this.lastDistance <= HOLD_RADIUS) {
+          this._syncUi(`HOLD CONTACT · ${this.items[this.count].sign}`);
+        }
+      }
       return;
     }
     const site = this.sites[this.event.index];
-    if (!site || Math.hypot(v.x - site.data.x, v.z - site.data.z) > 6.2) {
+    this.lastDistance = site ? Math.hypot(v.x - site.data.x, v.z - site.data.z) : Infinity;
+    if (!site || this.lastDistance > CANCEL_RADIUS || Math.abs(v.speed) > 0.18) {
       this.event = null; this.holdUntil = 0; this.root?.classList.remove('active');
+      this.state = 'detected';
       this.sample.visible = this.ring.visible = this.particles.visible = false;
       this._syncUi('SCAN INTERRUPTED · REAPPROACH SIGNATURE');
       return;
     }
     this._animate(now);
     const ageMs = now - this.event.t0;
-    if (!this.event.committed && ageMs >= 2600) {
+    if (!this.event.committed && ageMs >= SCAN_MS) {
       if (this.lander.restorePart(this.event.index, now)) {
         this.event.committed = true;
+        this.state = 'acquired';
         this.count = this.event.index + 1;
         site.acquired = true;
         this._syncUi(`SAMPLE ACQUIRED · ${this.event.item.sample}`);
       }
     }
-    if (ageMs >= 4200) {
+    if (ageMs >= EVENT_MS) {
       const module = this.event.item.module;
       this.event = null;
       this.holdUntil = 0;
+      this.state = this.complete ? 'complete' : 'approach';
       this.sample.visible = this.ring.visible = this.particles.visible = false;
       this.root?.classList.remove('active');
       this._syncUi(`${module} · MATERIAL FIXED`);
@@ -319,6 +353,8 @@ export class Restoration {
     this.count = Math.max(0, Math.min(this.items.length, Math.floor(level)));
     this.event = null;
     this.holdUntil = 0;
+    this.state = this.complete ? 'complete' : 'approach';
+    this.lastDistance = Infinity;
     this.group.visible = true;
     this.sample.visible = this.ring.visible = this.particles.visible = false;
     this.root?.classList.remove('active');

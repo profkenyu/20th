@@ -15,6 +15,19 @@ const CSS = `
   letter-spacing:.06em;color:#8a9099;transition:opacity .45s ease;
 }
 #fh-hud.hidden{opacity:0;pointer-events:none}
+#fh-mission{
+  position:fixed;z-index:30;top:calc(var(--bar) + 22px);left:24px;width:240px;
+  pointer-events:none;font-family:'DM Mono',ui-monospace,monospace;text-transform:uppercase;
+  color:#d9dde2;border-left:1px solid rgba(192,21,42,.54);padding:1px 0 1px 11px;
+  text-shadow:0 1px 12px rgba(0,0,0,.82);transition:opacity .8s ease;
+}
+#fh-mission span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#fh-mission .body{font:700 9px/1.5 'Space Mono',ui-monospace,monospace;letter-spacing:.22em;color:#c0152a}
+#fh-mission .objective{margin-top:4px;font-size:8px;line-height:1.55;letter-spacing:.11em;color:rgba(217,221,226,.76)}
+#fh-mission .systems{font-size:7px;line-height:1.65;letter-spacing:.10em;color:rgba(138,144,153,.60)}
+body.fh-dead #fh-mission{opacity:.32}
+body.ti-completion-tableau #fh-mission,body.ti-memory-tableau #fh-mission,
+body.ti-epilogue #fh-mission{opacity:0}
 body.fh-dead #fh-hud{opacity:.28}
 body.fh-dead #fh-keys{opacity:.25}
 body.tx-active #fh-keys{opacity:0}
@@ -36,12 +49,13 @@ body.tx-active #fh-keys{opacity:0}
   padding:7px 10px 6px;border-left:1px solid rgba(217,221,226,.13);
   background:linear-gradient(90deg,rgba(5,5,6,.38),rgba(5,5,6,0));
   font-family:'DM Mono','Noto Sans KR',ui-monospace,monospace;font-size:8px;letter-spacing:.10em;
-  color:rgba(138,144,153,.54);line-height:1.8;opacity:.18;transition:opacity 1.6s ease}
+  color:rgba(138,144,153,.54);line-height:1.8;opacity:0;transition:opacity 1.6s ease}
 #fh-keys.awake{opacity:.72;transition-duration:.22s}
 #fh-keys b{font-weight:500;color:rgba(217,221,226,.68);letter-spacing:.08em}
 #fh-keys .mode{display:inline-block;width:34px;color:rgba(192,21,42,.72);letter-spacing:.16em}
 @media (max-width:760px){
   #fh-hud{width:206px;left:14px;top:calc(var(--bar) + 14px)}
+  #fh-mission{width:184px;left:14px;top:calc(var(--bar) + 14px);padding-left:9px}
   #fh-spark{width:206px}
   #fh-keys{left:14px;right:14px;bottom:calc(var(--bar) + 12px);font-size:7px;letter-spacing:.06em}
 }
@@ -82,9 +96,18 @@ export class Hud {
     `;
     document.body.appendChild(el);
 
+    const mission = document.createElement('div');
+    mission.id = 'fh-mission';
+    mission.setAttribute('role', 'status');
+    mission.setAttribute('aria-live', 'polite');
+    mission.innerHTML = '<span class="body">BODY 01 · SHEAR BODY</span>'
+      + '<span class="objective">OBJECTIVE · MATERIAL 0 / 8</span>'
+      + '<span class="systems">PWR — · COMMS LOCAL</span>';
+    document.body.appendChild(mission);
+
     const keys = document.createElement('div');
     keys.id = 'fh-keys';
-    keys.innerHTML = '<span class="mode">주행</span><b>W A S D</b> 수동 · <b>Shift</b> 고속 · <b>Space</b> 자동 복귀<br><span class="mode">SHOT</span>5-SHOT DIRECTOR · AUTO FRAME · <b>L</b> 전조등 · <b>[ ]</b> 패널<br><span class="mode">시스템</span><b>M</b> 음향 · <b>H</b> 계기판';
+    keys.innerHTML = '<b>C</b> REAR SHOT · <b>H</b> ENGINEERING · <b>M</b> AUDIO';
     document.body.appendChild(keys);
 
     const wakeKeys = () => {
@@ -95,8 +118,9 @@ export class Hud {
     addEventListener('keydown', wakeKeys);
 
     this.el = el;
+    this.missionEl = mission;
     this.keys = keys;
-    this.gallery = false;
+    this.gallery = true;
     this.pinned = false;
     this.fields = {};
     el.querySelectorAll('[data-v]').forEach(n => { this.fields[n.dataset.v] = n; });
@@ -114,10 +138,7 @@ export class Hud {
     this._setVisible = visible => {
       el.classList.toggle('hidden', !visible);
     };
-    setTimeout(() => {
-      this.gallery = true;
-      if (!this.pinned) this._setVisible(false);
-    }, 8000);
+    this._setVisible(false);
     addEventListener('pointermove', e => {
       if (!this.gallery || this.pinned) return;
       this._setVisible(e.clientX <= 34);
@@ -134,6 +155,14 @@ export class Hud {
     if (!n) return;
     n.textContent = v;
     n.classList.toggle('warn', warn);
+  }
+
+  setMission({ body, objective, systems }) {
+    if (!this.missionEl) return;
+    const fields = this.missionEl.children;
+    if (body != null) fields[0].textContent = body;
+    if (objective != null) fields[1].textContent = objective;
+    if (systems != null) fields[2].textContent = systems;
   }
 
   flash() {

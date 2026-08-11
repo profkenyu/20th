@@ -124,6 +124,29 @@ try {
     const sky    = await step('buildSky', () => E.buildSky(S.shadeSky));
     const rover  = await step('new Rover     (8 wheels, sprung, hinged lid)', () => new E.Rover(camera, document.getElementById('gl'), S.heightCPU));
     const lander = await step('new Lander    (clear bay + six load paths)', () => new E.Lander(S.heightCPU));
+    await step('BODY 01 SCAN · real contact, full stop, 3.6 s integration', () => {
+      const recovery = new E.Restoration(lander, S.heightCPU, TERRA_SAMPLE_SITES);
+      const site = TERRA_SAMPLE_SITES[0], t0 = performance.now() + 1000;
+      const probe = (distance, speed) => ({
+        x: site.x + distance, z: site.z, speed, heading: 0,
+        ground: S.heightCPU(site.x + distance, site.z),
+      });
+      recovery.update(probe(2.10, 0), t0, true);
+      if (recovery.event || recovery.shouldHold(probe(2.10, 0)))
+        throw new Error('scan or hold begins outside the 2 m contact envelope');
+      recovery.update(probe(1.80, 0.20), t0 + 100, true);
+      if (recovery.event) throw new Error('moving rover began a contact scan');
+      recovery.update(probe(1.80, 0.11), t0 + 200, true);
+      if (!recovery.scanning || !recovery.shouldHold(probe(1.80, 0.11)))
+        throw new Error('stopped rover did not lock the physical specimen');
+      recovery.update(probe(1.80, 0), t0 + 3690, true);
+      if (recovery.count !== 0) throw new Error('sample committed before 3.6 s integration');
+      recovery.update(probe(1.80, 0), t0 + 3810, true);
+      if (recovery.count !== 1 || !recovery.event?.committed)
+        throw new Error('full integration did not restore the measured module');
+      recovery.reset(0);
+      return 'd≤2.0 m · |v|≤0.12 m/s · continuous 3.6 s';
+    });
     await step('scene.add all', () => { scene.add(sky, ground.mesh, ...scat.meshes, rover.group, lander.group); return scene.children.length + ' children'; });
     await step('BODY 03 MEMORY · persistent fields + GPU storage compute', () => {
       const memory = new E.MissionMemory({ storage: {
@@ -489,7 +512,7 @@ try {
         heightAt: S.heightCPU,
       });
       director.update(1000);
-      if (director.rendered !== 'wide') throw new Error(`initial ${director.rendered}`);
+      if (director.rendered !== 'macro') throw new Error(`initial ${director.rendered}`);
       if (!director.cycle(1100)) throw new Error('C rejected on survey surface');
       director.update(1100);
       if (director.rendered !== 'rear' || director.source !== 'manual')
@@ -510,7 +533,7 @@ try {
       director.setIntro(false);
       mission.active = true; mission.target = { x: rover.pos.x + 100, z: rover.pos.z };
       mission.lastDistance = 100; restoration.group.visible = false; director.clearManual();
-      if (director.desiredShot() !== 'wide') throw new Error('far BODY 02 search is not wide');
+      if (director.desiredShot() !== 'macro') throw new Error('far BODY 02 travel is not rover macro');
       mission.lastDistance = 6;
       if (director.desiredShot() !== 'macro') throw new Error('near BODY 02 evidence is not macro');
       mission.event = { t0: 0 };

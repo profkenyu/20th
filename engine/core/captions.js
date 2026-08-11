@@ -40,7 +40,7 @@ const CSS = `
   margin:16px auto 0;opacity:.75;
 }
 @media (max-width:760px){
-  #fh-cap-line{bottom:calc(var(--bar) + 44px);max-width:84vw}
+  #fh-cap-line{bottom:calc(var(--bar) + max(94px,env(safe-area-inset-bottom)));max-width:84vw}
   #fh-cap-line .ko{font-size:12px}
   #fh-cap-line .en{font-size:9px}
 }
