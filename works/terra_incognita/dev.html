@@ -89,7 +89,7 @@
   #ti-prologue{position:fixed;inset:0;z-index:44;display:grid;place-items:center;
     padding:calc(var(--bar) + clamp(14px,3vh,36px)) 9vw;background:#050506;
     pointer-events:none;
-    transition:opacity 2.6s cubic-bezier(.4,0,.2,1),visibility 0s linear 2.6s}
+    transition:background 1.1s ease,opacity 2.6s cubic-bezier(.4,0,.2,1),visibility 0s linear 2.6s}
   #ti-prologue .inner{width:min(640px,86vw);text-align:center;
     max-height:100%;overflow:auto;scrollbar-width:none}
   #ti-prologue .inner::-webkit-scrollbar{display:none}
@@ -219,10 +219,10 @@
       한 세계에서 회수된 물질이 다른 세계의 첫 좌표가 된다.</p>
     <p class="en">Before there is a map, a lander remains in wire-state on an unknown surface. An unmanned rover converts sunlight into motion, recording terrain, gravity, radiation, and atmospheric trace while recovering eight material signatures. Each recovery fixes one structure of the lander into matter. When reconstruction is complete, the rover returns to stowage and the restored lander departs for the next world. Matter recovered on one world becomes the first coordinate of another.</p>
     <span class="mission">Autonomous Survey · Material Passage 01<span id="ti-terminal-state">Archival Terminal · Low Bandwidth</span></span>
-    <span class="skip desktop-start">아무 키나 눌러 탐사 시작 · Press any key to begin</span>
-    <button id="ti-mobile-start" class="skip" type="button" disabled>탐사 시작 · ENABLE TILT</button>
+    <span class="skip desktop-start">아무 키나 눌러 로버 구성 시작 · Resolve rover to begin</span>
+    <button id="ti-mobile-start" class="skip" type="button" disabled>로버 구성 시작 · ENABLE TILT</button>
   </div>
-  <div class="controls"><span class="desktop-controls"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 수동 조작 &nbsp;·&nbsp; <kbd>Shift</kbd> 고속 주행 &nbsp;·&nbsp; <kbd>Space</kbd> 자동 주행 복귀 &nbsp;·&nbsp; <kbd>C</kbd> 시네마틱 숏 전환 &nbsp;·&nbsp; <kbd>L</kbd> 전조등 &nbsp;·&nbsp; <kbd>[</kbd><kbd>]</kbd> 태양광 패널</span><span class="mobile-controls">기기를 좌우로 기울여 조향 · 자동주행 기본 · 하단 버튼으로 정지/재개<br>Tilt to steer · Autonomous drive</span></div>
+  <div class="controls"><span class="desktop-controls"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 수동 조작 &nbsp;·&nbsp; <kbd>Shift</kbd> 고속 주행 &nbsp;·&nbsp; <kbd>Space</kbd> 자동 주행 복귀 &nbsp;·&nbsp; <kbd>C</kbd> 후면 포함 숏 전환 &nbsp;·&nbsp; <kbd>L</kbd> 전조등 &nbsp;·&nbsp; <kbd>[</kbd><kbd>]</kbd> 태양광 패널</span><span class="mobile-controls">기기를 좌우로 기울여 조향 · 자동주행 기본 · 하단 버튼으로 정지/재개<br>Tilt to steer · Autonomous drive</span></div>
 </section>
 
 <script>
@@ -273,7 +273,8 @@ setTimeout(function(){
     "three": "https://unpkg.com/three@0.185.1/build/three.webgpu.js",
     "three/webgpu": "https://unpkg.com/three@0.185.1/build/three.webgpu.js",
     "three/tsl": "https://unpkg.com/three@0.185.1/build/three.tsl.js",
-    "three/addons/": "https://unpkg.com/three@0.185.1/examples/jsm/"
+    "three/addons/": "https://unpkg.com/three@0.185.1/examples/jsm/",
+    "animejs": "../../node_modules/animejs/dist/modules/index.js"
   }
 }
 </script>

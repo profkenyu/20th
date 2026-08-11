@@ -11,11 +11,15 @@
     "smoke": "node tools/smoke.mjs",
     "smoke:sequence": "SEQUENCE=1 node tools/smoke.mjs",
     "harness": "node tools/harness.mjs",
+    "memory": "node tools/memory.mjs",
     "terrain": "node tools/terrain.mjs",
     "verify": "node tools/verify.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.25.12",
     "playwright": "^1.62.0"
+  },
+  "dependencies": {
+    "animejs": "^4.5.0"
   }
 }

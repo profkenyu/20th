@@ -5,6 +5,7 @@ const smooth = value => { const p = clamp01(value); return p * p * (3 - 2 * p); 
 
 export const CAMERA_SHOTS = Object.freeze({
   WIDE: '01 · ULTRAWIDE / ROVER + WIRE LANDER',
+  REAR: 'OP · REAR / ROVER FOLLOW',
   MACRO: '02 · MACRO / WHEEL + SPECIMEN',
   TELE: '03 · TELEPHOTO / MATERIAL FACE',
   RETURN: '04 · LOW SIDE / RETURN + STOW',
@@ -17,9 +18,9 @@ const CSS = `
 `;
 
 /**
- * The camera has five and only five grammatical positions. Controllers may
- * still move machines, terrain and sequence state; this director is the final
- * writer of camera position, aim and lens on every rendered frame.
+ * The authored sequence retains its five grammatical positions. A sixth,
+ * operator-only rear view is available through C and for the blueprint
+ * prologue; it never appears as an automatic mission edit.
  */
 export class ShotDirector {
   constructor({ camera, rover, lander, restoration, mission = null, docking, voyage, heightAt }) {
@@ -35,6 +36,7 @@ export class ShotDirector {
     this.rendered = 'wide';
     this.transition = null;
     this.manualShot = null;
+    this.introActive = false;
     this.lastCutAt = -Infinity;
     this.focus = new THREE.Vector3();
     this._camera = new THREE.Vector3();
@@ -49,16 +51,16 @@ export class ShotDirector {
 
   get label() { return CAMERA_SHOTS[this.rendered.toUpperCase()] ?? this.rendered; }
 
-  get source() { return this.manualShot ? 'manual' : 'authored'; }
+  get source() { return this.introActive ? 'intro' : this.manualShot ? 'manual' : 'authored'; }
 
   _authoredLock() {
-    return this.voyage.active || this.docking.started
+    return this.introActive || this.voyage.active || this.docking.started
       || !!this.restoration.event || !!this.mission?.event;
   }
 
   availableManualShots() {
     if (this._authoredLock() || this.restoration.complete) return [];
-    const shots = ['wide'];
+    const shots = ['wide', 'rear'];
     const specimen = this.mission?.scanFocus ?? this.mission?.target
       ?? this.restoration.scanFocus ?? this.restoration.target;
     const specimenDistance = specimen
@@ -73,8 +75,8 @@ export class ShotDirector {
     return shots;
   }
 
-  /** C never revives Rover's obsolete mast/chase writers. It cycles only
-      compositions already inside the authored five-shot language. */
+  /** C never revives Rover's obsolete camera writers. It cycles the rear
+      operator view plus compositions inside the authored five-shot language. */
   cycle(now = performance.now()) {
     const shots = this.availableManualShots();
     if (shots.length < 2) return false;
@@ -92,7 +94,13 @@ export class ShotDirector {
 
   clearManual() { this.manualShot = null; }
 
+  setIntro(active) {
+    this.introActive = !!active;
+    if (active) this.manualShot = null;
+  }
+
   desiredShot() {
+    if (this.introActive) return 'rear';
     if (this.voyage.active) {
       return ['lift', 'transit', 'descent'].includes(this.voyage.phase)
         ? 'ascent' : 'return';
@@ -113,7 +121,7 @@ export class ShotDirector {
   transitionKind(from, to) {
     /* A physical encounter and a machine-state change deserve a cut. The
        contemplative returns to landscape are the only dissolves. */
-    if (to === 'macro' || to === 'tele' || to === 'ascent') return 'cut';
+    if (to === 'rear' || to === 'macro' || to === 'tele' || to === 'ascent') return 'cut';
     if (from === 'return' && to === 'ascent') return 'cut';
     return 'dissolve';
   }
@@ -159,7 +167,8 @@ export class ShotDirector {
   }
 
   apply(shot, now) {
-    if (shot === 'macro') this.macro(now);
+    if (shot === 'rear') this.rear(now);
+    else if (shot === 'macro') this.macro(now);
     else if (shot === 'tele') this.telephoto(now);
     else if (shot === 'return') this.lowSide(now);
     else if (shot === 'ascent') this.underside(now);
@@ -186,6 +195,19 @@ export class ShotDirector {
     this._camera.set(x, y, z);
     this._aim.set(midX, Math.max(l.y + 3.1, this.rover.deckY + 0.28), midZ);
     this.camera.fov = 62;
+  }
+
+  rear(now) {
+    const heading = this.rover.heading;
+    const fx = -Math.sin(heading), fz = -Math.cos(heading);
+    const sx = -fz, sz = fx;
+    const breathe = Math.sin(now * 0.00008) * 0.10;
+    const x = this.rover.pos.x - fx * 5.2 + sx * (0.34 + breathe);
+    const z = this.rover.pos.z - fz * 5.2 + sz * (0.34 + breathe);
+    this._camera.set(x, Math.max(this.heightAt(x, z) + 1.05, this.rover.deckY + 0.72), z);
+    this._aim.set(this.rover.pos.x + fx * 0.58, this.rover.deckY + 0.22,
+      this.rover.pos.z + fz * 0.58);
+    this.camera.fov = 38;
   }
 
   macro(now) {
@@ -242,6 +264,7 @@ export class ShotDirector {
     this.rendered = 'wide';
     this.transition = null;
     this.manualShot = null;
+    this.introActive = false;
     this.lastCutAt = -Infinity;
     this.veil.style.opacity = '0';
   }

@@ -41,6 +41,7 @@ export { Dust } from './world/dust.js';
 export { GraniteField } from './world/granite-field.js';
 export { Sandstorm } from './world/sandstorm.js';
 export { ResolutionTransferFX } from './world/resolution-transfer.js';
+export { MatterPassage } from './world/matter-passage.js';
 export { buildSky } from './world/sky.js';
 
 export { fbm, ridge, vnoise, cellHash, grain, fbmNorm } from './tsl/noise.js';
@@ -63,6 +64,8 @@ export { Restoration, RESTORATION_ITEMS } from './core/restoration.js';
 export { DockingSequence } from './core/docking.js';
 export { VoyageSequence } from './core/voyage.js';
 export { WaterMission } from './core/water-mission.js';
+export { MissionMemory, MISSION_MEMORY_VERSION } from './core/mission-memory.js';
+export { GeologicalMemory } from './core/geological-memory.js';
 export { ShotDirector, CAMERA_SHOTS } from './core/shot-director.js';
 
 export { Power } from './vehicle/power.js';

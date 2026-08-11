@@ -58,11 +58,12 @@ function starLayer(count, colour, size, seed) {
    rates. The destination is deliberately withheld; the surface is revealed
    only when descent begins. */
 export class VoyageSequence {
-  constructor({ lander, rover, camera, ambient, onSwap, onSpace, onCue, onComplete, onLandingDust }) {
+  constructor({ lander, rover, camera, ambient, passage = null, onSwap, onSpace, onCue, onComplete, onLandingDust }) {
     this.lander = lander;
     this.rover = rover;
     this.camera = camera;
     this.ambient = ambient;
+    this.passage = passage;
     this.onSwap = onSwap;
     this.onSpace = onSpace;
     this.onCue = onCue;
@@ -162,12 +163,14 @@ export class VoyageSequence {
         this.lander.setLegFold(1);
         this.phase = 'transit'; this.t0 = now;
         this.group.visible = true; document.body.classList.add('ti-voyage');
+        this.passage?.start(now);
         this.onSpace?.(true);
         this.ambient?.transferCue('charge'); this.onCue?.('transit', now, this.destination);
       }
       return;
     }
     if (this.phase === 'transit') {
+      await this.passage?.update(now);
       const p = clamp01(elapsed / 15000);
       const envelope = smooth(p / 0.12) * (1 - smooth((p - 0.84) / 0.16));
       this.layers.forEach((layer, i) => {
@@ -205,9 +208,14 @@ export class VoyageSequence {
         this.baseY = this.lander.group.position.y;
         this.lander.setLegFold(1);
         this.lander.group.position.y = this.baseY + 32;
+        /* Reconstructed matter belongs to the flight configuration at the
+           top of descent. Sampling before this altitude offset would pin the
+           arrival cloud to the destination ground thirty-two metres below. */
+        this.passage?.captureTarget();
       }
       if (elapsed >= 15000 && this.swapped) {
         this.group.visible = false; document.body.classList.remove('ti-voyage');
+        this.passage?.finish();
         this.onSpace?.(false);
         this.lander.group.scale.setScalar(1);
         this.phase = 'descent'; this.t0 = now; this.baseY = this.lander.site.y;
@@ -338,6 +346,7 @@ export class VoyageSequence {
   }
 
   reset() {
+    this.passage?.finish();
     this.phase = 'idle'; this.destination = null; this.swapped = false; this.swapPending = false;
     this.group.visible = false;
     document.body.classList.remove('ti-voyage', 'ti-epilogue', 'ti-epilogue-quiet');

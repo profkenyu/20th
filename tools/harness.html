@@ -1,7 +1,8 @@
 <!DOCTYPE html><meta charset="utf-8"><link rel="icon" href="data:,"><body><canvas id="gl"></canvas>
 <script type="importmap">{"imports":{
 "three":"../vendor/three.webgpu.js","three/webgpu":"../vendor/three.webgpu.js",
-"three/tsl":"../vendor/three.tsl.js","three/addons/":"../vendor/addons/"}}</script>
+"three/tsl":"../vendor/three.tsl.js","three/addons/":"../vendor/addons/",
+"animejs":"../node_modules/animejs/dist/modules/index.js"}}</script>
 <script type="module">
 window.RESULT = { steps: [], error: null };
 const step = async (name, fn) => {
@@ -22,7 +23,7 @@ try {
   const scene = new THREE.Scene();
 
   if (MODE === 'work') {
-    const { T, BH } = await step('import work spec', () => import('../works/terra_incognita/spec.js'));
+    const { T, BH, TERRA_SAMPLE_SITES, BODY02_WATER_SITE } = await step('import work spec', () => import('../works/terra_incognita/spec.js'));
     const S = await step('import work surface', () => import('../works/terra_incognita/surface.js'));
     const { MiniMap } = await step('import local survey atlas', () => import('../engine/core/survey.js'));
 
@@ -124,6 +125,28 @@ try {
     const rover  = await step('new Rover     (8 wheels, sprung, hinged lid)', () => new E.Rover(camera, document.getElementById('gl'), S.heightCPU));
     const lander = await step('new Lander    (clear bay + six load paths)', () => new E.Lander(S.heightCPU));
     await step('scene.add all', () => { scene.add(sky, ground.mesh, ...scat.meshes, rover.group, lander.group); return scene.children.length + ' children'; });
+    await step('BODY 03 MEMORY · persistent fields + GPU storage compute', () => {
+      const memory = new E.MissionMemory({ storage: {
+        getItem: () => null, setItem: () => {}, removeItem: () => {},
+      }, key: 'harness:memory' });
+      memory.recordSamples({
+        count: 8,
+        items: E.RESTORATION_ITEMS,
+        sites: TERRA_SAMPLE_SITES,
+      });
+      memory.recordWater({ complete: true, site: BODY02_WATER_SITE });
+      const model = memory.composeBody03({ start: [120, 460] });
+      const geological = new E.GeologicalMemory({ renderer, heightAt: S.heightCPU });
+      if (!geological.activate(model, performance.now())) throw new Error('BODY 03 mission did not activate');
+      const state = geological.snapshot();
+      if (!memory.ready || state.total !== 3 || !state.gpu.enabled
+          || state.gpu.backend !== 'webgpu-storage-compute' || state.gpu.particles < 300
+          || geological.fieldData?.value?.array?.length !== state.gpu.particles * 4)
+        throw new Error(`geological compute buffers incomplete: ${JSON.stringify(state.gpu)}`);
+      scene.add(geological.group);
+      window.__geologicalMemory = geological;
+      return `8 material + H₂O → ${state.total} nodes · ${state.gpu.particles} GPU particles`;
+    });
     await step('new Hud / Captions / Kiosk / Ambient', () => { new E.Hud([['A',[['x','X']]]]); new E.Captions([]); new E.Kiosk(90000); new E.Ambient(); });
     await step('new Lens      (pass + dof + bloom)', () => new E.Lens(renderer, scene, camera));
 
@@ -449,7 +472,7 @@ try {
       return `rear dot ${rearDot.toFixed(1)} m · front dot ${frontDot.toFixed(1)} m · front boom ${v.chaseDist.toFixed(1)} m`;
     });
 
-    await step('CAMERA · C cycles only valid five-shot compositions', () => {
+    await step('CAMERA · C adds rear operator view without escaping authored shots', () => {
       lander.group.visible = true;
       const restoration = {
         event: null, scanning: false, complete: false,
@@ -469,12 +492,22 @@ try {
       if (director.rendered !== 'wide') throw new Error(`initial ${director.rendered}`);
       if (!director.cycle(1100)) throw new Error('C rejected on survey surface');
       director.update(1100);
-      if (director.rendered !== 'macro' || director.source !== 'manual')
+      if (director.rendered !== 'rear' || director.source !== 'manual')
         throw new Error(`first C ${director.rendered}/${director.source}`);
+      const rearForward = new THREE.Vector3(-Math.sin(rover.heading), 0, -Math.cos(rover.heading));
+      const rearOffset = camera.position.clone().sub(rover.pos);
+      if (rearOffset.dot(rearForward) > -4.5)
+        throw new Error(`rear eye is not behind rover: ${rearOffset.dot(rearForward).toFixed(2)}m`);
       director.cycle(1200); director.update(1200);
-      if (director.rendered !== 'tele') throw new Error(`second C ${director.rendered}`);
-      director.cycle(1300); director.update(1300); director.update(3801);
-      if (director.rendered !== 'wide') throw new Error(`third C ${director.rendered}`);
+      if (director.rendered !== 'macro') throw new Error(`second C ${director.rendered}`);
+      director.cycle(1300); director.update(1300);
+      if (director.rendered !== 'tele') throw new Error(`third C ${director.rendered}`);
+      director.cycle(1400); director.update(1400); director.update(3901);
+      if (director.rendered !== 'wide') throw new Error(`fourth C ${director.rendered}`);
+      director.setIntro(true);
+      if (director.cycle(3950) || director.desiredShot() !== 'rear')
+        throw new Error('operator input escaped blueprint rear shot');
+      director.setIntro(false);
       mission.active = true; mission.target = { x: rover.pos.x + 100, z: rover.pos.z };
       mission.lastDistance = 100; restoration.group.visible = false; director.clearManual();
       if (director.desiredShot() !== 'wide') throw new Error('far BODY 02 search is not wide');
@@ -486,7 +519,7 @@ try {
       director.update(4100);
       if (director.rendered !== 'ascent') throw new Error('lift is not ascent shot');
       director.veil.remove();
-      return 'wide → macro → tele → wide · events retain authored priority';
+      return 'wide → rear → macro → tele → wide · intro/events retain authored priority';
     });
 
     await step('LANDER · bay is dark, empty and supports the full wheelbase', () => {

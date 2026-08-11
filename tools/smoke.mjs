@@ -41,6 +41,21 @@ page.on('requestfailed', r => errors.push(`request failed: ${r.url().slice(0, 90
 
 console.log(`→ ${TARGET}`);
 await page.goto(TARGET, { waitUntil: 'load', timeout: 60000 });
+await page.waitForFunction(() => window.TI_READY === true, null, { timeout: 60000 });
+await page.waitForTimeout(1000);
+const introObserved = await page.evaluate(() => ({
+  blueprint: window.TI_BLUEPRINT?.() ?? null,
+  phase: window.TI_SEQUENCE?.().prologue ?? null,
+}));
+/* First input closes the written prologue only. The WebGPU/Anime.js modelling
+   field begins after its 2.6 s fade and must finish before driving unlocks. */
+await page.keyboard.press('KeyC');
+await page.waitForFunction(() => window.TI_SEQUENCE?.().prologue === 'blueprint', null,
+  { timeout: 5000 });
+await page.waitForTimeout(3800);
+const blueprintObserved = await page.evaluate(() => window.TI_BLUEPRINT?.() ?? null);
+await page.waitForFunction(() => window.TI_SEQUENCE?.().prologue === 'released', null,
+  { timeout: 12000 });
 
 const sequencePhases = [];
 let sequenceComplete = !SEQUENCE;
@@ -50,8 +65,8 @@ const sequenceShots = {
 };
 if (SEQUENCE) {
   /* `=` fixes BODY 01, then confirms BODY 02's single water objective. Follow
-     both transfers until BODY 03 arrives with its mission intentionally open. */
-  await page.waitForTimeout(1800);
+     both transfers until their persistent evidence generates BODY 03's
+     three-node Geological Memory mission. */
   await page.keyboard.press('Equal');
   const deadline = Date.now() + 190000;
   let last = '', waterShortcut = false;
@@ -76,7 +91,7 @@ if (SEQUENCE) {
         waterShortcut = true;
         await page.keyboard.press('Equal');
       }
-      if (state.world === 'granite' && state.mission === 'pending'
+      if (state.world === 'granite' && state.mission === 'searching'
           && state.planets === 3 && state.tableau === 'idle'
           && state.docking === 'idle' && state.voyage === 'arrived') {
         sequenceComplete = true;
@@ -87,7 +102,7 @@ if (SEQUENCE) {
   }
 } else {
   /* let it settle, then walk for a while so a recentre and a caption both fire */
-  await page.waitForTimeout(3000);
+  await page.waitForTimeout(2700);
   const before = await page.evaluate(() => window.TI_CAMERA?.() ?? null);
   await page.keyboard.press('KeyC');
   await page.waitForTimeout(250);
@@ -118,12 +133,15 @@ const report = await page.evaluate(() => {
     camera: window.TI_CAMERA?.() ?? null,
     anomalies: window.TI_ANOMALIES?.().length ?? 0,
     water: window.TI_WATER?.() ?? null,
+    memory: window.TI_MEMORY?.() ?? null,
     sequence: window.TI_SEQUENCE?.() ?? null,
   };
 });
 report.sequenceComplete = sequenceComplete;
 report.cameraCycle = cameraCycle;
 report.sequenceShots = sequenceShots;
+report.introObserved = introObserved;
+report.blueprintObserved = blueprintObserved;
 
 await page.screenshot({ path: `${ROOT}/dist/${SEQUENCE ? 'sequence-smoke' : 'smoke'}.png` });
 await browser.close();
@@ -135,16 +153,31 @@ console.log(`\n  screenshot            dist/${SEQUENCE ? 'sequence-smoke' : 'smo
 
 const fatal = [];
 if (!report.started) fatal.push('module never reached first frame');
+if (introObserved?.phase !== 'text' || introObserved?.blueprint?.active) {
+  fatal.push(`written prologue did not precede blueprint: ${JSON.stringify(introObserved)}`);
+}
+if (!blueprintObserved?.active || blueprintObserved.wire < 0.1
+    || blueprintObserved.meshes < 100) {
+  fatal.push(`Anime.js rover blueprint was not observed: ${JSON.stringify(blueprintObserved)}`);
+}
 if (report.gate) fatal.push(`adapter gate fired: ${report.gate}`);
-if (!['wide', 'macro', 'tele', 'return', 'ascent'].includes(report.camera?.shot))
-  fatal.push(`camera escaped five-shot grammar: ${report.camera?.shot ?? 'missing'}`);
+if (!['wide', 'rear', 'macro', 'tele', 'return', 'ascent'].includes(report.camera?.shot))
+  fatal.push(`camera escaped authored/operator grammar: ${report.camera?.shot ?? 'missing'}`);
 if (!SEQUENCE && (!cameraCycle?.before?.available?.length
     || cameraCycle.before.shot === cameraCycle.after?.shot
     || cameraCycle.after?.source !== 'manual')) {
   fatal.push(`C did not change an available authored shot: ${JSON.stringify(cameraCycle)}`);
 }
 if (report.anomalies !== 8) fatal.push(`expected 8 terrain anomalies, found ${report.anomalies}`);
-if (!sequenceComplete) fatal.push('authored sequence did not reach BODY 03 with mission pending');
+if (!sequenceComplete) fatal.push('authored sequence did not generate BODY 03 Geological Memory');
+if (SEQUENCE && (!report.memory?.ledger?.ready
+    || report.memory?.geological?.total !== 3
+    || report.memory?.geological?.sources?.samples !== 8
+    || report.memory?.geological?.sources?.water !== 'BODY02-H2O-01'
+    || report.memory?.geological?.gpu?.backend !== 'webgpu-storage-compute'
+    || report.memory?.geological?.gpu?.dispatches < 1)) {
+  fatal.push(`BODY 03 memory synthesis incomplete: ${JSON.stringify(report.memory)}`);
+}
 if (SEQUENCE) {
   for (const [name, seen] of Object.entries(sequenceShots)) {
     if (!seen) fatal.push(`sequence never rendered required camera state: ${name}`);
