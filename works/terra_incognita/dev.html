@@ -25,7 +25,27 @@
     font-family:'Space Mono',ui-monospace,monospace;font-size:9px;
     letter-spacing:.26em;color:#3a3e45;pointer-events:none;
   }
-  #ti-minimap{position:fixed;z-index:31;top:calc(var(--bar) + 18px);right:20px;width:176px;height:201px;pointer-events:none}
+  #ti-monitor{position:fixed;z-index:31;top:calc(var(--bar) + 18px);right:20px;
+    width:190px;height:217px;padding:6px 6px 8px;pointer-events:none;overflow:hidden;
+    border:1px solid rgba(91,238,128,.24);background:
+      radial-gradient(circle at 6px 6px,rgba(113,255,148,.22) 0 1px,transparent 1.5px),
+      radial-gradient(circle at calc(100% - 6px) 6px,rgba(113,255,148,.16) 0 1px,transparent 1.5px),
+      linear-gradient(145deg,#08110c,#010503 68%);
+    box-shadow:0 0 0 1px rgba(0,0,0,.9),0 12px 34px rgba(0,0,0,.42),
+      inset 0 0 0 1px rgba(133,255,164,.045),inset 0 -10px 22px rgba(0,0,0,.7);
+    transition:opacity 1.2s ease,filter 1.2s ease,box-shadow 1.2s ease}
+  #ti-minimap{display:block;width:100%;height:100%;background:#010804}
+  #ti-monitor::before{content:"";position:absolute;z-index:2;inset:6px 6px 8px;pointer-events:none;
+    background:radial-gradient(ellipse at center,transparent 54%,rgba(0,8,3,.44) 100%);
+    box-shadow:inset 0 0 18px rgba(0,0,0,.68),inset 0 0 2px rgba(157,255,178,.16)}
+  #ti-monitor::after{content:"";position:absolute;z-index:3;inset:7px 7px 9px;pointer-events:none;
+    background:linear-gradient(112deg,transparent 0 18%,rgba(185,255,201,.022) 31%,transparent 46%);
+    opacity:.55;animation:monitor-breathe 8.4s ease-in-out infinite}
+  body.ti-observer #ti-monitor{opacity:.82;filter:saturate(.86) brightness(.72)}
+  body.ti-explorer #ti-monitor{opacity:.96;filter:saturate(1.06) brightness(1.03);
+    box-shadow:0 0 0 1px rgba(0,0,0,.9),0 12px 34px rgba(0,0,0,.42),
+      0 0 18px rgba(82,226,115,.055),inset 0 0 0 1px rgba(133,255,164,.07)}
+  @keyframes monitor-breathe{50%{opacity:.82}}
   #ti-sensor{position:fixed;inset:0;z-index:19;pointer-events:none;opacity:.034;mix-blend-mode:screen;background:radial-gradient(ellipse at center,transparent 54%,rgba(2,5,4,.3) 100%),repeating-linear-gradient(0deg,rgba(190,255,215,.045) 0 1px,transparent 1px 4px);animation:sensor-breathe 8s ease-in-out infinite}
   body.sensor-stutter #ti-sensor{opacity:.07}@keyframes sensor-breathe{50%{opacity:.048}}
   body.ti-desert #ti-sensor{opacity:.032;background:radial-gradient(ellipse at center,transparent 42%,rgba(73,32,13,.28) 100%),linear-gradient(90deg,transparent 0 36%,rgba(205,132,67,.018) 56%,transparent 78%),repeating-linear-gradient(0deg,rgba(255,190,128,.018) 0 1px,transparent 1px 5px)}
@@ -33,13 +53,13 @@
      not this colour treatment, is what saves fill-rate. One static compositor
      layer is kept deliberately faint to avoid CRT moire on photographed screens. */
   body.ti-terminal #gl{filter:grayscale(1) sepia(1) hue-rotate(68deg) saturate(5) contrast(1.18) brightness(.82);image-rendering:pixelated}
-  body.ti-terminal #ti-minimap{filter:grayscale(1) sepia(1) hue-rotate(68deg) saturate(4) contrast(1.08) brightness(.9)}
+  body.ti-terminal #ti-monitor{filter:saturate(1.08) contrast(1.06) brightness(.92)}
   #ti-terminal-screen{position:fixed;inset:0;z-index:18;display:none;pointer-events:none;
     background:radial-gradient(ellipse at center,transparent 48%,rgba(0,18,7,.34) 100%),
       repeating-linear-gradient(0deg,rgba(126,255,164,.026) 0 1px,transparent 1px 5px)}
   body.ti-terminal #ti-terminal-screen{display:block;animation:terminal-breathe 9s ease-in-out infinite}
   @keyframes terminal-breathe{50%{opacity:.76}}
-  #ti-terminal-cue{position:fixed;z-index:42;right:max(20px,env(safe-area-inset-right));top:calc(var(--bar) + 18px);
+  #ti-terminal-cue{position:fixed;z-index:42;right:max(20px,env(safe-area-inset-right));top:calc(var(--bar) + 247px);
     width:min(270px,68vw);padding:10px 0 9px;border-top:1px solid rgba(118,255,158,.24);
     font-family:'DM Mono','Noto Sans KR',ui-monospace,monospace;text-align:right;text-transform:uppercase;
     color:rgba(164,255,190,.72);font-size:8px;line-height:1.8;letter-spacing:.16em;
@@ -65,17 +85,17 @@
      vehicle on BODY 01, and the final coordinate on BODY 02. The letterbox
      remains, but operational overlays withdraw so these read as images rather
      than game states. */
-  #ti-minimap,#survey-log,#universe-id,#ti-mobile-drive{transition:opacity 1.2s ease}
-  body.ti-completion-tableau #ti-minimap,
+  #ti-monitor,#survey-log,#universe-id,#ti-mobile-drive{transition:opacity 1.2s ease}
+  body.ti-completion-tableau #ti-monitor,
   body.ti-completion-tableau #survey-log,
   body.ti-completion-tableau #fh-hud,
   body.ti-completion-tableau #ti-mobile-drive,
-  body.ti-memory-tableau #ti-minimap,
+  body.ti-memory-tableau #ti-monitor,
   body.ti-memory-tableau #survey-log,
   body.ti-memory-tableau #fh-hud,
   body.ti-memory-tableau #ti-mobile-drive,
   body.ti-memory-tableau #universe-id,
-  body.ti-epilogue #ti-minimap,
+  body.ti-epilogue #ti-monitor,
   body.ti-epilogue #survey-log,
   body.ti-epilogue #fh-hud,
   body.ti-epilogue #ti-mobile-drive,
@@ -167,7 +187,7 @@
   .mobile-controls{display:none}
   @media (max-width:760px){
     #universe-id{right:max(14px,env(safe-area-inset-right));bottom:calc(var(--bar) + max(14px,env(safe-area-inset-bottom)))}
-    #ti-minimap{right:max(14px,env(safe-area-inset-right));transform:scale(.62);transform-origin:top right}
+    #ti-monitor{right:max(14px,env(safe-area-inset-right));transform:scale(.62);transform-origin:top right}
     #ti-terminal-cue{left:max(14px,env(safe-area-inset-left));right:auto;width:min(46vw,180px);text-align:left}
   }
   @media (pointer:coarse), (max-width:760px){
@@ -177,7 +197,7 @@
     body.ti-mobile #ti-prologue .desktop-start{display:none}
     body.ti-mobile.ti-prologue-out #ti-mobile-drive,body.ti-mobile.embed #ti-mobile-drive{display:grid}
   }
-  @media (prefers-reduced-motion:reduce){#ti-terminal-screen{animation:none!important}}
+  @media (prefers-reduced-motion:reduce){#ti-terminal-screen,#ti-monitor::after{animation:none!important}}
 </style>
 </head>
 <body>
@@ -185,7 +205,9 @@
 <div id="ti-terminal-screen" aria-hidden="true"></div>
 <div id="ti-terminal-cue" role="status" aria-live="polite" aria-hidden="true"><b>Archival Terminal</b>제한된 연산 자원 · 기록 신호로 전환<br>Low-compute telemetry recovered</div>
 <div id="ti-sensor" aria-hidden="true"></div>
-<canvas id="ti-minimap" width="308" height="352" aria-label="Lander reconstruction display showing eight wireframe and material modules"></canvas>
+<div id="ti-monitor" role="img" aria-label="세 행성의 착륙선 재구성, 로버 위치와 지질 기억을 표시하는 녹색 형광체 임무 모니터">
+  <canvas id="ti-minimap" width="308" height="352" aria-hidden="true"></canvas>
+</div>
 <div id="survey-log" aria-live="polite"></div>
 <div id="ti-restoration" role="status" aria-live="polite" aria-label="Lander reconstruction progress">
   <div class="head"><span>Lander Reconstruction</span><span id="ti-restoration-progress">0 / 8</span></div>
@@ -229,7 +251,7 @@
     <span class="skip desktop-start">아무 키나 눌러 로버 구성 시작 · Resolve rover to begin</span>
     <button id="ti-mobile-start" class="skip" type="button" disabled>로버 구성 시작 · ENABLE TILT</button>
   </div>
-  <div class="controls"><span class="desktop-controls">AUTONOMOUS BY DEFAULT &nbsp;·&nbsp; <kbd>C</kbd> REAR SHOT &nbsp;·&nbsp; <kbd>H</kbd> ENGINEERING</span><span class="mobile-controls">기기를 좌우로 기울여 조향 · 자동주행 기본<br>Tilt to steer · Autonomous drive</span></div>
+  <div class="controls"><span class="desktop-controls">OBSERVER BY DEFAULT &nbsp;·&nbsp; <kbd>WASD</kbd> EXPLORE &nbsp;·&nbsp; <kbd>C</kbd> CAMERA &nbsp;·&nbsp; <kbd>SPACE</kbd> OBSERVER</span><span class="mobile-controls">탭하고 기울여 직접 탐사 · 무입력 시 감상으로 복귀<br>Tap and tilt to explore · Returns to observer</span></div>
 </section>
 
 <script>

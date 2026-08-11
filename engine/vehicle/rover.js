@@ -159,6 +159,13 @@ export class Rover {
     this.orbitDist = 6.4;
     this.camAt = new THREE.Vector3();
     this.cameraControl = true;          // false when an external ShotDirector owns the lens
+    /* A work may own the autonomous/manual state as one continuous
+       experience. In that case Rover still records the physical keys, but it
+       must not independently toggle the route underneath the work's mode
+       director. */
+    this.externalDriveMode = false;
+    this.manualInputEnabled = true;
+    this.onSpace = null;
     this._aim = new THREE.Vector3();      // preallocated: placeChase runs every
     this._want = new THREE.Vector3();     // frame and must not churn the heap
     this.lamps = true;
@@ -174,6 +181,7 @@ export class Rover {
     this.autoSpeedScale = 1;
     this.missionHold = false;       // long autonomous survey pauses
     this.mobileMode = false;
+    this.mobileInputEnabled = true;
     this.mobileSteer = 0;
     /* Mobile inclination controls only this scalar. Steering remains an
        independent, screen-relative correction so a viewer can park the rover
@@ -214,8 +222,15 @@ export class Rover {
     this.acquisitionGlowStart = -Infinity;
 
     addEventListener('keydown', e => {
-      if (e.code === 'Space') { this.auto = !this.auto; e.preventDefault(); }
-      if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) this.auto = false;
+      if (e.code === 'Space') {
+        if (this.onSpace) this.onSpace(performance.now());
+        else if (!this.externalDriveMode) this.auto = !this.auto;
+        e.preventDefault();
+      }
+      if (!this.externalDriveMode
+          && ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+        this.auto = false;
+      }
       if (e.code === 'KeyL' && !this.mobileMode && !this.disabled) this.lamps = !this.lamps;
       this.keys.add(e.code);
     });
@@ -289,15 +304,17 @@ export class Rover {
     const k = this.keys;
 
     let throttle = 0, steer = 0;
-    if (k.has('KeyW') || k.has('ArrowUp')) throttle += 1;
-    if (k.has('KeyS') || k.has('ArrowDown')) throttle -= 1;
-    if (k.has('KeyA') || k.has('ArrowLeft')) steer += 1;
-    if (k.has('KeyD') || k.has('ArrowRight')) steer -= 1;
+    if (this.manualInputEnabled) {
+      if (k.has('KeyW') || k.has('ArrowUp')) throttle += 1;
+      if (k.has('KeyS') || k.has('ArrowDown')) throttle -= 1;
+      if (k.has('KeyA') || k.has('ArrowLeft')) steer += 1;
+      if (k.has('KeyD') || k.has('ArrowRight')) steer -= 1;
+    }
     if (this.auto && throttle === 0 && !this.missionHold) {
       throttle = 1;
       if (steer === 0) steer = this.autoSteer;
     }
-    if (this.mobileMode) {
+    if (this.mobileMode && this.mobileInputEnabled) {
       this.auto = true;
       steer = this.operatorHold || this.missionHold ? 0 : this.mobileSteer;
       throttle = this.operatorHold || this.missionHold ? 0 : this.mobileThrottle;
@@ -306,7 +323,7 @@ export class Rover {
       throttle = this.scriptedDrive.throttle ?? 0;
       steer = this.scriptedDrive.steer ?? 0;
     }
-    let boosting = k.has('ShiftLeft') || k.has('ShiftRight');
+    let boosting = this.manualInputEnabled && (k.has('ShiftLeft') || k.has('ShiftRight'));
 
     /* A dead probe is not a slowed probe. No drive, no steering, no lamps —
        the mast camera still works because looking costs nothing. */

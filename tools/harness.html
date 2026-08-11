@@ -530,7 +530,7 @@ try {
         heightAt: S.heightCPU,
       });
       director.update(1000);
-      if (director.rendered !== 'macro') throw new Error(`initial ${director.rendered}`);
+      if (director.rendered !== 'wide') throw new Error(`initial observer ${director.rendered}`);
       if (!director.cycle(1100)) throw new Error('C rejected on survey surface');
       director.update(1100);
       if (director.rendered !== 'rear' || director.source !== 'manual')
@@ -570,7 +570,11 @@ try {
       director.setIntro(false);
       mission.active = true; mission.target = { x: rover.pos.x + 100, z: rover.pos.z };
       mission.lastDistance = 100; restoration.group.visible = false; director.clearManual();
-      if (director.desiredShot() !== 'macro') throw new Error('far BODY 02 travel is not rover macro');
+      director.setExperience('observer', 3990);
+      if (director.desiredShot() !== 'wide') throw new Error('far BODY 02 observer travel is not ultrawide');
+      director.setExperience('explorer', 3995);
+      if (director.desiredShot() !== 'rear') throw new Error('BODY 02 explorer did not inherit rear follow');
+      director.setExperience('observer', 3998);
       mission.lastDistance = 6;
       if (director.desiredShot() !== 'macro') throw new Error('near BODY 02 evidence is not macro');
       mission.event = { t0: 0 };

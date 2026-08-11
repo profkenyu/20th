@@ -34,6 +34,10 @@ export class MobileControl {
     this.lastUi = '';
     this.longPress = false;
     this.pressTimer = 0;
+    this.explorer = false;
+    this.onIntent = null;
+    this.lastIntentRoll = 0;
+    this.lastIntentElevation = 0;
 
     this.onOrientation = e => this._orientation(e);
     this.onScreenChange = () => this.recalibrate();
@@ -72,6 +76,7 @@ export class MobileControl {
     this.tilt?.addEventListener('pointerdown', stop);
     this.tilt?.addEventListener('click', e => {
       stop(e);
+      this._intent('tilt');
       if (this.permission === 'granted') this.recalibrate();
       else if (this.permission !== 'denied' && this.permission !== 'unavailable') this.requestTilt();
     });
@@ -89,7 +94,12 @@ export class MobileControl {
       stop(e);
       clearTimeout(this.pressTimer);
       if (!this.longPress && !this.toggle?.disabled) {
-        this.rover.operatorHold = !this.rover.operatorHold;
+        const wasExplorer = this.explorer;
+        this._intent('drive');
+        /* The first tap takes control; subsequent taps are the deliberate
+           park/resume command. Entering Explorer must never immediately park
+           the rover in the same gesture. */
+        this.rover.operatorHold = wasExplorer ? !this.rover.operatorHold : false;
         this.rover.mobileSteer = 0;
         this.filteredSteer = 0;
       }
@@ -99,6 +109,24 @@ export class MobileControl {
     this.toggle?.addEventListener('pointercancel', e => {
       stop(e); clearTimeout(this.pressTimer); this.longPress = false;
     });
+  }
+
+  _intent(kind) {
+    this.onIntent?.(kind, performance.now());
+  }
+
+  setExplorer(active) {
+    this.explorer = !!active;
+    this.rover.mobileInputEnabled = this.explorer;
+    if (!this.explorer) {
+      this.rover.operatorHold = false;
+      this._zero();
+      this.rawThrottle = 1;
+      this.filteredThrottle = 1;
+      this.rover.mobileThrottle = 1;
+    }
+    this.lastUi = '';
+    this._syncUi(false, false, true);
   }
 
   async requestTilt() {
@@ -166,6 +194,12 @@ export class MobileControl {
     const elevation = this._screenElevation(beta, gamma);
     if (!Number.isFinite(elevation)) return;
     this.lastSample = performance.now();
+    if (Math.abs(roll - this.lastIntentRoll) >= 1.5
+        || Math.abs(elevation - this.lastIntentElevation) >= 2.5) {
+      this.lastIntentRoll = roll;
+      this.lastIntentElevation = elevation;
+      this._intent('tilt-motion');
+    }
     /* Speed posture remains live during steering calibration. This prevents a
        parked rover from unexpectedly moving while the neutral roll is being
        reacquired after a screen rotation. */
@@ -204,7 +238,7 @@ export class MobileControl {
 
   update(now, dt, { released = false, blocked = false, missionHold = false } = {}) {
     if (!this.active) return;
-    const usable = this.permission === 'granted' && !this.calibrating
+    const usable = this.explorer && this.permission === 'granted' && !this.calibrating
       && now - this.lastSample <= 700 && released && !blocked
       && !missionHold && !this.rover.operatorHold;
     const target = usable ? this.rawSteer : 0;
@@ -220,7 +254,7 @@ export class MobileControl {
     this.rover.mobileSteer = usable && !this.tiltParked ? steering : 0;
     /* Once permission exists, retain the last measured run/park posture during
        a short sensor pause or recalibration instead of silently resuming. */
-    const sensorOwnsSpeed = this.permission === 'granted' && released;
+    const sensorOwnsSpeed = this.explorer && this.permission === 'granted' && released;
     const throttleTarget = sensorOwnsSpeed ? this.rawThrottle : 1;
     this.filteredThrottle += (throttleTarget - this.filteredThrottle) * (1 - Math.exp(-dt / 0.36));
     if (Math.abs(this.filteredThrottle - throttleTarget) < 0.002) this.filteredThrottle = throttleTarget;
@@ -242,6 +276,8 @@ export class MobileControl {
     this.rawThrottle = 1;
     this.filteredThrottle = 1;
     this.tiltParked = false;
+    this.explorer = false;
+    this.rover.mobileInputEnabled = false;
     this.rover.mobileThrottle = 1;
     if (this.permission === 'granted') this.recalibrate();
     this._syncUi(false, false, false);
@@ -257,14 +293,16 @@ export class MobileControl {
       : 'ENABLE TILT · 기울기 조향';
     const state = blocked ? 'LINK SEQUENCE'
       : missionHold ? 'SURVEYING'
+      : !this.explorer ? 'OBSERVER'
       : this.rover.operatorHold ? 'HOLD'
       : this.tiltParked ? 'TILT PARK'
-      : released ? 'AUTO DRIVE' : 'STANDBY';
+      : released ? 'EXPLORER' : 'STANDBY';
     const hint = blocked ? '원격 몸체 연결 중'
       : missionHold ? '자동 측량 후 주행 재개'
+      : !this.explorer ? '탭하여 직접 탐사'
       : this.rover.operatorHold ? '탭하여 탐사 재개'
       : this.tiltParked ? '기울이면 출발'
-      : '세우면 정지 · 탭하여 일시 정지';
+      : '기울여 조향 · 탭하여 일시 정지';
     const key = `${sensor}|${state}|${hint}|${blocked}`;
     if (key === this.lastUi) return;
     this.lastUi = key;

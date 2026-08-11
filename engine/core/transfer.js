@@ -29,7 +29,7 @@ body.tx-blackout #ti-transfer-layer{opacity:1;background:#050506;transition-dura
 body.tx-blackout #ti-transfer-axis{animation:ti-axis-residue 2.6s ease-out both}
 body.tx-blackout #ti-transfer-core{opacity:0;transition:opacity .3s ease-out}
 body.tx-arrival #ti-transfer-layer{opacity:0;background:#050506;transition-duration:4.8s}body.tx-arrival #ti-transfer-copy{opacity:0}
-body.tx-arrival #ti-transfer-core{opacity:0}body.tx-active #ti-minimap{filter:drop-shadow(0 0 5px rgba(105,224,145,.08))}body.tx-lock #survey-log{filter:drop-shadow(0 0 3px rgba(105,224,145,.12))}
+body.tx-arrival #ti-transfer-core{opacity:0}body.tx-active #ti-monitor{filter:drop-shadow(0 0 5px rgba(105,224,145,.08))}body.tx-lock #survey-log{filter:drop-shadow(0 0 3px rgba(105,224,145,.12))}
 body.tx-arrival #ti-transfer-axis{animation:ti-axis-arrive 5.8s cubic-bezier(.2,.7,.2,1) both}
 body.tx-arrival #ti-transfer-field{opacity:1}
 body.tx-arrival #ti-transfer-field i:nth-child(1){animation:ti-field-arrive 2.9s .1s ease-out both}

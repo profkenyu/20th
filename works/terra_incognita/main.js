@@ -175,6 +175,11 @@ const DOCKED_BREATH_MS = 2800;
 const ARRIVAL_BREATH_MS = 3000;
 const WATER_CONFIRM_BREATH_MS = 4800;
 const FINAL_TABLEAU_MS = 12000;
+const EXPLORER_IDLE_MS = 12000;
+const DRIVE_KEYS = new Set([
+  'KeyW', 'KeyA', 'KeyS', 'KeyD',
+  'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+]);
 
 const ROWS = [
   ['Instrument', [['backend', 'Backend'], ['vendor', 'Vendor'], ['tier', 'Tier'], ['mode', 'Render mode'], ['limits', 'Limits']]],
@@ -252,6 +257,7 @@ let failureResetAt = 0;
 let nextAutoPauseAt = 0, autoPauseUntil = 0;
 let driveReleaseAt = 0, dockedHoldUntil = 0;
 let pendingArrival = null, finalTableau = null;
+let experienceMode = 'observer', lastExplorerIntent = -Infinity;
 let released = false;      // the prologue has let go of the rover
 let prologuePhase = 'text'; // text → blueprint → released
 let blueprintStartTimer = 0;
@@ -262,6 +268,7 @@ const rc = { ground: 0, field: 0, scatter: 0 };
 try {
 scene = new THREE.Scene();
 hud = new Hud(ROWS);
+hud.setExperience('observer');
 captions = new Captions(LINES);
 ambient = new Ambient();
 kiosk = new Kiosk(CFG.kiosk.idleMs);
@@ -288,6 +295,9 @@ landmark.rotation.set(0.10, 0.42, -0.035);
 landmark.visible = false;
 rover = new Rover(camera, canvas, heightCPU);
 rover.cameraControl = false;
+rover.externalDriveMode = true;
+rover.manualInputEnabled = false;
+rover.mobileInputEnabled = false;
 mobileControl = new MobileControl(rover);
 lander = new Lander(heightCPU);
 restoration = new Restoration(lander, heightCPU, TERRA_SAMPLE_SITES);
@@ -363,6 +373,14 @@ voyage = new VoyageSequence({
 shotDirector = new ShotDirector({
   camera, rover, lander, restoration, mission: waterMission, docking, voyage, heightAt: heightCPU,
 });
+shotDirector.setExperience('observer');
+mobileControl.setExplorer(false);
+mobileControl.onIntent = (_kind, now) => enterExplorer(now, { rear: true });
+rover.onSpace = now => {
+  if (!released) { releasePrologue(); return; }
+  enterObserver(now, { resumeRoute: observerMayDrive() });
+  kiosk.last = now;
+};
 roverReveal = new RoverReveal(rover, {
   onComplete: completeBlueprintPrologue,
 });
@@ -385,13 +403,20 @@ if (ARCHIVE_AT_BOOT) activateArchive('device', false);
 
 addEventListener('resize', () => renderer.setPixelRatio(adaptive.dpr));
 addEventListener('keydown', e => {
+  const now = performance.now();
+  if (DRIVE_KEYS.has(e.code)) {
+    e.preventDefault();
+    if (!released) { if (!e.repeat) releasePrologue(); return; }
+    enterExplorer(now, { rear: true });
+  }
   if (!e.repeat && e.code === 'KeyC') {
     e.preventDefault();
     if (!released) { releasePrologue(); return; }
     shotDirector.setOpening(false);
-    if (shotDirector.cycle(performance.now())) {
+    if (shotDirector.cycle(now)) {
+      enterExplorer(now, { rear: false });
       openingShot = null;
-      kiosk.last = performance.now();
+      kiosk.last = now;
     }
   }
   if (!e.repeat && (e.code === 'Equal' || e.code === 'NumpadEqual' || e.key === '=')) {
@@ -438,6 +463,58 @@ addEventListener('keydown', e => {
     for (const m of scatter.meshes) m.visible = !on;
   }
 });
+
+function authoredExperienceLock() {
+  return prologuePhase !== 'released' || !!completionTableau || !!pendingArrival || !!finalTableau
+    || docking.started || voyage.active
+    || !!restoration.event || !!waterMission.event || !!geologicalMemory.event
+    || (restoration.group.visible && restoration.complete)
+    || waterMission.complete || geologicalMemory.state === 'complete';
+}
+
+function observerMayDrive() {
+  return released && !completionTableau && !pendingArrival && !finalTableau
+    && !docking.started && !voyage.active;
+}
+
+function enterExplorer(now = performance.now(), { rear = true } = {}) {
+  if (!released || authoredExperienceLock()) return false;
+  const changed = experienceMode !== 'explorer';
+  experienceMode = 'explorer';
+  lastExplorerIntent = now;
+  openingShot = null;
+  shotDirector.setOpening(false);
+  shotDirector.setExperience('explorer', now);
+  if (rear && changed) shotDirector.selectRear(now, true);
+  rover.auto = false;
+  rover.operatorHold = false;
+  rover.manualInputEnabled = true;
+  autoPauseUntil = 0;
+  nextAutoPauseAt = now + 46000;
+  mobileControl.setExplorer(true);
+  hud.setExperience('explorer');
+  kiosk.last = now;
+  return true;
+}
+
+function enterObserver(now = performance.now(), { resumeRoute = observerMayDrive() } = {}) {
+  const changed = experienceMode !== 'observer';
+  experienceMode = 'observer';
+  lastExplorerIntent = -Infinity;
+  rover.manualInputEnabled = false;
+  rover.operatorHold = false;
+  if (resumeRoute) {
+    rover.auto = true;
+    rover.missionHold = false;
+    autoPauseUntil = 0;
+    nextAutoPauseAt = now + 46000;
+  }
+  mobileControl.setExplorer(false);
+  shotDirector.setExperience('observer', now);
+  hud.setExperience('observer');
+  if (changed) kiosk.last = now;
+  return changed;
+}
 
 const a = await describeAdapter();
 hud.set('backend', 'WebGPU');
@@ -486,6 +563,7 @@ window.TI_BLUEPRINT = () => roverReveal.snapshot();
 window.TI_MATTER_PASSAGE = () => matterPassage.snapshot();
 window.TI_CAMERA = () => ({
   world,
+  experience: experienceMode,
   shot: shotDirector.rendered,
   label: shotDirector.label,
   source: shotDirector.source,
@@ -494,6 +572,13 @@ window.TI_CAMERA = () => ({
   lock: shotDirector.lockLabel,
   transition: shotDirector.transition ? 'dissolve'
     : performance.now() - shotDirector.lastCutAt < 100 ? 'hardcut' : 'none',
+});
+window.TI_EXPERIENCE = () => ({
+  mode: experienceMode,
+  auto: rover.auto,
+  manualInput: rover.manualInputEnabled,
+  idleFor: experienceMode === 'explorer' ? performance.now() - lastExplorerIntent : 0,
+  returnAfter: EXPLORER_IDLE_MS,
 });
 window.TI_ANOMALIES = () => restoration.sites.map((site, index) => ({
   index,
@@ -532,6 +617,7 @@ window.TI_SEQUENCE = () => ({
   matter: matterPassage.snapshot().phase,
   tableau: completionTableau ? 'active' : 'idle',
   landerPresent, roverVisible: rover.group.visible,
+  experience: experienceMode,
   cameraShot: shotDirector.rendered,
 });
 queueLoop();
@@ -731,6 +817,17 @@ async function frame() {
   }
 
   const missionEnding = voyage.phase === 'epilogue' || voyage.phase === 'ended' || !!finalTableau;
+  if (experienceMode === 'explorer') {
+    let driveHeld = false;
+    for (const code of DRIVE_KEYS) if (rover.keys.has(code)) { driveHeld = true; break; }
+    if (driveHeld) lastExplorerIntent = now;
+    if (authoredExperienceLock()) {
+      enterObserver(now, { resumeRoute: observerMayDrive() });
+    } else if (now - lastExplorerIntent >= EXPLORER_IDLE_MS) {
+      enterObserver(now, { resumeRoute: true });
+    }
+  }
+  rover.manualInputEnabled = experienceMode === 'explorer' && !authoredExperienceLock();
   const restorationHold = world === 'terra' && (restoration.holding(now)
     || restoration.shouldHold({ x: rover.pos.x, z: rover.pos.z }));
   const waterHold = world === 'desert' && waterMission.shouldHold({ x: rover.pos.x, z: rover.pos.z });
@@ -994,6 +1091,7 @@ function openingLampGain(now) {
 function beginCompletionTableau(now) {
   openingShot = null;
   shotDirector.setOpening(false);
+  enterObserver(now, { resumeRoute: false });
   completionTableau = { t0: now };
   rover.auto = false;
   rover.missionHold = true;
@@ -1055,6 +1153,7 @@ async function prepareVoyageDestination(destination) {
   shotDirector.mission = world === 'granite' ? geologicalMemory : waterMission;
   shotDirector.clearManual();
   shotDirector.setOpening(false);
+  enterObserver(performance.now(), { resumeRoute: false });
   captions.lines = planet.lines; captions.rearm();
   survey.reset(planet.survey);
   minimap.restoration = null;
@@ -1126,6 +1225,7 @@ async function returnToStart() {
   rover.lidTilt = 0;
   rover.reset(BH.start[0], BH.start[1], START_HEADING);
   mobileControl.reset();
+  enterObserver(performance.now(), { resumeRoute: location.search.includes('embed') });
   lander.place(BH.start[0], BH.start[1], START_HEADING, true);
   restoration.reset(0);
   restoration.group.visible = true;

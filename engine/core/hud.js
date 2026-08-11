@@ -22,14 +22,20 @@ const CSS = `
   text-shadow:0 1px 12px rgba(0,0,0,.82);transition:opacity .8s ease;
 }
 #fh-mission span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#fh-mission .experience{margin-bottom:4px;font:500 7px/1.45 'DM Mono',ui-monospace,monospace;
+  letter-spacing:.19em;color:rgba(138,144,153,.58);transition:color .8s ease,letter-spacing .8s ease}
 #fh-mission .body{font:700 9px/1.5 'Space Mono',ui-monospace,monospace;letter-spacing:.22em;color:#c0152a}
 #fh-mission .objective{margin-top:4px;font-size:8px;line-height:1.55;letter-spacing:.11em;color:rgba(217,221,226,.76)}
 #fh-mission .systems{font-size:7px;line-height:1.65;letter-spacing:.10em;color:rgba(138,144,153,.60)}
 body.fh-dead #fh-mission{opacity:.32}
+body.ti-observer #fh-mission{opacity:.68}
+body.ti-explorer #fh-mission{opacity:1;border-left-color:rgba(192,21,42,.82)}
+body.ti-explorer #fh-mission .experience{color:rgba(217,221,226,.78);letter-spacing:.24em}
 body.ti-completion-tableau #fh-mission,body.ti-memory-tableau #fh-mission,
 body.ti-epilogue #fh-mission{opacity:0}
 body.fh-dead #fh-hud{opacity:.28}
 body.fh-dead #fh-keys{opacity:.25}
+body.ti-explorer #fh-keys{opacity:.76;transition-duration:.6s}
 body.tx-active #fh-keys{opacity:0}
 #fh-hud .eyebrow{font-family:'Space Mono',ui-monospace,monospace;font-weight:700;
   font-size:9px;letter-spacing:.26em;color:#c0152a;text-transform:uppercase}
@@ -100,14 +106,16 @@ export class Hud {
     mission.id = 'fh-mission';
     mission.setAttribute('role', 'status');
     mission.setAttribute('aria-live', 'polite');
-    mission.innerHTML = '<span class="body">BODY 01 · SHEAR BODY</span>'
+    mission.innerHTML = '<span class="experience">OBSERVER · AUTONOMOUS</span>'
+      + '<span class="body">BODY 01 · SHEAR BODY</span>'
       + '<span class="objective">OBJECTIVE · MATERIAL 0 / 8</span>'
       + '<span class="systems">PWR — · COMMS LOCAL</span>';
     document.body.appendChild(mission);
 
     const keys = document.createElement('div');
     keys.id = 'fh-keys';
-    keys.innerHTML = '<b>C</b> REAR SHOT · <b>H</b> ENGINEERING · <b>M</b> AUDIO';
+    keys.innerHTML = '<span class="mode">EXP</span><b>WASD / ARROWS</b> DRIVE · <b>C</b> CAMERA'
+      + '<br><span class="mode">OBS</span><b>SPACE</b> AUTONOMOUS · <b>H</b> ENGINEERING · <b>M</b> AUDIO';
     document.body.appendChild(keys);
 
     const wakeKeys = () => {
@@ -120,6 +128,7 @@ export class Hud {
     this.el = el;
     this.missionEl = mission;
     this.keys = keys;
+    this.experience = 'observer';
     this.gallery = true;
     this.pinned = false;
     this.fields = {};
@@ -159,10 +168,22 @@ export class Hud {
 
   setMission({ body, objective, systems }) {
     if (!this.missionEl) return;
-    const fields = this.missionEl.children;
-    if (body != null) fields[0].textContent = body;
-    if (objective != null) fields[1].textContent = objective;
-    if (systems != null) fields[2].textContent = systems;
+    if (body != null) this.missionEl.querySelector('.body').textContent = body;
+    if (objective != null) this.missionEl.querySelector('.objective').textContent = objective;
+    if (systems != null) this.missionEl.querySelector('.systems').textContent = systems;
+  }
+
+  setExperience(mode) {
+    const next = mode === 'explorer' ? 'explorer' : 'observer';
+    if (next === this.experience
+        && document.body.classList.contains(`ti-${next}`)) return;
+    this.experience = next;
+    document.body.classList.toggle('ti-explorer', next === 'explorer');
+    document.body.classList.toggle('ti-observer', next === 'observer');
+    const label = this.missionEl?.querySelector('.experience');
+    if (label) label.textContent = next === 'explorer'
+      ? 'EXPLORER · DIRECT CONTROL' : 'OBSERVER · AUTONOMOUS';
+    this.keys?.classList.toggle('awake', next === 'explorer');
   }
 
   flash() {

@@ -4,6 +4,20 @@ import { vec3, vec4 } from 'three/tsl';
 const REDUCED_MOTION = typeof matchMedia !== 'undefined'
   && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+/* The atlas is a single-band instrument rather than a miniature game map.
+   Values are separated by luminance, as they would be on a green phosphor
+   display: black glass, stored trace, live trace, then a clipped hot core. */
+const PHOSPHOR = Object.freeze({
+  black: '1,8,4',
+  glass: '2,15,8',
+  deep: '8,34,17',
+  dim: '49,126,70',
+  mid: '76,218,115',
+  bright: '139,255,169',
+  hot: '211,255,220',
+});
+const phosphor = (tone, alpha) => `rgba(${PHOSPHOR[tone]},${alpha})`;
+
 /* A local instrument, not an omniscient world map. Cells enter only when the
    rover's scan footprint touches them; unknown terrain remains literally
    absent. Absolute world coordinates keep the record stable while the render
@@ -185,9 +199,9 @@ export class MiniMap {
   }
 
   drawArchive(c, memory, x, y, w, h) {
-    c.fillStyle = 'rgba(5,5,6,.88)'; c.fillRect(x, y, w, h);
-    c.strokeStyle = 'rgba(217,221,226,.055)'; c.strokeRect(x + .5, y + .5, w - 1, h - 1);
-    c.font = '11px DM Mono, monospace'; c.fillStyle = 'rgba(177,230,197,.24)';
+    c.fillStyle = phosphor('glass', .88); c.fillRect(x, y, w, h);
+    c.strokeStyle = phosphor('mid', .09); c.strokeRect(x + .5, y + .5, w - 1, h - 1);
+    c.font = '11px DM Mono, monospace'; c.fillStyle = phosphor('bright', .3);
     c.fillText(memory.id ?? 'MEMORY', x + 7, y + 13);
     const b = memory.bounds, cells = memory.cells ?? [];
     if (b && cells.length) {
@@ -195,12 +209,29 @@ export class MiniMap {
       const k = Math.min((w - 14) / bw, (h - 22) / bh);
       const ox = x + w / 2 - (b.minX + b.maxX) * .5 * k;
       const oy = y + 17 + (h - 20) / 2 - (b.minZ + b.maxZ) * .5 * k;
-      c.fillStyle = 'rgba(145,180,158,.20)';
+      c.fillStyle = phosphor('mid', .24);
       for (const p of cells) c.fillRect(ox + p.x * k, oy + p.z * k, 1.4, 1.4);
     } else {
-      c.font = '9px DM Mono, monospace'; c.fillStyle = 'rgba(217,221,226,.07)';
+      c.font = '9px DM Mono, monospace'; c.fillStyle = phosphor('mid', .1);
       c.fillText('NO DATA', x + 7, y + h - 7);
     }
+  }
+
+  drawPhosphorOverlay(now) {
+    const c = this.ctx, W = this.canvas.width, H = this.canvas.height;
+    c.save();
+    c.globalCompositeOperation = 'screen';
+    /* Sparse scanlines retain detail while making the display feel emitted,
+       not printed. The rolling refresh band is frozen for reduced motion. */
+    c.fillStyle = phosphor('bright', .012);
+    for (let y = 1; y < H; y += 4) c.fillRect(0, y, W, 1);
+    const sweep = REDUCED_MOTION ? H * .38 : (now * .024) % (H + 64) - 32;
+    const refresh = c.createLinearGradient(0, sweep - 24, 0, sweep + 24);
+    refresh.addColorStop(0, phosphor('mid', 0));
+    refresh.addColorStop(.5, phosphor('bright', REDUCED_MOTION ? .012 : .026));
+    refresh.addColorStop(1, phosphor('mid', 0));
+    c.fillStyle = refresh; c.fillRect(0, sweep - 24, W, 48);
+    c.restore();
   }
 
   drawRestoration(now) {
@@ -212,11 +243,11 @@ export class MiniMap {
     const cx = W * 0.5, cy = 174;
 
     c.clearRect(0, 0, W, H);
-    c.fillStyle = 'rgba(5,5,6,.82)'; c.fillRect(0, 0, W, H);
-    c.strokeStyle = 'rgba(217,221,226,.08)'; c.strokeRect(.5, .5, W - 1, H - 1);
-    c.font = '15px DM Mono, monospace'; c.fillStyle = 'rgba(217,221,226,.42)';
+    c.fillStyle = phosphor('glass', .9); c.fillRect(0, 0, W, H);
+    c.strokeStyle = phosphor('mid', .14); c.strokeRect(.5, .5, W - 1, H - 1);
+    c.font = '15px DM Mono, monospace'; c.fillStyle = phosphor('hot', .54);
     c.fillText('LANDER MATERIAL STATE', 12, 20);
-    c.font = '10px DM Mono, monospace'; c.fillStyle = 'rgba(143,168,163,.28)';
+    c.font = '10px DM Mono, monospace'; c.fillStyle = phosphor('mid', .34);
     c.fillText(`ARK–01 · MODULE RECOVERY · ${count}/8`, 12, 39);
 
     c.save();
@@ -225,44 +256,44 @@ export class MiniMap {
 
     const modules = [
       { // 0 · foundation
-        fill: 'rgba(47,54,61,.88)', paths: [[[103,225],[205,225],[193,258],[115,258]]],
+        fill: phosphor('deep', .94), paths: [[[103,225],[205,225],[193,258],[115,258]]],
       },
       { // 1 · four load paths and pads
-        fill: 'rgba(126,139,145,.84)', paths: [
+        fill: phosphor('dim', .7), paths: [
           [[111,213],[122,219],[72,281],[57,277]], [[197,213],[186,219],[236,281],[251,277]],
           [[128,218],[137,222],[104,291],[89,290]], [[180,218],[171,222],[204,291],[219,290]],
           [[49,276],[78,276],[82,286],[45,286]], [[230,276],[259,276],[263,286],[226,286]],
           [[84,287],[111,287],[115,297],[80,297]], [[197,287],[224,287],[228,297],[193,297]],
         ],
       },
-      { // 2 · orange service cells
-        fill: 'rgba(132,70,30,.90)', paths: [
+      { // 2 · service cells
+        fill: phosphor('mid', .42), paths: [
           [[111,196],[151,196],[148,220],[108,220]], [[157,196],[197,196],[200,220],[160,220]],
         ],
       },
       { // 3 · faceted pressure hull
-        fill: 'rgba(105,115,121,.92)', paths: [
+        fill: phosphor('dim', .82), paths: [
           [[88,132],[104,102],[132,82],[176,82],[204,102],[220,132],[210,195],[98,195]],
         ],
       },
       { // 4 · sensor visor
-        fill: 'rgba(11,38,48,.96)', paths: [
+        fill: phosphor('deep', .98), paths: [
           [[99,129],[112,109],[137,96],[171,96],[196,109],[209,129],[198,143],[110,143]],
         ],
       },
       { // 5 · transfer bridge / ramp
-        fill: 'rgba(45,50,57,.92)', paths: [
+        fill: phosphor('deep', .9), paths: [
           [[132,188],[176,188],[188,239],[120,239]], [[122,239],[186,239],[202,266],[106,266]],
         ],
       },
       { // 6 · planar sensor crown
-        fill: 'rgba(120,133,140,.90)', paths: [
+        fill: phosphor('dim', .88), paths: [
           [[129,80],[179,80],[173,65],[135,65]], [[112,55],[196,55],[196,66],[112,66]],
           [[139,42],[146,42],[146,61],[139,61]], [[162,42],[169,42],[169,61],[162,61]],
         ],
       },
       { // 7 · final signal core
-        fill: 'rgba(255,178,28,.92)', paths: [
+        fill: phosphor('bright', .84), paths: [
           [[137,67],[171,67],[168,82],[140,82]], [[149,39],[159,39],[162,49],[154,55],[146,49]],
         ],
       },
@@ -274,11 +305,11 @@ export class MiniMap {
       c.beginPath(); c.moveTo(points[0][0], points[0][1]);
       for (let i = 1; i < points.length; i++) c.lineTo(points[i][0], points[i][1]);
       c.closePath();
-      c.fillStyle = restored ? fill : 'rgba(4,7,8,.72)'; c.fill();
+      c.fillStyle = restored ? fill : phosphor('black', .76); c.fill();
       c.lineWidth = materialising ? 2.3 : restored ? 1.25 : 1.05;
       c.strokeStyle = materialising
-        ? `rgba(255,178,28,${.62 + reducedPulse * .34})`
-        : restored ? 'rgba(230,234,235,.42)' : 'rgba(143,168,163,.38)';
+        ? phosphor('hot', .62 + reducedPulse * .34)
+        : restored ? phosphor('bright', .46) : phosphor('dim', .42);
       c.stroke();
       if (!restored || materialising) {
         let mx = 0, my = 0;
@@ -286,7 +317,7 @@ export class MiniMap {
         mx /= points.length; my /= points.length;
         c.lineWidth = .65;
         c.strokeStyle = materialising
-          ? `rgba(255,178,28,${.28 + reducedPulse * .20})` : 'rgba(143,168,163,.17)';
+          ? phosphor('bright', .28 + reducedPulse * .20) : phosphor('dim', .2);
         for (let i = 0; i < points.length; i += Math.max(1, Math.floor(points.length / 4))) {
           c.beginPath(); c.moveTo(mx, my); c.lineTo(points[i][0], points[i][1]); c.stroke();
         }
@@ -304,17 +335,18 @@ export class MiniMap {
     const status = source?.complete ? 'MATERIAL STATE · COMPLETE'
       : source?.event ? `ACQUIRED · ${source.event.item.sample}`
       : `NEXT · ${next?.sample ?? 'RECOVERY KEY'}`;
-    c.font = '10px DM Mono, monospace'; c.fillStyle = 'rgba(143,168,163,.42)';
+    c.font = '10px DM Mono, monospace'; c.fillStyle = phosphor('mid', .48);
     c.fillText(status, 12, 318);
     const gap = 5, slotW = (W - 24 - gap * 7) / 8;
     for (let i = 0; i < 8; i++) {
       const x = 12 + i * (slotW + gap), done = i < count, current = i === active;
-      c.fillStyle = done ? 'rgba(255,178,28,.62)' : 'rgba(4,7,8,.88)';
+      c.fillStyle = done ? phosphor('bright', .58) : phosphor('black', .88);
       c.fillRect(x, 329, slotW, 11);
-      c.strokeStyle = current ? `rgba(255,178,28,${.65 + reducedPulse * .3})`
-        : done ? 'rgba(255,199,91,.72)' : 'rgba(143,168,163,.24)';
+      c.strokeStyle = current ? phosphor('hot', .65 + reducedPulse * .3)
+        : done ? phosphor('bright', .74) : phosphor('dim', .28);
       c.strokeRect(x + .5, 329.5, slotW - 1, 10);
     }
+    this.drawPhosphorOverlay(now);
   }
 
   draw(v, now) {
@@ -324,21 +356,21 @@ export class MiniMap {
     const cx = mx + mw / 2, cy = my + mh / 2, k = mw / this.span;
     const to = p => [cx + (p.x - v.x) * k, cy + (p.z - v.z) * k];
     c.clearRect(0, 0, W, H);
-    c.fillStyle = 'rgba(5,5,6,.76)'; c.fillRect(0, 0, W, H);
-    c.strokeStyle = 'rgba(217,221,226,.07)'; c.strokeRect(.5, .5, W - 1, H - 1);
-    c.font = '15px DM Mono, monospace'; c.fillStyle = 'rgba(177,230,197,.34)';
+    c.fillStyle = phosphor('glass', .88); c.fillRect(0, 0, W, H);
+    c.strokeStyle = phosphor('mid', .12); c.strokeRect(.5, .5, W - 1, H - 1);
+    c.font = '15px DM Mono, monospace'; c.fillStyle = phosphor('bright', .44);
     c.fillText('LOCAL SURVEY ATLAS', 12, 19);
-    c.font = '10px DM Mono, monospace'; c.fillStyle = 'rgba(217,221,226,.16)';
+    c.font = '10px DM Mono, monospace'; c.fillStyle = phosphor('mid', .24);
     c.fillText(`${this.id} · ${this.label} · ${this.cell} M CELL`, 12, 38);
 
-    c.fillStyle = 'rgba(2,3,4,.965)'; c.fillRect(mx, my, mw, mh);
-    c.strokeStyle = 'rgba(217,221,226,.065)'; c.strokeRect(mx + .5, my + .5, mw - 1, mh - 1);
+    c.fillStyle = phosphor('black', .97); c.fillRect(mx, my, mw, mh);
+    c.strokeStyle = phosphor('mid', .1); c.strokeRect(mx + .5, my + .5, mw - 1, mh - 1);
     c.save(); c.beginPath(); c.rect(mx, my, mw, mh); c.clip();
     const scale = 1 - this.transfer * .84, alpha = 1 - this.transfer * .88;
     c.translate(cx, cy); c.scale(scale, scale); c.translate(-cx, -cy); c.globalAlpha = alpha;
 
     /* 128 m reference grid. It states scale without pretending to know land. */
-    c.lineWidth = .6; c.strokeStyle = 'rgba(217,221,226,.028)';
+    c.lineWidth = .6; c.strokeStyle = phosphor('mid', .045);
     const grid = 128, gx = ((v.x % grid) + grid) % grid, gz = ((v.z % grid) + grid) % grid;
     const step = grid * k;
     let gridX = cx - gx * k; while (gridX > mx) gridX -= step;
@@ -350,7 +382,7 @@ export class MiniMap {
       const [x, y] = to(p); if (x < mx - size || x > mx + mw || y < my - size || y > my + mh) return;
       const relief = Math.max(-1, Math.min(1, (p.h - v.ground) / 14));
       const a = base * (0.55 + 0.45 * (p.confidence ?? 1)) * (0.72 + Math.abs(relief) * .28);
-      c.fillStyle = relief >= 0 ? `rgba(168,184,176,${a})` : `rgba(103,132,119,${a})`;
+      c.fillStyle = relief >= 0 ? phosphor('bright', a) : phosphor('dim', a);
       c.fillRect(x - size / 2, y - size / 2, size, size);
     };
     this.coarse.forEach(p => paintCell(p, Math.max(1.2, this.coarseCell * k), .055));
@@ -358,7 +390,7 @@ export class MiniMap {
 
     /* Quantised contour boundaries only where both neighbouring cells were
        measured. No line crosses the unknown region. */
-    c.lineWidth = .55; c.strokeStyle = 'rgba(190,210,199,.10)';
+    c.lineWidth = .55; c.strokeStyle = phosphor('bright', .13);
     for (const p of this.cells.values()) {
       const band = Math.floor(p.h / 2.5), right = this.cells.get(this.cellKey(p.ix + 1, p.iz));
       const down = this.cells.get(this.cellKey(p.ix, p.iz + 1));
@@ -373,10 +405,10 @@ export class MiniMap {
       for (let i = 1; i < visibleTrail.length; i++) {
         const a = to(visibleTrail[i - 1]), b = to(visibleTrail[i]), age = i / (visibleTrail.length - 1);
         c.beginPath(); c.moveTo(...a); c.lineTo(...b);
-        c.strokeStyle = `rgba(217,221,226,${.025 + age * .15})`; c.stroke();
+        c.strokeStyle = phosphor('mid', .035 + age * .2); c.stroke();
       }
     }
-    /* The atlas is rover-centred. A crimson directional glyph makes that
+    /* The atlas is rover-centred. A hot-phosphor directional glyph makes that
        convention explicit: its tip is the machine's physical forward axis,
        not the chase camera bearing. */
     const pulse = REDUCED_MOTION ? .5 : .5 + .5 * Math.sin(now / 620);
@@ -389,15 +421,15 @@ export class MiniMap {
        size and reduced again on mobile, so the glyph must be intentionally
        large here. */
     c.beginPath(); c.arc(cx, cy, 20, 0, Math.PI * 2);
-    c.fillStyle = `rgba(1,2,3,${.90 * glow})`; c.fill();
+    c.fillStyle = phosphor('black', .9 * glow); c.fill();
     c.lineWidth = 3;
-    c.strokeStyle = `rgba(255,242,237,${.25 * glow})`;
+    c.strokeStyle = phosphor('bright', .28 * glow);
     for (const [ax, ay, bx, by] of [
       [cx - 29, cy, cx - 23, cy], [cx + 23, cy, cx + 29, cy],
       [cx, cy - 29, cx, cy - 23], [cx, cy + 23, cx, cy + 29],
     ]) { c.beginPath(); c.moveTo(ax, ay); c.lineTo(bx, by); c.stroke(); }
     c.beginPath(); c.arc(cx, cy, 17 + 2 * pulse, 0, Math.PI * 2);
-    c.strokeStyle = `rgba(192,21,42,${(.52 + .34 * pulse) * glow})`; c.stroke();
+    c.strokeStyle = phosphor('mid', (.52 + .34 * pulse) * glow); c.stroke();
 
     c.beginPath();
     c.moveTo(cx + fx * 17, cy + fy * 17);
@@ -405,19 +437,19 @@ export class MiniMap {
     c.lineTo(cx - fx * 3.5, cy - fy * 3.5);
     c.lineTo(cx - fx * 8.5 - sideX * 7, cy - fy * 8.5 - sideY * 7);
     c.closePath();
-    c.fillStyle = `rgba(192,21,42,${.98 * glow})`; c.fill();
+    c.fillStyle = phosphor('bright', .98 * glow); c.fill();
     c.lineWidth = 5;
-    c.strokeStyle = `rgba(1,2,3,${.98 * glow})`; c.stroke();
+    c.strokeStyle = phosphor('black', .98 * glow); c.stroke();
     c.lineWidth = 2.4;
-    c.strokeStyle = `rgba(255,248,244,${.98 * glow})`; c.stroke();
+    c.strokeStyle = phosphor('hot', .98 * glow); c.stroke();
     c.beginPath(); c.moveTo(cx + fx * 22, cy + fy * 22); c.lineTo(cx + fx * 27, cy + fy * 27);
-    c.strokeStyle = `rgba(255,248,244,${.92 * glow})`; c.stroke();
+    c.strokeStyle = phosphor('hot', .92 * glow); c.stroke();
     c.beginPath(); c.arc(cx, cy, 7.2, 0, Math.PI * 2);
-    c.fillStyle = `rgba(192,21,42,${glow})`; c.fill();
+    c.fillStyle = phosphor('mid', glow); c.fill();
     c.lineWidth = 2.4;
-    c.strokeStyle = `rgba(255,255,252,${glow})`; c.stroke();
+    c.strokeStyle = phosphor('hot', glow); c.stroke();
     c.beginPath(); c.arc(cx, cy, 2.5, 0, Math.PI * 2);
-    c.fillStyle = `rgba(255,255,252,${glow})`; c.fill();
+    c.fillStyle = phosphor('hot', glow); c.fill();
 
     /* A direct textual anchor remains legible even when the chevron happens
        to align with the trail or a dense patch of measured terrain. */
@@ -425,25 +457,25 @@ export class MiniMap {
     c.font = 'bold 18px DM Mono, monospace';
     const tagW = c.measureText(roverTag).width + 18;
     const tagX = cx - tagW * 0.5, tagY = cy + 34;
-    c.fillStyle = `rgba(1,2,3,${.94 * glow})`; c.fillRect(tagX, tagY, tagW, 24);
-    c.fillStyle = `rgba(192,21,42,${glow})`; c.fillRect(tagX, tagY, 5, 24);
-    c.fillStyle = `rgba(255,250,247,${glow})`; c.fillText(roverTag, tagX + 10, tagY + 18);
+    c.fillStyle = phosphor('black', .94 * glow); c.fillRect(tagX, tagY, tagW, 24);
+    c.fillStyle = phosphor('mid', glow); c.fillRect(tagX, tagY, 5, 24);
+    c.fillStyle = phosphor('hot', glow); c.fillText(roverTag, tagX + 10, tagY + 18);
 
     const coordinate = `RVR ${v.x >= 0 ? '+' : ''}${v.x.toFixed(0)} / ${v.z >= 0 ? '+' : ''}${v.z.toFixed(0)}`;
     const degrees = String(Math.round((heading * 180 / Math.PI + 360) % 360)).padStart(3, '0');
     const labelX = mx + 7, labelY = my + 7;
-    c.fillStyle = `rgba(1,2,3,${.93 * glow})`; c.fillRect(labelX, labelY, 206, 44);
-    c.fillStyle = `rgba(192,21,42,${.98 * glow})`; c.fillRect(labelX, labelY, 5, 44);
+    c.fillStyle = phosphor('black', .93 * glow); c.fillRect(labelX, labelY, 206, 44);
+    c.fillStyle = phosphor('mid', .98 * glow); c.fillRect(labelX, labelY, 5, 44);
     c.font = 'bold 16px DM Mono, monospace';
-    c.fillStyle = `rgba(255,250,247,${.98 * glow})`; c.fillText(coordinate, labelX + 12, labelY + 18);
+    c.fillStyle = phosphor('hot', .98 * glow); c.fillText(coordinate, labelX + 12, labelY + 18);
     c.font = '13px DM Mono, monospace';
-    c.fillStyle = `rgba(202,224,213,${.78 * glow})`;
+    c.fillStyle = phosphor('bright', .78 * glow);
     const speed = Number.isFinite(v.speed) ? v.speed : 0;
     c.fillText(`LIVE · HDG ${degrees}° · ${speed.toFixed(1)} M/S`, labelX + 12, labelY + 36);
     c.restore(); c.globalAlpha = 1;
 
     const st = this.stats;
-    c.font = '10px DM Mono, monospace'; c.fillStyle = 'rgba(177,230,197,.18)';
+    c.font = '10px DM Mono, monospace'; c.fillStyle = phosphor('bright', .24);
     c.fillText(`MEASURED ${st.detail + st.coarse} CELLS · ${(st.area / 1000).toFixed(1)}K M²`, 12, H - 61);
     const slots = 2, gap = 6, sw = (W - 24 - gap) / slots, sy = H - 52, sh = 42;
     const memories = this.archives.slice(-slots);
@@ -451,11 +483,12 @@ export class MiniMap {
       const memory = memories[i];
       if (memory) this.drawArchive(c, memory, 12 + i * (sw + gap), sy, sw, sh);
       else {
-        c.strokeStyle = 'rgba(217,221,226,.035)'; c.strokeRect(12.5 + i * (sw + gap), sy + .5, sw - 1, sh - 1);
-        c.font = '9px DM Mono, monospace'; c.fillStyle = 'rgba(217,221,226,.055)';
+        c.strokeStyle = phosphor('mid', .055); c.strokeRect(12.5 + i * (sw + gap), sy + .5, sw - 1, sh - 1);
+        c.font = '9px DM Mono, monospace'; c.fillStyle = phosphor('mid', .08);
         c.fillText(`MEM ${String(i + 1).padStart(2, '0')} · EMPTY`, 19 + i * (sw + gap), sy + 24);
       }
     }
+    this.drawPhosphorOverlay(now);
   }
 
   update(v, now, charge = 1, record = true) {

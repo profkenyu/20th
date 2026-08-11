@@ -43,6 +43,8 @@ export class ShotDirector {
     this.rendered = 'wide';
     this.transition = null;
     this.manualShot = null;
+    this.experience = 'observer';
+    this.forceDissolveOnce = false;
     this.introActive = false;
     this.openingActive = false;
     this.lastCutAt = -Infinity;
@@ -62,7 +64,10 @@ export class ShotDirector {
 
   get label() { return CAMERA_SHOTS[this.rendered.toUpperCase()] ?? this.rendered; }
 
-  get source() { return this.introActive ? 'intro' : this.manualShot ? 'manual' : 'authored'; }
+  get source() {
+    return this.introActive ? 'intro'
+      : this.manualShot && !this._authoredLock() ? 'manual' : 'authored';
+  }
   get manualLocked() { return this.availableManualShots().length < 2; }
   get lockLabel() { return this.manualLocked ? this._lockLabel() : ''; }
 
@@ -135,7 +140,31 @@ export class ShotDirector {
     return true;
   }
 
-  clearManual() { this.manualShot = null; }
+  selectRear(now = performance.now(), announce = true) {
+    const shots = this.availableManualShots();
+    if (!shots.includes('rear')) return false;
+    if (this.transition) {
+      this.current = this.rendered;
+      this.transition = null;
+      this.veil.style.opacity = '0';
+    }
+    this.manualShot = 'rear';
+    this.lastManualAt = now;
+    if (announce) this._announce(`CAMERA · ${CAMERA_SHOTS.REAR}`);
+    return true;
+  }
+
+  clearManual({ dissolve = false } = {}) {
+    const hadManual = !!this.manualShot;
+    this.manualShot = null;
+    this.forceDissolveOnce = dissolve && hadManual;
+  }
+
+  setExperience(mode, now = performance.now()) {
+    this.experience = mode === 'explorer' ? 'explorer' : 'observer';
+    if (this.experience === 'observer') this.clearManual({ dissolve: true });
+    this.lastExperienceAt = now;
+  }
 
   setIntro(active) {
     this.introActive = !!active;
@@ -164,10 +193,10 @@ export class ShotDirector {
     if (this.manualShot && this.availableManualShots().includes(this.manualShot)) return this.manualShot;
     const missionDistance = this.mission?.lastDistance ?? Infinity;
     if (this.mission?.active && missionDistance <= 7.0) return 'macro';
-    /* Exploration lives close to the machine. A distant waypoint is never
-       used as the macro subject (macro() substitutes the measured foreground),
-       so the rover remains legible while the route can still be long. */
-    return 'macro';
+    /* The same mission has two temporal readings. Observer gives the rover
+       back to the landscape; Explorer stays physically behind the machine.
+       Scans and all authored mechanical events above still take precedence. */
+    return this.experience === 'observer' ? 'wide' : 'rear';
   }
 
   transitionKind(from, to) {
@@ -179,7 +208,8 @@ export class ShotDirector {
   }
 
   update(now) {
-    if (this.manualShot && !this.availableManualShots().includes(this.manualShot)) {
+    if (this.manualShot && !this._authoredLock()
+        && !this.availableManualShots().includes(this.manualShot)) {
       this.manualShot = null;
     }
     const desired = this.desiredShot();
@@ -191,12 +221,15 @@ export class ShotDirector {
       this.veil.style.opacity = '0';
     }
     if (!this.transition && desired !== this.current) {
-      if (this.transitionKind(this.current, desired) === 'cut') {
+      const forcedDissolve = this.forceDissolveOnce && !this._authoredLock();
+      this.forceDissolveOnce = false;
+      if (!forcedDissolve && this.transitionKind(this.current, desired) === 'cut') {
         this.current = desired;
         this.lastCutAt = now;
       }
       else this.transition = { from: this.current, to: desired, t0: now, duration: 2400 };
     }
+    else if (!this.transition && desired === this.current) this.forceDissolveOnce = false;
 
     let shot = this.current, veil = 0;
     if (this.transition) {
@@ -239,12 +272,20 @@ export class ShotDirector {
     const separation = Math.hypot(dx, dz) || 1;
     dx /= separation; dz /= separation;
     const sideX = -dz, sideZ = dx;
-    const midX = (l.x + r.x) * 0.5, midZ = (l.z + r.z) * 0.5;
-    const breadth = Math.max(25, separation * 0.72);
+    /* Once the landing point has become a distant memory, continuing to fit
+       both bodies makes the rover collapse into a pixel. The same ultrawide
+       grammar then follows a short section of the travelled axis, allowing
+       the lander to leave frame while the emptiness remains monumental. */
+    const includeLander = this.openingActive || separation <= 52;
+    const midX = includeLander ? (l.x + r.x) * 0.5 : r.x - dx * 5.5;
+    const midZ = includeLander ? (l.z + r.z) * 0.5 : r.z - dz * 5.5;
+    const breadth = includeLander ? Math.max(25, separation * 0.72) : 27;
     const breath = Math.sin(now * 0.000065) * Math.min(3, breadth * 0.035);
-    const x = midX + sideX * (breadth + breath) - dx * separation * 0.06;
-    const z = midZ + sideZ * (breadth + breath) - dz * separation * 0.06;
-    const y = Math.max(this.heightAt(x, z) + 4.5, l.y + 9 + separation * 0.22);
+    const axial = includeLander ? separation * 0.06 : 3.8;
+    const x = midX + sideX * (breadth + breath) - dx * axial;
+    const z = midZ + sideZ * (breadth + breath) - dz * axial;
+    const subjectY = includeLander ? l.y + 9 + separation * 0.22 : this.rover.deckY + 8.4;
+    const y = Math.max(this.heightAt(x, z) + 4.5, subjectY);
     this._camera.set(x, y, z);
     this._aim.set(midX, Math.max(l.y + 3.1, this.rover.deckY + 0.28), midZ);
     this.camera.fov = 62;
@@ -334,6 +375,8 @@ export class ShotDirector {
     this.rendered = 'wide';
     this.transition = null;
     this.manualShot = null;
+    this.experience = 'observer';
+    this.forceDissolveOnce = false;
     this.introActive = false;
     this.openingActive = false;
     this.lastCutAt = -Infinity;

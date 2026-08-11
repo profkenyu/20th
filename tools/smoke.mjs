@@ -26,13 +26,18 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TARGET = process.argv[2] ?? `file://${ROOT}/index.html`;
 const DWELL = Number(process.env.DWELL ?? 15000);
 const SEQUENCE = process.env.SEQUENCE === '1';
+const [viewportWidth, viewportHeight] = String(process.env.VIEWPORT ?? '1600x900')
+  .split('x').map(Number);
 
 const browser = await chromium.launch({
   headless: process.env.HEADED ? false : true,
   channel: 'chromium',
   args: ['--allow-file-access-from-files'],
 });
-const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
+const page = await browser.newPage({ viewport: {
+  width: Number.isFinite(viewportWidth) ? viewportWidth : 1600,
+  height: Number.isFinite(viewportHeight) ? viewportHeight : 900,
+} });
 
 const errors = [];
 page.on('console', m => { if (m.type() === 'error') errors.push(m.text().slice(0, 200)); });
@@ -61,8 +66,8 @@ const sequencePhases = [];
 let sequenceComplete = !SEQUENCE;
 let cameraCycle = null;
 const sequenceShots = {
-  waterTravelMacro: false, waterConfirmedMacro: false, body02Rear: false,
-  body03Rear: false, return: false, ascent: false,
+  waterTravelWide: false, waterConfirmedMacro: false, body02Rear: false,
+  body02ObserverReturn: false, body03Rear: false, return: false, ascent: false,
 };
 if (SEQUENCE) {
   /* `=` fixes BODY 01, then confirms BODY 02's single water objective. Follow
@@ -78,14 +83,24 @@ if (SEQUENCE) {
     const state = await page.evaluate(() => window.TI_SEQUENCE?.() ?? null);
     if (state) {
       if (state.world === 'desert' && state.water === 'searching'
-          && state.waterDistance > 8 && state.cameraShot === 'macro') {
-        sequenceShots.waterTravelMacro = true;
+          && state.waterDistance > 8 && state.cameraShot === 'wide') {
+        sequenceShots.waterTravelWide = true;
         if (!sequenceShots.body02Rear) {
           await page.keyboard.press('KeyC');
           await page.waitForTimeout(240);
           const camera = await page.evaluate(() => window.TI_CAMERA?.() ?? null);
           sequenceShots.body02Rear = camera?.world === 'desert'
-            && camera?.shot === 'rear' && camera?.source === 'manual' && !camera?.locked;
+            && camera?.shot === 'rear' && camera?.source === 'manual'
+            && camera?.experience === 'explorer' && !camera?.locked;
+          await page.keyboard.press('Space');
+          await page.waitForTimeout(2650);
+          const returned = await page.evaluate(() => ({
+            camera: window.TI_CAMERA?.() ?? null,
+            experience: window.TI_EXPERIENCE?.() ?? null,
+          }));
+          sequenceShots.body02ObserverReturn = returned.camera?.shot === 'wide'
+            && returned.camera?.experience === 'observer'
+            && returned.experience?.auto === true;
         }
       }
       if (state.world === 'desert' && state.water === 'confirmed'
@@ -98,7 +113,7 @@ if (SEQUENCE) {
       if (key !== last) { sequencePhases.push(key); console.log(`  · ${key}`); last = key; }
       if (!waterShortcut && state.world === 'desert' && state.mission === 'water'
           && state.water === 'searching' && state.voyage === 'arrived'
-          && state.waterDistance > 8 && state.cameraShot === 'macro') {
+          && state.waterDistance > 8 && sequenceShots.body02ObserverReturn) {
         waterShortcut = true;
         await page.keyboard.press('Equal');
       }
@@ -110,7 +125,8 @@ if (SEQUENCE) {
           await page.waitForTimeout(240);
           const camera = await page.evaluate(() => window.TI_CAMERA?.() ?? null);
           sequenceShots.body03Rear = camera?.world === 'granite'
-            && camera?.shot === 'rear' && camera?.source === 'manual' && !camera?.locked;
+            && camera?.shot === 'rear' && camera?.source === 'manual'
+            && camera?.experience === 'explorer' && !camera?.locked;
         }
         sequenceComplete = sequenceShots.body03Rear;
         break;
@@ -131,12 +147,31 @@ if (SEQUENCE) {
   await page.waitForTimeout(DWELL);
   await page.keyboard.up('KeyW');
   await page.keyboard.up('ShiftLeft');
+  await page.keyboard.press('Space');
+  await page.waitForTimeout(2650);
   await page.waitForTimeout(1200);
   await page.waitForTimeout(900);
 }
 
 const report = await page.evaluate(() => {
   const read = k => document.querySelector(`[data-v="${k}"]`)?.textContent ?? '—';
+  const monitor = document.getElementById('ti-monitor')?.getBoundingClientRect();
+  const missionPanel = document.getElementById('fh-mission')?.getBoundingClientRect();
+  const overlap = monitor && missionPanel
+    ? !(monitor.right <= missionPanel.left || monitor.left >= missionPanel.right
+        || monitor.bottom <= missionPanel.top || monitor.top >= missionPanel.bottom) : null;
+  const atlas = document.getElementById('ti-minimap');
+  let greenPixels = 0, redPixels = 0, measuredPixels = 0;
+  if (atlas) {
+    const pixels = atlas.getContext('2d').getImageData(0, 0, atlas.width, atlas.height).data;
+    for (let i = 0; i < pixels.length; i += 64) {
+      const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2], a = pixels[i + 3];
+      if (a < 8) continue;
+      measuredPixels++;
+      if (g > 15 && g > r * 1.25 && g > b * 1.05) greenPixels++;
+      if (r > 20 && r > g * 1.15) redPixels++;
+    }
+  }
   return {
     started: !!window.TI_READY,
     gate: document.getElementById('fh-gate')?.textContent.trim() ?? null,
@@ -149,10 +184,17 @@ const report = await page.evaluate(() => {
     r: read('r'), region: read('region'), divergence: read('delta'),
     filaments: read('fcount'), vertices: read('fverts'),
     camera: window.TI_CAMERA?.() ?? null,
+    experience: window.TI_EXPERIENCE?.() ?? null,
     anomalies: window.TI_ANOMALIES?.().length ?? 0,
     water: window.TI_WATER?.() ?? null,
     memory: window.TI_MEMORY?.() ?? null,
     sequence: window.TI_SEQUENCE?.() ?? null,
+    monitor: {
+      overlap,
+      backing: atlas ? `${atlas.width}x${atlas.height}` : null,
+      greenRatio: measuredPixels ? greenPixels / measuredPixels : 0,
+      redRatio: measuredPixels ? redPixels / measuredPixels : 0,
+    },
   };
 });
 report.sequenceComplete = sequenceComplete;
@@ -182,8 +224,12 @@ if (report.gate) fatal.push(`adapter gate fired: ${report.gate}`);
 if (!['wide', 'rear', 'macro', 'tele', 'return', 'ascent'].includes(report.camera?.shot))
   fatal.push(`camera escaped authored/operator grammar: ${report.camera?.shot ?? 'missing'}`);
 if (!SEQUENCE && (cameraCycle.before.shot === cameraCycle.after?.shot
-    || cameraCycle.after?.source !== 'manual')) {
+    || cameraCycle.after?.source !== 'manual'
+    || cameraCycle.after?.experience !== 'explorer')) {
   fatal.push(`C did not change an available authored shot: ${JSON.stringify(cameraCycle)}`);
+}
+if (!SEQUENCE && (report.experience?.mode !== 'observer' || report.experience?.auto !== true)) {
+  fatal.push(`Space did not return Explorer to Observer: ${JSON.stringify(report.experience)}`);
 }
 if (report.anomalies !== 8) fatal.push(`expected 8 terrain anomalies, found ${report.anomalies}`);
 if (!sequenceComplete) fatal.push('authored sequence did not generate BODY 03 Geological Memory');
@@ -201,6 +247,11 @@ if (SEQUENCE) {
   }
 }
 if ((report.sequence?.planets ?? 0) !== 3) fatal.push(`expected 3 planets, found ${report.sequence?.planets ?? 0}`);
+if (report.monitor?.overlap) fatal.push('mission HUD overlaps the phosphor monitor');
+if (report.monitor?.backing !== '308x352' || report.monitor?.greenRatio < 0.01
+    || report.monitor?.redRatio > 0.002) {
+  fatal.push(`phosphor monitor palette invalid: ${JSON.stringify(report.monitor)}`);
+}
 if (errors.length) fatal.push(`${errors.length} console/page error(s)`);
 if (report.divergence !== '—' && /mm/.test(report.divergence)) fatal.push(`CPU/GPU divergence in mm: ${report.divergence}`);
 
