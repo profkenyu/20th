@@ -15,6 +15,13 @@ export const CAMERA_SHOTS = Object.freeze({
 const CSS = `
 #ti-shot-dissolve{position:fixed;z-index:24;inset:var(--bar) 0;pointer-events:none;
   opacity:0;background:#020304;mix-blend-mode:normal;will-change:opacity}
+#ti-shot-cue{position:fixed;z-index:32;left:50%;top:calc(var(--bar) + 22px);
+  pointer-events:none;font:700 8px/1.5 'DM Mono',ui-monospace,monospace;
+  letter-spacing:.15em;text-transform:uppercase;color:rgba(217,221,226,.72);
+  opacity:0;transform:translate(-50%,3px);transition:opacity .42s ease,transform .42s ease;
+  white-space:nowrap;text-shadow:0 1px 10px #000}
+#ti-shot-cue.on{opacity:1;transform:translate(-50%,0)}
+#ti-shot-cue.locked{color:rgba(192,21,42,.78)}
 `;
 
 /**
@@ -48,19 +55,47 @@ export class ShotDirector {
     this.veil = document.createElement('div');
     this.veil.id = 'ti-shot-dissolve';
     document.body.appendChild(this.veil);
+    this.cue = document.createElement('div');
+    this.cue.id = 'ti-shot-cue';
+    document.body.appendChild(this.cue);
   }
 
   get label() { return CAMERA_SHOTS[this.rendered.toUpperCase()] ?? this.rendered; }
 
   get source() { return this.introActive ? 'intro' : this.manualShot ? 'manual' : 'authored'; }
+  get manualLocked() { return this.availableManualShots().length < 2; }
+  get lockLabel() { return this.manualLocked ? this._lockLabel() : ''; }
 
   _authoredLock() {
     return this.introActive || this.openingActive || this.voyage.active || this.docking.started
-      || !!this.restoration.event || !!this.mission?.event;
+      || !!this.restoration.event || !!this.mission?.event || this.mission?.state === 'complete';
+  }
+
+  _lockLabel() {
+    if (this.introActive || this.openingActive) return 'OPENING SEQUENCE';
+    if (this.voyage.active) return 'FLIGHT SEQUENCE';
+    if (this.docking.started) return 'STOW SEQUENCE';
+    if (this.restoration.event || this.mission?.event) return 'ACTIVE SCAN';
+    if (this.mission?.state === 'complete') return 'FINAL TABLEAU';
+    if (this.restoration.group.visible && this.restoration.complete) return 'RESTORATION TABLEAU';
+    return 'AUTHORED SHOT';
+  }
+
+  _announce(message, locked = false) {
+    this.cue.textContent = message;
+    this.cue.classList.toggle('locked', locked);
+    this.cue.classList.remove('on');
+    void this.cue.offsetWidth;
+    this.cue.classList.add('on');
+    clearTimeout(this._cueTimer);
+    this._cueTimer = setTimeout(() => this.cue.classList.remove('on'), locked ? 1200 : 1550);
   }
 
   availableManualShots() {
-    if (this._authoredLock() || this.restoration.complete) return [];
+    /* BODY 01 remains fully restored in memory on later worlds. It must lock
+       its own tableau only while that reconstruction is actually in frame. */
+    if (this._authoredLock()
+        || (this.restoration.group.visible && this.restoration.complete)) return [];
     const shots = ['wide', 'rear'];
     const specimen = this.mission?.scanFocus ?? this.mission?.target
       ?? this.restoration.scanFocus ?? this.restoration.target;
@@ -80,7 +115,10 @@ export class ShotDirector {
       operator view plus compositions inside the authored five-shot language. */
   cycle(now = performance.now()) {
     const shots = this.availableManualShots();
-    if (shots.length < 2) return false;
+    if (shots.length < 2) {
+      this._announce(`SHOT LOCK · ${this._lockLabel()}`, true);
+      return false;
+    }
     if (this.transition) {
       this.current = this.rendered;
       this.transition = null;
@@ -93,6 +131,7 @@ export class ShotDirector {
       this.manualShot = shots[(at < 0 ? 0 : at + 1) % shots.length];
     }
     this.lastManualAt = now;
+    this._announce(`CAMERA · ${CAMERA_SHOTS[this.manualShot.toUpperCase()] ?? this.manualShot}`);
     return true;
   }
 
@@ -121,10 +160,10 @@ export class ShotDirector {
     if (this.restoration.group.visible
         && (this.restoration.scanning || this.restoration.event)) return 'macro';
     if (this.mission?.event) return 'macro';
+    if (this.mission?.group?.visible && this.mission?.complete) return 'macro';
     if (this.manualShot && this.availableManualShots().includes(this.manualShot)) return this.manualShot;
     const missionDistance = this.mission?.lastDistance ?? Infinity;
     if (this.mission?.active && missionDistance <= 7.0) return 'macro';
-    if (this.mission?.group?.visible && this.mission?.complete) return 'macro';
     /* Exploration lives close to the machine. A distant waypoint is never
        used as the macro subject (macro() substitutes the measured foreground),
        so the rover remains legible while the route can still be long. */
@@ -299,5 +338,7 @@ export class ShotDirector {
     this.openingActive = false;
     this.lastCutAt = -Infinity;
     this.veil.style.opacity = '0';
+    clearTimeout(this._cueTimer);
+    this.cue.classList.remove('on', 'locked');
   }
 }

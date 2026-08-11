@@ -158,6 +158,7 @@ export class Rover {
     this.orbitPitch = 0.30;
     this.orbitDist = 6.4;
     this.camAt = new THREE.Vector3();
+    this.cameraControl = true;          // false when an external ShotDirector owns the lens
     this._aim = new THREE.Vector3();      // preallocated: placeChase runs every
     this._want = new THREE.Vector3();     // frame and must not churn the heap
     this.lamps = true;
@@ -184,7 +185,7 @@ export class Rover {
        controller; `surfaceOverride` lets those contacts recognise the ramp. */
     this.scriptedDrive = null;
     this.surfaceOverride = null;
-    this.arrayAuto = false;
+    this.arrayAuto = true;
     this.beaconLevel = 0;
     this.keys = new Set();
     this.settled = false;
@@ -520,7 +521,9 @@ export class Rover {
     if (this.chase && this.viewMode === 'mast') this.viewMode = 'orbit';
     if (!this.chase && this.viewMode !== 'mast') this.viewMode = 'mast';
 
-    if (this.chase) {
+    if (!this.cameraControl) {
+      this.group.visible = true;
+    } else if (this.chase) {
       this.placeChase(dt);
       this.group.visible = true;
     } else {
@@ -646,6 +649,7 @@ export class Rover {
     this.camAt.set(0, 0, 0);
     this.orbitYaw = 0; this.orbitPitch = 0.30;
     this.lidTilt = 0;
+    this.arrayAuto = true;
     this.transmitting = false;
     this.missionHold = false;
     this.auto = true;
@@ -687,7 +691,7 @@ export class Rover {
 
   setMobileMode(active) {
     this.mobileMode = !!active;
-    this.arrayAuto = this.mobileMode;
+    this.arrayAuto = true;
     this.mobileSteer = 0;
     this.mobileThrottle = 1;
     this.operatorHold = false;

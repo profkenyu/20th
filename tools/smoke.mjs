@@ -61,7 +61,8 @@ const sequencePhases = [];
 let sequenceComplete = !SEQUENCE;
 let cameraCycle = null;
 const sequenceShots = {
-  waterTravelMacro: false, waterConfirmedMacro: false, return: false, ascent: false,
+  waterTravelMacro: false, waterConfirmedMacro: false, body02Rear: false,
+  body03Rear: false, return: false, ascent: false,
 };
 if (SEQUENCE) {
   /* `=` fixes BODY 01, then confirms BODY 02's single water objective. Follow
@@ -79,6 +80,13 @@ if (SEQUENCE) {
       if (state.world === 'desert' && state.water === 'searching'
           && state.waterDistance > 8 && state.cameraShot === 'macro') {
         sequenceShots.waterTravelMacro = true;
+        if (!sequenceShots.body02Rear) {
+          await page.keyboard.press('KeyC');
+          await page.waitForTimeout(240);
+          const camera = await page.evaluate(() => window.TI_CAMERA?.() ?? null);
+          sequenceShots.body02Rear = camera?.world === 'desert'
+            && camera?.shot === 'rear' && camera?.source === 'manual' && !camera?.locked;
+        }
       }
       if (state.world === 'desert' && state.water === 'confirmed'
           && state.cameraShot === 'macro') sequenceShots.waterConfirmedMacro = true;
@@ -97,7 +105,14 @@ if (SEQUENCE) {
       if (state.world === 'granite' && state.mission === 'searching'
           && state.planets === 3 && state.tableau === 'idle'
           && state.docking === 'idle' && state.voyage === 'arrived') {
-        sequenceComplete = true;
+        if (!sequenceShots.body03Rear) {
+          await page.keyboard.press('KeyC');
+          await page.waitForTimeout(240);
+          const camera = await page.evaluate(() => window.TI_CAMERA?.() ?? null);
+          sequenceShots.body03Rear = camera?.world === 'granite'
+            && camera?.shot === 'rear' && camera?.source === 'manual' && !camera?.locked;
+        }
+        sequenceComplete = sequenceShots.body03Rear;
         break;
       }
     }

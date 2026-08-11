@@ -287,6 +287,7 @@ landmark = new THREE.Mesh(
 landmark.rotation.set(0.10, 0.42, -0.035);
 landmark.visible = false;
 rover = new Rover(camera, canvas, heightCPU);
+rover.cameraControl = false;
 mobileControl = new MobileControl(rover);
 lander = new Lander(heightCPU);
 restoration = new Restoration(lander, heightCPU, TERRA_SAMPLE_SITES);
@@ -484,10 +485,13 @@ window.TI_RENDER_MODE = () => ({ archive: archiveMode, dpr: adaptive.dpr, lens: 
 window.TI_BLUEPRINT = () => roverReveal.snapshot();
 window.TI_MATTER_PASSAGE = () => matterPassage.snapshot();
 window.TI_CAMERA = () => ({
+  world,
   shot: shotDirector.rendered,
   label: shotDirector.label,
   source: shotDirector.source,
   available: shotDirector.availableManualShots(),
+  locked: shotDirector.manualLocked,
+  lock: shotDirector.lockLabel,
   transition: shotDirector.transition ? 'dissolve'
     : performance.now() - shotDirector.lastCutAt < 100 ? 'hardcut' : 'none',
 });
@@ -740,24 +744,6 @@ async function frame() {
       nextAutoPauseAt = now + 46000;
     }
     rover.missionHold = autoPauseUntil > now || restorationHold || waterHold || geologicalHold;
-    if (rover.viewMode === 'rear') {
-      const wide = 28.6 + Math.sin(now * 0.000085) * 3.0;
-      rover.orbitDist += (wide - rover.orbitDist) * Math.min(1, dt * 0.18);
-      rover.orbitPitch += (0.29 + Math.sin(now * 0.000061) * 0.055 - rover.orbitPitch) * Math.min(1, dt * 0.15);
-      rover.orbitYaw += dt * 0.006;
-    } else if (rover.viewMode === 'front') {
-      /* A close, low inspection composition: the machine advances into the
-         lens while an almost imperceptible drift keeps it from reading as a
-         turntable render. The orbit remains heading-relative, so the camera
-         stays on the nose throughout a turn. */
-      const frontDist = 6.6 + Math.sin(now * 0.00011) * 0.12;
-      const frontPitch = 0.16 + Math.sin(now * 0.000073) * 0.012;
-      const frontYaw = Math.PI + Math.sin(now * 0.000057) * 0.025;
-      const yawError = Math.atan2(Math.sin(frontYaw - rover.orbitYaw), Math.cos(frontYaw - rover.orbitYaw));
-      rover.orbitDist += (frontDist - rover.orbitDist) * Math.min(1, dt * 1.4);
-      rover.orbitPitch += (frontPitch - rover.orbitPitch) * Math.min(1, dt * 1.2);
-      rover.orbitYaw += yawError * Math.min(1, dt * 1.0);
-    }
   } else {
     rover.missionHold = restorationHold || waterHold || geologicalHold || !!completionTableau || missionEnding;
   }
@@ -921,7 +907,7 @@ async function frame() {
       : 'off', !v.lamps || pw.bus < 0.7);
     hud.set('cell', pw.dead ? 'EMPTY' : `${(pw.charge * 100).toFixed(1)} %`, pw.charge < 0.25);
     hud.set('array', pw.sunlit ? `${pw.solar.toFixed(2)} %/s` : 'shadowed', !pw.sunlit);
-    hud.set('lid', `${(v.lidTilt * 57.29578).toFixed(0)}° / ${(v.lidMax * 57.29578).toFixed(0)}°   [ ]`);
+    hud.set('lid', `AUTO · ${(v.lidTilt * 57.29578).toFixed(0)}° / ${(v.lidMax * 57.29578).toFixed(0)}°`);
     hud.set('load', `${pw.load.toFixed(2)} %/s`);
     hud.set('endur', pw.dead ? '—'
       : (pw.endurance === Infinity ? `charging +${pw.net.toFixed(2)} %/s`

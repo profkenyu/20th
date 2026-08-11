@@ -447,6 +447,24 @@ try {
       return out.join(' · ') + ' %/s   (load with lamps ≈0.64)';
     });
 
+    await step('LID · autonomous sun tracking survives reset and mode changes', () => {
+      const heading = Math.atan2(BH.start[0], BH.start[1]);
+      rover.reset(BH.start[0], BH.start[1], heading);
+      rover.auto = false; rover.lidTilt = 0;
+      for (let i = 0; i < 300; i++) rover.update(1 / 60);
+      const toward = rover.lidTilt;
+      rover.heading += Math.PI;
+      for (let i = 0; i < 300; i++) rover.update(1 / 60);
+      const away = rover.lidTilt;
+      rover.setMobileMode(true); rover.setMobileMode(false);
+      if (!rover.arrayAuto) throw new Error('desktop/mobile transition disabled sun tracking');
+      if (toward < 0.30 || toward - away < 0.20)
+        throw new Error(`array did not follow solar azimuth: ${toward.toFixed(2)} → ${away.toFixed(2)} rad`);
+      rover.reset(BH.start[0], BH.start[1], heading);
+      if (!rover.arrayAuto) throw new Error('reset disabled sun tracking');
+      return `${(toward*180/Math.PI).toFixed(0)}° toward sun → ${(away*180/Math.PI).toFixed(0)}° away · AUTO retained`;
+    });
+
     await step('POWER · 6 min on the open plain, lamps ON', () => {
       const d = drive(BH.start[0], BH.start[1], Math.atan2(BH.start[0], BH.start[1]), 360);
       return `cell ${(d.pw.charge*100).toFixed(0)}% · shadowed ${d.shadowPct}% of the time · ${d.diedAt<0 ? 'survived' : 'DIED at ' + d.diedAt.toFixed(0) + ' s'}`;
@@ -527,6 +545,25 @@ try {
       if (director.rendered !== 'tele') throw new Error(`third C ${director.rendered}`);
       director.cycle(1400); director.update(1400); director.update(3901);
       if (director.rendered !== 'wide') throw new Error(`fourth C ${director.rendered}`);
+
+      /* BODY 01's restored state persists as evidence, but its hidden tableau
+         must not lock the operator camera on BODY 02 or BODY 03. */
+      director.reset();
+      restoration.complete = true; restoration.group.visible = false;
+      mission.active = true; mission.target = { x: rover.pos.x + 80, z: rover.pos.z };
+      mission.lastDistance = 80; mission.group.visible = true;
+      const laterWorldShots = director.availableManualShots();
+      if (!laterWorldShots.includes('rear') || !director.cycle(4000))
+        throw new Error(`later-world C locked by hidden restoration: ${laterWorldShots.join(',')}`);
+      director.update(4000);
+      if (director.rendered !== 'rear' || director.source !== 'manual')
+        throw new Error(`later-world C ${director.rendered}/${director.source}`);
+
+      restoration.group.visible = true; director.clearManual();
+      if (director.availableManualShots().length)
+        throw new Error('visible BODY 01 restoration tableau accepts manual camera');
+      restoration.complete = false; restoration.group.visible = true;
+      mission.active = false; mission.target = null; mission.group.visible = false;
       director.setIntro(true);
       if (director.cycle(3950) || director.desiredShot() !== 'rear')
         throw new Error('operator input escaped blueprint rear shot');
@@ -541,8 +578,8 @@ try {
       voyage.active = true; voyage.phase = 'lift'; mission.event = null;
       director.update(4100);
       if (director.rendered !== 'ascent') throw new Error('lift is not ascent shot');
-      director.veil.remove();
-      return 'wide → rear → macro → tele → wide · intro/events retain authored priority';
+      director.veil.remove(); director.cue.remove();
+      return 'BODY 01/02/03 → rear · intro/scans/transit retain authored priority';
     });
 
     await step('LANDER · bay is dark, empty and supports the full wheelbase', () => {
