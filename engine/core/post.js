@@ -27,7 +27,7 @@
  */
 
 import * as THREE from 'three';
-import { pass, uniform, float } from 'three/tsl';
+import { pass, uniform, float, mix, replaceDefaultUV, smoothstep, uv, vec2 } from 'three/tsl';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { dof } from 'three/addons/tsl/display/DepthOfFieldNode.js';
 import { cfg } from '../config.js';
@@ -43,6 +43,8 @@ export class Lens {
     this.uBloomStrength = uniform(float(P.bloomStrength));
     this.uBloomRadius = uniform(float(P.bloomRadius));
     this.uBloomThreshold = uniform(float(P.bloomThreshold));
+    this.uRoverPOV = uniform(float(0));
+    this.uAspect = uniform(float(camera.aspect));
 
     const scenePass = pass(scene, camera);
     const colour = scenePass.getTextureNode();
@@ -50,22 +52,53 @@ export class Lens {
 
     const defocused = dof(colour, viewZ, this.uFocus, this.uFocalLength, this.uBokeh);
     const glow = bloom(defocused, this.uBloomStrength, this.uBloomRadius, this.uBloomThreshold);
+    const opticalImage = defocused.add(glow);
+
+    /*
+     * MAST CAMERA — 8 mm full-frame reading
+     *
+     * The mast's vertical FOV is 112°, the rectilinear equivalent of an 8 mm
+     * lens on a 24 mm-tall full-frame gate (2 atan(24 / (2 × 8)) = 112.6°).
+     * Its real optical character is not the FOV alone: the radial inverse
+     * mapping makes straight forms bow outward at the frame edge without
+     * sampling outside the source image. `uRoverPOV` keeps every composed
+     * gallery shot geometrically untouched.
+     *
+     * `replaceDefaultUV` applies the same radial map to the final DoF and
+     * bloom textures. Distorting the source scene colour alone would leave a
+     * sharp, undistorted glow/defocus layer floating over a bent image.
+     */
+    const centred = uv().sub(vec2(0.5));
+    const sensorPlane = vec2(centred.x.mul(this.uAspect), centred.y);
+    const r2 = sensorPlane.dot(sensorPlane);
+    const radialScale = float(1).div(float(1)
+      .add(r2.mul(0.18)).add(r2.mul(r2).mul(0.02)));
+    const warpedUV = vec2(
+      sensorPlane.x.mul(radialScale).div(this.uAspect),
+      sensorPlane.y.mul(radialScale),
+    ).add(vec2(0.5));
+    const vignette = float(1).sub(smoothstep(float(0.33), float(0.96), r2).mul(0.14));
+    const mastImage = replaceDefaultUV(() => warpedUV, opticalImage).mul(vignette);
 
     /* PostProcessing was renamed to RenderPipeline in r185 */
     this.post = new THREE.RenderPipeline(renderer);
-    this.post.outputNode = defocused.add(glow);
+    this.post.outputNode = mix(opticalImage, mastImage, this.uRoverPOV);
 
     this.scenePass = scenePass;
     this.profile = '';
+    this._resize = () => { this.uAspect.value = camera.aspect; };
+    addEventListener('resize', this._resize);
   }
 
   /** Lens behaviour belongs to a shot, not to a global beauty filter. */
   setProfile(shot = 'wide') {
+    this.uRoverPOV.value = shot === 'mast' ? 1 : 0;
     if (shot === this.profile) return;
     this.profile = shot;
     const profiles = {
       wide:   [0.085, 0.18, 0.010, 0.24, 1.36],
       rear:   [0.105, 0.34, 0.014, 0.27, 1.32],
+      mast:   [0.090, 0.20, 0.012, 0.25, 1.34],
       macro:  [0.165, 0.92, 0.026, 0.32, 1.24],
       tele:   [0.135, 0.58, 0.018, 0.29, 1.30],
       return: [0.105, 0.34, 0.014, 0.27, 1.34],
@@ -97,6 +130,7 @@ export class Lens {
   }
 
   dispose() {
+    removeEventListener('resize', this._resize);
     this.post.dispose?.();
     this.scenePass.dispose?.();
   }

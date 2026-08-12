@@ -164,6 +164,7 @@ if (MOBILE) {
 const sequencePhases = [];
 let sequenceComplete = !SEQUENCE;
 let cameraCycle = null;
+let roverPOV = null;
 const sequenceShots = {
   waterTravelWide: false, waterConfirmedMacro: false, body02Rear: false,
   body02ObserverReturn: false, body03Rear: false, return: false, ascent: false,
@@ -241,6 +242,10 @@ if (SEQUENCE) {
   await page.waitForTimeout(250);
   const after = await page.evaluate(() => window.TI_CAMERA?.() ?? null);
   cameraCycle = { before, after };
+  await page.keyboard.press('KeyC');
+  await page.waitForTimeout(250);
+  roverPOV = await page.evaluate(() => window.TI_CAMERA?.() ?? null);
+  await page.screenshot({ path: `${ROOT}/dist/rover-pov-smoke.png` });
   await page.keyboard.down('ShiftLeft');
   await page.keyboard.down('KeyW');
   await page.waitForTimeout(DWELL);
@@ -299,6 +304,7 @@ const report = await page.evaluate(() => {
 });
 report.sequenceComplete = sequenceComplete;
 report.cameraCycle = cameraCycle;
+report.roverPOV = roverPOV;
 report.sequenceShots = sequenceShots;
 report.introObserved = introObserved;
 report.blueprintObserved = blueprintObserved;
@@ -333,12 +339,16 @@ if (MOBILE && (!mobileIntro?.visible || !mobileControl?.rootVisible
     || mobileControl?.dragExperience !== 'explorer')) {
   fatal.push(`mobile CTA/drag/sound contract failed: ${JSON.stringify({ mobileIntro, mobileControl })}`);
 }
-if (!['wide', 'rear', 'macro', 'tele', 'return', 'ascent'].includes(report.camera?.shot))
+if (!['wide', 'rear', 'mast', 'macro', 'tele', 'return', 'ascent'].includes(report.camera?.shot))
   fatal.push(`camera escaped authored/operator grammar: ${report.camera?.shot ?? 'missing'}`);
 if (!SEQUENCE && (cameraCycle.before.shot === cameraCycle.after?.shot
     || cameraCycle.after?.source !== 'manual'
     || cameraCycle.after?.experience !== 'explorer')) {
   fatal.push(`C did not change an available authored shot: ${JSON.stringify(cameraCycle)}`);
+}
+if (!SEQUENCE && (roverPOV?.shot !== 'mast' || !roverPOV?.roverPOV
+    || roverPOV?.lensProfile !== 'mast' || roverPOV?.source !== 'manual')) {
+  fatal.push(`second C did not engage the 8 mm rover POV/lens profile: ${JSON.stringify(roverPOV)}`);
 }
 if (!SEQUENCE && (report.experience?.mode !== 'observer' || report.experience?.auto !== true)) {
   fatal.push(`Space did not return Explorer to Observer: ${JSON.stringify(report.experience)}`);

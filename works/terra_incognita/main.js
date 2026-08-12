@@ -594,6 +594,8 @@ window.TI_CAMERA = () => ({
   available: shotDirector.availableManualShots(),
   locked: shotDirector.manualLocked,
   lock: shotDirector.lockLabel,
+  roverPOV: shotDirector.rendered === 'mast',
+  lensProfile: lens?.profile ?? 'off',
   transition: shotDirector.transition ? 'dissolve'
     : performance.now() - shotDirector.lastCutAt < 100 ? 'hardcut' : 'none',
 });

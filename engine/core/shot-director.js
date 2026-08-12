@@ -6,6 +6,7 @@ const smooth = value => { const p = clamp01(value); return p * p * (3 - 2 * p); 
 export const CAMERA_SHOTS = Object.freeze({
   WIDE: '01 · ULTRAWIDE / ROVER + WIRE LANDER',
   REAR: 'OP · REAR / ROVER FOLLOW',
+  MAST: 'OP · ROVER POV / 8MM WIDE',
   MACRO: '02 · MACRO / WHEEL + SPECIMEN',
   TELE: '03 · TELEPHOTO / MATERIAL FACE',
   RETURN: '04 · LOW SIDE / RETURN + STOW',
@@ -25,9 +26,9 @@ const CSS = `
 `;
 
 /**
- * The authored sequence retains its five grammatical positions. A sixth,
- * operator-only rear view is available through C and for the blueprint
- * prologue; it never appears as an automatic mission edit.
+ * The authored sequence retains its five grammatical positions. Two
+ * operator-only views are available through C: the rear follow shot and the
+ * mast camera. Neither appears as an automatic mission edit.
  */
 export class ShotDirector {
   constructor({ camera, rover, lander, restoration, mission = null, docking, voyage, heightAt }) {
@@ -102,7 +103,7 @@ export class ShotDirector {
        its own tableau only while that reconstruction is actually in frame. */
     if (this._authoredLock()
         || (this.restoration.group.visible && this.restoration.complete)) return [];
-    const shots = ['wide', 'rear'];
+    const shots = ['wide', 'rear', 'mast'];
     const specimen = this.mission?.scanFocus ?? this.mission?.target
       ?? this.restoration.scanFocus ?? this.restoration.target;
     const specimenDistance = specimen
@@ -117,8 +118,9 @@ export class ShotDirector {
     return shots;
   }
 
-  /** C never revives Rover's obsolete camera writers. It cycles the rear
-      operator view plus compositions inside the authored five-shot language. */
+  /** C cycles the two operator views plus compositions inside the authored
+      five-shot language. The mast camera remains a direct sensor transform,
+      never Rover's obsolete autonomous camera writer. */
   cycle(now = performance.now()) {
     const shots = this.availableManualShots();
     if (shots.length < 2) {
@@ -203,7 +205,7 @@ export class ShotDirector {
   transitionKind(from, to) {
     /* A physical encounter and a machine-state change deserve a cut. The
        contemplative returns to landscape are the only dissolves. */
-    if (to === 'rear' || to === 'macro' || to === 'tele' || to === 'ascent') return 'cut';
+    if (to === 'rear' || to === 'mast' || to === 'macro' || to === 'tele' || to === 'ascent') return 'cut';
     if (from === 'return' && to === 'ascent') return 'cut';
     return 'dissolve';
   }
@@ -254,6 +256,12 @@ export class ShotDirector {
   }
 
   apply(shot, now) {
+    if (shot === 'mast') {
+      this.mast();
+      this.camera.updateProjectionMatrix();
+      return;
+    }
+    this.rover.group.visible = true;
     if (shot === 'rear') this.rear(now);
     else if (shot === 'macro') this.macro(now);
     else if (shot === 'tele') this.telephoto(now);
@@ -266,6 +274,25 @@ export class ShotDirector {
     this.camera.lookAt(this._aim);
     this.focus.copy(this._aim);
     this.camera.updateProjectionMatrix();
+  }
+
+  /**
+   * The rover's sensor is a camera transform, not a composition positioned
+   * near the rover. Preserve its chassis pitch and roll exactly, then let
+   * Lens apply the 8 mm optical profile to this shot alone.
+   */
+  mast() {
+    this.rover.head.updateWorldMatrix(true, false);
+    this.camera.position.setFromMatrixPosition(this.rover.head.matrixWorld);
+    this.camera.quaternion.setFromRotationMatrix(this.rover.head.matrixWorld);
+    this.camera.rotateY(this.rover.lookYaw);
+    this.camera.rotateX(this.rover.lookPitch);
+    this.camera.fov = 112;
+    this._aim.set(0, 0, -1).applyQuaternion(this.camera.quaternion)
+      .multiplyScalar(18).add(this.camera.position);
+    this.focus.copy(this._aim);
+    /* A sensor cannot photograph the inside of its own optical crown. */
+    this.rover.group.visible = false;
   }
 
   ultrawide(now) {

@@ -513,7 +513,7 @@ try {
       return `rear dot ${rearDot.toFixed(1)} m · front dot ${frontDot.toFixed(1)} m · front boom ${v.chaseDist.toFixed(1)} m`;
     });
 
-    await step('CAMERA · C adds rear operator view without escaping authored shots', () => {
+    await step('CAMERA · C adds rear + 8 mm rover POV without escaping authored shots', () => {
       lander.group.visible = true;
       const restoration = {
         event: null, scanning: false, complete: false,
@@ -540,11 +540,14 @@ try {
       if (rearOffset.dot(rearForward) > -4.5)
         throw new Error(`rear eye is not behind rover: ${rearOffset.dot(rearForward).toFixed(2)}m`);
       director.cycle(1200); director.update(1200);
-      if (director.rendered !== 'macro') throw new Error(`second C ${director.rendered}`);
+      if (director.rendered !== 'mast' || camera.fov !== 112 || rover.group.visible)
+        throw new Error(`second C did not enter 8 mm mast POV: ${director.rendered}/${camera.fov}/${rover.group.visible}`);
       director.cycle(1300); director.update(1300);
-      if (director.rendered !== 'tele') throw new Error(`third C ${director.rendered}`);
+      if (director.rendered !== 'macro') throw new Error(`third C ${director.rendered}`);
       director.cycle(1400); director.update(1400); director.update(3901);
-      if (director.rendered !== 'wide') throw new Error(`fourth C ${director.rendered}`);
+      if (director.rendered !== 'tele') throw new Error(`fourth C ${director.rendered}`);
+      director.cycle(4000); director.update(4000); director.update(6601);
+      if (director.rendered !== 'wide') throw new Error(`fifth C ${director.rendered}`);
 
       /* BODY 01's restored state persists as evidence, but its hidden tableau
          must not lock the operator camera on BODY 02 or BODY 03. */
