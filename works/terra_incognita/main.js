@@ -181,7 +181,7 @@ const DRIVE_KEYS = new Set([
   'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
 ]);
 
-const ROWS = [
+const DIAGNOSTIC_ROWS = [
   ['Instrument', [['backend', 'Backend'], ['vendor', 'Vendor'], ['tier', 'Tier'], ['mode', 'Render mode'], ['limits', 'Limits']]],
   ['Surface',    [['grid', 'Grid'], ['tris', 'Triangles'], ['gridCell', 'Cell'], ['span', 'Span']]],
   ['Clipmap',    [['origin', 'Origin'], ['recentre', 'Recentres'],
@@ -197,6 +197,14 @@ const ROWS = [
   ['Lens',       [['dpr', 'Pixel ratio'], ['focus', 'Focus'], ['score', 'Score']]],
   ['Gallery',    [['universe', 'Universe'], ['idle', 'Idle']]],
   ['Verification', [['hcpu', 'h · cpu'], ['hgpu', 'h · gpu'], ['delta', 'Divergence']]],
+];
+
+/* The gallery panel is a readable instrument, not a developer console. Full
+   renderer, buffer and verification telemetry remains available under ?test. */
+const GALLERY_ROWS = [
+  ['Mission', [['recon', 'Recovery'], ['r', 'Range'], ['region', 'Region']]],
+  ['Rover',   [['speed', 'Speed'], ['trac', 'Traction'], ['cell', 'Power'], ['endur', 'Endurance']]],
+  ['Signal',  [['score', 'Sound'], ['universe', 'Universe']]],
 ];
 
 /* ── gate ─────────────────────────────────────────────────────────────── */
@@ -275,7 +283,7 @@ let tPrev = 0, tStamp = 0, tProbe = 0, frames = 0, acc = 0;
 const rc = { ground: 0, field: 0, scatter: 0 };
 try {
 scene = new THREE.Scene();
-hud = new Hud(ROWS);
+hud = new Hud(TEST ? DIAGNOSTIC_ROWS : GALLERY_ROWS, 'recentre', { diagnostic: TEST });
 hud.setExperience('observer');
 captions = new Captions(LINES);
 ambient = new Ambient();
@@ -574,11 +582,7 @@ window.TI_BOOT?.ready();
 window.TI_READY = true;
 window.TI_WORLD = world;
 window.TI_RENDER_MODE = () => ({ archive: archiveMode, dpr: adaptive.dpr, lens: !!lens });
-window.TI_AUDIO = () => ({
-  started: ambient.started,
-  muted: ambient.muted,
-  state: ambient.ctx?.state ?? 'uninitialized',
-});
+window.TI_AUDIO = () => ambient.snapshot();
 window.TI_BLUEPRINT = () => roverReveal.snapshot();
 window.TI_MATTER_PASSAGE = () => matterPassage.snapshot();
 window.TI_CAMERA = () => ({
@@ -1110,9 +1114,10 @@ async function frame() {
     hud.set('lapse', PLANETS[world].metric ? v.lapse.toFixed(4) : '1.0000');
     hud.set('dpr', `${adaptive.dpr.toFixed(2)} · ${adaptive.changes} steps`);
     hud.set('focus', lens ? `${lens.uFocus.value.toFixed(0)} m` : 'safe mode');
-    hud.set('score', ambient.started
-      ? (ambient.muted ? 'muted' : `${(CFG.audio.droneBase * q).toFixed(0)} Hz · q ${q.toFixed(3)}`)
-      : 'tap to begin');
+    const audioState = ambient.snapshot();
+    hud.set('score', audioState.muted ? 'sound off'
+      : audioState.state !== 'running' ? 'tap · resume sound'
+      : `${(CFG.audio.droneBase * q).toFixed(0)} Hz · q ${q.toFixed(3)}`);
     hud.set('idle', kiosk.state === 'live' ? `${kiosk.idleFor.toFixed(0)} s / ${(kiosk.idle / 1000).toFixed(0)}`
                                            : `${kiosk.state} · ${kiosk.returns} returns`);
     hud.set('universe', window.UNIVERSE_SEED ? `#${window.UNIVERSE_SEED}` : 'unseeded');

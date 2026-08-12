@@ -74,7 +74,7 @@ export class Hud {
   /** `pulseField` is the row the recentre indicator attaches to. The engine
       must not assume a work measures anything in particular, so a missing
       field is not an error — the pulse simply has nowhere to sit. */
-  constructor(rows = [], pulseField = 'recentre') {
+  constructor(rows = [], pulseField = 'recentre', { diagnostic = false } = {}) {
     const style = document.createElement('style');
     style.textContent = CSS;
     document.head.appendChild(style);
@@ -84,14 +84,14 @@ export class Hud {
     el.innerHTML = `
       <div class="eyebrow">Terra Incognita</div>
       <div class="rule"></div>
-      <div class="g">
+      ${diagnostic ? `<div class="g">
         <div class="gt">Frame</div>
         <canvas id="fh-spark" width="544" height="64"></canvas>
         <div class="kv"><span class="k">fps</span><span class="v m" data-v="fps">—</span></div>
         <div class="kv"><span class="k">cpu frame</span><span class="v" data-v="cpu">—</span></div>
         <div class="kv"><span class="k">gpu compute</span><span class="v" data-v="gc">—</span></div>
         <div class="kv"><span class="k">gpu render</span><span class="v" data-v="gr">—</span></div>
-      </div>
+      </div>` : ''}
       ${rows.map(([title, rows]) => `
         <div class="g">
           <div class="gt">${title}</div>
@@ -139,7 +139,7 @@ export class Hud {
     this.pulse.id = 'fh-pulse';
     this.fields[pulseField]?.after(this.pulse);
 
-    this.ctx = el.querySelector('#fh-spark').getContext('2d');
+    this.ctx = el.querySelector('#fh-spark')?.getContext('2d') ?? null;
     this.hist = new Array(136).fill(16.7);
 
     /* Gallery mode gives the scene its full frame after orientation. The
@@ -201,6 +201,7 @@ export class Hud {
   frame(ms) {
     this.hist.push(ms); this.hist.shift();
     const W = 544, H = 64, ctx = this.ctx;
+    if (!ctx) return;
     ctx.clearRect(0, 0, W, H);
     ctx.strokeStyle = 'rgba(138,144,153,.16)'; ctx.lineWidth = 2;
     const y = H - (16.7 / 40) * H;

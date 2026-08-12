@@ -33,23 +33,85 @@ export class Ambient {
     try { this.muted = sessionStorage.getItem('ti_audio_muted') === '1'; }
     catch { this.muted = false; }
     this.started = false;
+    this.graphReady = false;
+    this.unlocked = false;
+    this.needsGesture = !this.muted;
+    this.lifecycleSuspended = false;
+    this.resumeAttempts = 0;
+    this.unlockCount = 0;
+    this.lastError = '';
+    this.powerLevel = 1;
+    this.audioSessionType = 'default';
     this.control = null;
     this.silenceUntil = 0;
     this.voyageActive = false;
-    const start = () => this.start();
-    addEventListener('pointerdown', start, { once: true });
-    addEventListener('keydown', start, { once: true });
-    addEventListener('keydown', e => { if (e.code === 'KeyM') this.toggle(); });
+    /* Touch/pen activation is granted at pointerup, not pointerdown. After an
+       iOS interruption, the next real visitor gesture is allowed to restore
+       audio even when it lands on the canvas rather than the sound button. */
+    addEventListener('pointerup', e => {
+      if (this.started && this.needsGesture && !this.muted && !this.control?.contains(e.target)) {
+        this.activateFromGesture();
+      }
+    }, { passive: true });
+    addEventListener('keydown', e => {
+      if (e.code === 'KeyM') this.handleSoundGesture();
+      else if (this.started && this.needsGesture && !this.muted) this.activateFromGesture();
+    });
   }
 
   start() {
-    if (this.started) { this.resume(); return; }
+    return this.activateFromGesture();
+  }
+
+  /** Must be entered synchronously from click/pointerup/keydown on iOS. */
+  activateFromGesture({ forceAudible = false } = {}) {
+    if (forceAudible) this._setMuted(false);
+    if (this.ctx?.state === 'closed') this._resetClosedContext();
+    if (!this.ctx) this._createContextAndGraph();
+    else {
+      this._requestResume();
+      this._unlockOutput();
+    }
+    if (this.master) this.master.gain.setTargetAtTime(
+      this.muted ? 0 : this.powerLevel, this.ctx.currentTime, 0.035);
+    this._syncControl();
+    return this.ctx;
+  }
+
+  _createContextAndGraph() {
+    try {
+      /* On supporting iPhones this requests media-style playback so the work
+         behaves like a film score rather than an alert and is not silently
+         suppressed by the hardware ring/silent switch. */
+      if (navigator.audioSession && 'type' in navigator.audioSession) {
+        navigator.audioSession.type = 'playback';
+        this.audioSessionType = navigator.audioSession.type;
+      }
+    } catch (e) { this.lastError = `audio session: ${e?.message ?? e}`; }
+
     this.started = true;
     const A = cfg().audio;
-    const ctx = this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    let ctx;
+    try {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) throw new Error('Web Audio API unavailable');
+      ctx = this.ctx = new AudioContextClass();
+      ctx.addEventListener?.('statechange', () => this._onStateChange());
+      /* Both calls occur before any awaited work: this is the iOS transient
+         activation window. The one-frame source is inaudible but forces the
+         destination path to open on older WebKit releases. */
+      this._requestResume();
+      this._unlockOutput();
+    } catch (e) {
+      this.started = false;
+      this.needsGesture = true;
+      this.lastError = e?.message ?? String(e);
+      this._syncControl();
+      return;
+    }
 
     this.master = ctx.createGain();
-    this.master.gain.value = this.muted ? 0 : 1;
+    this.master.gain.value = this.muted ? 0 : this.powerLevel;
     this.master.connect(ctx.destination);
     this.worldGain = ctx.createGain();
     this.worldGain.gain.value = 1;
@@ -111,7 +173,60 @@ export class Ambient {
     lfoGain.gain.value = A.noiseGain * 0.45;
     lfo.connect(lfoGain).connect(this.noiseGain.gain);
     lfo.start();
+    this.graphReady = true;
     this._syncControl();
+  }
+
+  _unlockOutput() {
+    const ctx = this.ctx;
+    if (!ctx || ctx.state === 'closed') return;
+    try {
+      const source = ctx.createBufferSource();
+      source.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+      source.connect(ctx.destination);
+      source.start(0);
+      this.unlocked = true;
+      this.unlockCount++;
+    } catch (e) {
+      this.lastError = `unlock: ${e?.message ?? e}`;
+      this.needsGesture = true;
+    }
+  }
+
+  _requestResume() {
+    const ctx = this.ctx;
+    if (!ctx || ctx.state === 'closed') { this.needsGesture = !this.muted; return; }
+    this.resumeAttempts++;
+    let attempt;
+    try { attempt = ctx.resume(); }
+    catch (e) {
+      this.lastError = `resume: ${e?.message ?? e}`;
+      this.needsGesture = !this.muted;
+      this._syncControl();
+      return;
+    }
+    Promise.resolve(attempt).then(() => {
+      this.needsGesture = !this.muted && ctx.state !== 'running';
+      this._syncControl();
+    }).catch(e => {
+      this.lastError = `resume: ${e?.message ?? e}`;
+      this.needsGesture = !this.muted;
+      this._syncControl();
+    });
+  }
+
+  _onStateChange() {
+    if (this.ctx?.state === 'running') this.needsGesture = false;
+    else if (!this.lifecycleSuspended && !this.muted) this.needsGesture = true;
+    this._syncControl();
+  }
+
+  _resetClosedContext() {
+    this.ctx = null;
+    this.started = false;
+    this.graphReady = false;
+    this.unlocked = false;
+    this.master = this.worldGain = this.noiseGain = this.droneGain = this.voyageGain = null;
   }
 
   bindControl(button) {
@@ -121,26 +236,25 @@ export class Ambient {
     button.addEventListener('click', e => {
       e.preventDefault();
       e.stopPropagation();
-      /* The sound control owns this gesture: its pointerdown is deliberately
-         isolated from the global unlock listener. A first click therefore
-         means "start audible", not "start and immediately mute". */
-      if (!this.started) {
-        this.muted = false;
-        try { sessionStorage.setItem('ti_audio_muted', '0'); } catch {}
-        this.start();
-        return;
-      }
-      this.toggle();
+      this.handleSoundGesture();
     });
     this._syncControl();
   }
 
   suspend() {
-    if (this.ctx?.state === 'running') this.ctx.suspend().catch(() => {});
+    this.lifecycleSuspended = true;
+    if (this.ctx?.state === 'running') this.ctx.suspend().catch(e => {
+      this.lastError = `suspend: ${e?.message ?? e}`;
+    });
+    this._syncControl();
   }
 
   resume() {
-    if (this.ctx?.state === 'suspended') this.ctx.resume().catch(() => {});
+    this.lifecycleSuspended = false;
+    if (!this.ctx || this.muted) { this._syncControl(); return; }
+    /* Safari exposes `interrupted` in addition to the standard states. */
+    if (this.ctx.state !== 'running') this._requestResume();
+    this._syncControl();
   }
 
   /** q = ν_o/ν_e for a source at droneEmitR heard from radius rO.
@@ -182,8 +296,9 @@ export class Ambient {
   /** The score is powered by the same cell. As the charge falls the world goes
       quiet, and an empty probe hears nothing at all — there is no receiver. */
   setPower(charge) {
+    this.powerLevel = Math.max(0, Math.min(1, charge)) ** 0.7;
     if (!this.master || this.muted) return;
-    this.master.gain.setTargetAtTime(Math.max(0, Math.min(1, charge)) ** 0.7, this.ctx.currentTime, 0.6);
+    this.master.gain.setTargetAtTime(this.powerLevel, this.ctx.currentTime, 0.6);
   }
 
   /** Low-frequency, non-diegetic mass cues for interplanetary transfer. */
@@ -215,21 +330,64 @@ export class Ambient {
   }
 
   toggle() {
-    this.muted = !this.muted;
-    if (this.master) this.master.gain.setTargetAtTime(this.muted ? 0 : 1, this.ctx.currentTime, 0.2);
-    try { sessionStorage.setItem('ti_audio_muted', this.muted ? '1' : '0'); } catch {}
-    this._syncControl();
+    return this.handleSoundGesture();
+  }
+
+  handleSoundGesture() {
+    /* OFF → ON always reopens the destination in this same user gesture.
+       ON but interrupted means resume, never the surprising action of mute. */
+    if (this.muted) {
+      this._setMuted(false);
+      this.activateFromGesture({ forceAudible: true });
+    } else if (!this.ctx || this.ctx.state !== 'running' || this.needsGesture) {
+      this.activateFromGesture();
+    } else {
+      this._setMuted(true);
+    }
     return this.muted;
+  }
+
+  _setMuted(muted) {
+    this.muted = !!muted;
+    if (this.master && this.ctx) this.master.gain.setTargetAtTime(
+      this.muted ? 0 : this.powerLevel, this.ctx.currentTime, 0.12);
+    try { sessionStorage.setItem('ti_audio_muted', this.muted ? '1' : '0'); } catch {}
+    this.needsGesture = !this.muted && this.ctx?.state !== 'running';
+    this._syncControl();
   }
 
   _syncControl() {
     if (!this.control) return;
-    const audible = !this.muted;
-    this.control.setAttribute('aria-pressed', String(audible));
-    this.control.setAttribute('aria-label', audible
-      ? '앰비언트 사운드 끄기 · Mute ambient sound'
-      : '앰비언트 사운드 켜기 · Enable ambient sound');
+    const state = this.muted ? 'off'
+      : !this.ctx ? 'start'
+      : this.ctx.state === 'running' && !this.needsGesture ? 'on' : 'resume';
+    const copy = {
+      off:    ['SOUND · OFF', '앰비언트 사운드 켜기 · Enable ambient sound'],
+      start:  ['TAP FOR SOUND', '탭하여 앰비언트 사운드 시작 · Tap to start ambient sound'],
+      on:     ['SOUND · ON', '앰비언트 사운드 끄기 · Mute ambient sound'],
+      resume: ['RESUME SOUND', '탭하여 중단된 사운드 복원 · Tap to resume ambient sound'],
+    }[state];
+    this.control.dataset.audioState = state;
+    this.control.setAttribute('aria-pressed', String(!this.muted));
+    this.control.setAttribute('aria-label', copy[1]);
     const label = this.control.querySelector('[data-sound-label]');
-    if (label) label.textContent = audible ? 'SOUND ON' : 'SOUND OFF';
+    if (label) label.textContent = copy[0];
+  }
+
+  snapshot() {
+    return {
+      started: this.started,
+      muted: this.muted,
+      graphReady: this.graphReady,
+      unlocked: this.unlocked,
+      state: this.ctx?.state ?? 'uninitialized',
+      ui: this.control?.dataset.audioState ?? 'unbound',
+      needsGesture: this.needsGesture,
+      lifecycleSuspended: this.lifecycleSuspended,
+      unlockCount: this.unlockCount,
+      resumeAttempts: this.resumeAttempts,
+      audioSession: this.audioSessionType,
+      lastError: this.lastError,
+    };
   }
 }

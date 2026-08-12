@@ -29,9 +29,16 @@
     min-height:34px;padding:0 10px;border:1px solid rgba(217,221,226,.16);background:rgba(5,5,6,.64);
     color:#737982;font:700 8px/1 'DM Mono',ui-monospace,monospace;letter-spacing:.16em;
     appearance:none;-webkit-appearance:none;touch-action:manipulation;text-transform:uppercase}
-  #ti-sound::before{content:"";display:inline-block;width:5px;height:5px;margin-right:7px;border-radius:50%;
+  #ti-sound::before{content:"";display:inline-block;width:6px;height:6px;margin-right:7px;border-radius:50%;
     background:#33373d;box-shadow:none;transition:background .25s ease,box-shadow .25s ease}
-  #ti-sound[aria-pressed="true"]::before{background:#c0152a;box-shadow:0 0 9px rgba(192,21,42,.62)}
+  #ti-sound[data-audio-state="on"]{color:#eceef0;border-color:rgba(192,21,42,.52)}
+  #ti-sound[data-audio-state="on"]::before{background:#c0152a;box-shadow:0 0 10px rgba(192,21,42,.72)}
+  #ti-sound[data-audio-state="start"]{color:#d9dde2;border-color:rgba(217,221,226,.34)}
+  #ti-sound[data-audio-state="start"]::before{background:#d9dde2;animation:ti-audio-pulse 1.5s ease-in-out infinite}
+  #ti-sound[data-audio-state="resume"]{color:#e2a858;border-color:rgba(226,168,88,.48)}
+  #ti-sound[data-audio-state="resume"]::before{background:#e2a858;animation:ti-audio-pulse .8s ease-in-out infinite}
+  #ti-sound[data-audio-state="off"]{color:#666b72}
+  @keyframes ti-audio-pulse{50%{opacity:.3;box-shadow:0 0 10px currentColor}}
   #ti-sound:focus-visible{outline:1px solid #d9dde2;outline-offset:3px}
   #ti-monitor{position:fixed;z-index:31;top:calc(var(--bar) + 18px);right:20px;
     width:190px;height:217px;padding:6px 6px 8px;pointer-events:none;overflow:hidden;
@@ -252,7 +259,7 @@
 </div>
 <div class="bar t"></div>
 <div class="bar b"></div>
-<button id="ti-sound" type="button" aria-pressed="true"><span data-sound-label>SOUND ON</span></button>
+<button id="ti-sound" type="button" aria-pressed="false" data-audio-state="start"><span data-sound-label aria-live="polite">TAP FOR SOUND</span></button>
 <div id="ti-mobile-drive" aria-label="모바일 로버 조작">
   <button id="ti-mobile-tilt" type="button" aria-pressed="false">
     <i id="ti-mobile-signal" aria-hidden="true"></i><span id="ti-mobile-sensor">ENABLE TILT · 기울기 조향</span>

@@ -87,6 +87,7 @@ if (MOBILE) {
 }
 
 let mobileControl = null;
+let soundCycle = null;
 if (MOBILE) {
   await page.waitForTimeout(1600);
   await page.waitForFunction(() => document.getElementById('ti-mobile-steer')?.disabled === false,
@@ -130,14 +131,25 @@ if (MOBILE) {
     }));
   }, { x: mobileControl.steerX, y: mobileControl.steerY });
 
+  await page.click('#ti-sound');
+  const off = await page.evaluate(() => window.TI_AUDIO?.() ?? null);
+  await page.click('#ti-sound');
+  await page.waitForFunction(() => window.TI_AUDIO?.().state === 'running');
+  const on = await page.evaluate(() => window.TI_AUDIO?.() ?? null);
+  soundCycle = { off, on };
+
   const failed = !mobileIntro?.visible || !mobileControl.rootVisible
     || !mobileControl.steerVisible || !mobileControl.soundVisible
     || mobileControl.overlapSoundControl || mobileControl.overlapSoundMonitor
     || mobileControl.overlapCueControl || mobileControl.overlapCueSound
-    || !mobileControl.audio?.started || mobileControl.audio?.muted
+    || !mobileControl.audio?.graphReady || !mobileControl.audio?.unlocked
+    || mobileControl.audio?.state !== 'running' || mobileControl.audio?.ui !== 'on'
+    || !soundCycle.off?.muted || soundCycle.off?.ui !== 'off'
+    || soundCycle.on?.muted || soundCycle.on?.state !== 'running' || soundCycle.on?.ui !== 'on'
     || !mobileControl.dispatched || mobileControl.dragExperience !== 'explorer' || errors.length > 0;
   console.log(`\n  mobile intro CTA       ${JSON.stringify(mobileIntro)}`);
   console.log(`  mobile controls        ${JSON.stringify(mobileControl)}`);
+  console.log(`  mobile sound cycle     ${JSON.stringify(soundCycle)}`);
   if (errors.length) console.log(`  browser errors         ${errors.slice(0, 6).join(' · ')}`);
   await page.screenshot({ path: `${ROOT}/dist/mobile-smoke.png` });
   await browser.close();
@@ -292,6 +304,7 @@ report.introObserved = introObserved;
 report.blueprintObserved = blueprintObserved;
 report.mobileIntro = mobileIntro;
 report.mobileControl = mobileControl;
+report.soundCycle = soundCycle;
 
 await page.screenshot({ path: `${ROOT}/dist/${SEQUENCE ? 'sequence-smoke' : 'smoke'}.png` });
 await browser.close();
@@ -311,7 +324,8 @@ if (!blueprintObserved?.active || blueprintObserved.wire < 0.1
   fatal.push(`Anime.js rover blueprint was not observed: ${JSON.stringify(blueprintObserved)}`);
 }
 if (report.gate) fatal.push(`adapter gate fired: ${report.gate}`);
-if (!report.audio?.started || report.audio?.muted) {
+if (!report.audio?.graphReady || !report.audio?.unlocked
+    || report.audio?.state !== 'running' || report.audio?.muted || report.audio?.ui !== 'on') {
   fatal.push(`start gesture did not unlock audible score: ${JSON.stringify(report.audio)}`);
 }
 if (MOBILE && (!mobileIntro?.visible || !mobileControl?.rootVisible

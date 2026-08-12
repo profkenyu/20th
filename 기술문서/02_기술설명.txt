@@ -105,7 +105,10 @@
 
  · 수명주기  : pagehide/pageshow·visibilitychange에 generation token과
                frame-in-flight 잠금을 적용해 비동기 compute 프레임 중첩 방지.
-               AudioContext·Anime.js 타임라인·CSS breathing을 함께 정지·복귀
+               AudioContext·Anime.js 타임라인·CSS breathing을 함께 정지·복귀.
+               iOS의 suspended/interrupted 상태는 다음 실제 탭에서도 재개하고,
+               지원 기기에서는 audioSession을 playback으로 지정해 무음 스위치
+               경로를 보완. 버튼은 실제 컨텍스트 상태 네 단계를 직접 표시
 
  · 오류 복구 : module → device → world → first-compute → pipelines 단계별
                30초 watchdog. 늦은 성공 시 오류 패널을 해제하고, WebGPU

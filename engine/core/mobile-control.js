@@ -67,10 +67,10 @@ export class MobileControl {
     this.start.addEventListener('click', e => {
       e.preventDefault();
       e.stopPropagation();
-      /* On iOS this call must happen inside the click's transient activation.
-         Do not await it before starting the autonomous mission. */
-      this.requestTilt();
+      /* Audio unlock is first; both it and the sensor request remain in this
+         click's transient activation without awaiting either promise. */
       release();
+      this.requestTilt();
     });
   }
 
