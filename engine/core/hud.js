@@ -18,17 +18,18 @@ const CSS = `
 #fh-mission{
   position:fixed;z-index:30;top:calc(var(--bar) + 22px);left:24px;width:240px;
   pointer-events:none;font-family:'DM Mono',ui-monospace,monospace;text-transform:uppercase;
-  color:#d9dde2;border-left:1px solid rgba(192,21,42,.54);padding:1px 0 1px 11px;
-  text-shadow:0 1px 12px rgba(0,0,0,.82);transition:opacity .8s ease;
+  color:#e3e5e8;border-left:1px solid rgba(192,21,42,.64);padding:3px 8px 3px 11px;
+  background:linear-gradient(90deg,rgba(5,5,6,.42),rgba(5,5,6,.08) 82%,transparent);
+  text-shadow:0 1px 10px rgba(0,0,0,.72);transition:opacity .8s ease;
 }
 #fh-mission span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #fh-mission .experience{margin-bottom:4px;font:500 7px/1.45 'DM Mono',ui-monospace,monospace;
-  letter-spacing:.19em;color:rgba(138,144,153,.58);transition:color .8s ease,letter-spacing .8s ease}
+  letter-spacing:.19em;color:rgba(158,164,173,.72);transition:color .8s ease,letter-spacing .8s ease}
 #fh-mission .body{font:700 9px/1.5 'Space Mono',ui-monospace,monospace;letter-spacing:.22em;color:#c0152a}
-#fh-mission .objective{margin-top:4px;font-size:8px;line-height:1.55;letter-spacing:.11em;color:rgba(217,221,226,.76)}
-#fh-mission .systems{font-size:7px;line-height:1.65;letter-spacing:.10em;color:rgba(138,144,153,.60)}
+#fh-mission .objective{margin-top:4px;font-size:8px;line-height:1.55;letter-spacing:.11em;color:rgba(229,232,235,.86)}
+#fh-mission .systems{font-size:7px;line-height:1.65;letter-spacing:.10em;color:rgba(158,164,173,.72)}
 body.fh-dead #fh-mission{opacity:.32}
-body.ti-observer #fh-mission{opacity:.68}
+body.ti-observer #fh-mission{opacity:.82}
 body.ti-explorer #fh-mission{opacity:1;border-left-color:rgba(192,21,42,.82)}
 body.ti-explorer #fh-mission .experience{color:rgba(217,221,226,.78);letter-spacing:.24em}
 body.ti-completion-tableau #fh-mission,body.ti-memory-tableau #fh-mission,
