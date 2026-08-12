@@ -206,6 +206,7 @@ const HALT = () => new Promise(() => {});
    independently of the world itself. If the work runs in safe mode, the fault
    is in one of them, and that is one reload rather than a bisect. */
 const SAFE = location.search.includes('safe');
+const TEST = DEV || location.search.includes('test');
 
 /* Subsystems that can be switched off from the address bar, for bisecting a
    fault on a machine that is not the author's. `?safe` implies all of them,
@@ -220,6 +221,7 @@ const off = name => SAFE || OFF.has('no' + name);
 addEventListener('error', e => fatal(e.error ?? e.message, 'window'));
 addEventListener('unhandledrejection', e => fatal(e.reason, 'promise'));
 if (!navigator.gpu) { unsupported('api', 'Terra Incognita'); await HALT(); }
+window.TI_BOOT?.beat('device');
 
 const canvas = document.getElementById('gl');
 let renderer, camera;
@@ -232,12 +234,18 @@ catch (e) { fatal(e, 'renderer'); await HALT(); }
 try { await renderer.init(); }
 catch (e) { fatal(e, 'device'); await HALT(); }
 if (renderer.backend?.isWebGPUBackend !== true) { unsupported('adapter'); await HALT(); }
+const GPU_PROFILE = describeAdapter(renderer);
+if (!GPU_PROFILE.supported) {
+  unsupported(GPU_PROFILE.compatibility ? 'compatibility' : 'limits');
+  await HALT();
+}
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.02;
 
 /* A WebGPU validation error does not throw — it goes to the device, three logs
    it, and the visitor gets a black screen. Put it on the wall instead. */
-captureDeviceErrors(renderer, err => { running = false; fatal(err, 'gpu'); });
+captureDeviceErrors(renderer, handleGpuFault);
+window.TI_BOOT?.beat('world');
 
 /* ── module state ──────────────────────────────────────────────────────────
    EVERY piece of module-scope state is declared here, above the first line
@@ -262,7 +270,7 @@ let released = false;      // the prologue has let go of the rover
 let prologuePhase = 'text'; // text → blueprint → released
 let blueprintStartTimer = 0;
 let running = false, hasTimestamp = false;
-let rafId = 0;
+let rafId = 0, loopGeneration = 0, frameInFlight = false;
 let tPrev = 0, tStamp = 0, tProbe = 0, frames = 0, acc = 0;
 const rc = { ground: 0, field: 0, scatter: 0 };
 try {
@@ -271,6 +279,7 @@ hud = new Hud(ROWS);
 hud.setExperience('observer');
 captions = new Captions(LINES);
 ambient = new Ambient();
+ambient.bindControl(document.getElementById('ti-sound'));
 kiosk = new Kiosk(CFG.kiosk.idleMs);
 
 wake = new Wake();                       // built first: the ground reads it
@@ -377,7 +386,7 @@ shotDirector.setExperience('observer');
 mobileControl.setExplorer(false);
 mobileControl.onIntent = (_kind, now) => enterExplorer(now, { rear: true });
 rover.onSpace = now => {
-  if (!released) { releasePrologue(); return; }
+  if (!released) return;
   enterObserver(now, { resumeRoute: observerMayDrive() });
   kiosk.last = now;
 };
@@ -406,12 +415,12 @@ addEventListener('keydown', e => {
   const now = performance.now();
   if (DRIVE_KEYS.has(e.code)) {
     e.preventDefault();
-    if (!released) { if (!e.repeat) releasePrologue(); return; }
+    if (!released) return;
     enterExplorer(now, { rear: true });
   }
   if (!e.repeat && e.code === 'KeyC') {
     e.preventDefault();
-    if (!released) { releasePrologue(); return; }
+    if (!released) return;
     shotDirector.setOpening(false);
     if (shotDirector.cycle(now)) {
       enterExplorer(now, { rear: false });
@@ -419,9 +428,9 @@ addEventListener('keydown', e => {
       kiosk.last = now;
     }
   }
-  if (!e.repeat && (e.code === 'Equal' || e.code === 'NumpadEqual' || e.key === '=')) {
+  if (TEST && !e.repeat && (e.code === 'Equal' || e.code === 'NumpadEqual' || e.key === '=')) {
     e.preventDefault();
-    if (!released) { releasePrologue(); return; }
+    if (!released) return;
     if (world === 'terra' && !docking.started
         && !voyage.active && !restoration.complete) {
       const now = performance.now();
@@ -457,7 +466,7 @@ addEventListener('keydown', e => {
       }
     }
   }
-  if (e.code === 'KeyG') {
+  if (TEST && e.code === 'KeyG') {
     const on = !ground.mesh.material.wireframe;
     ground.mesh.material.wireframe = on;
     for (const m of scatter.meshes) m.visible = !on;
@@ -516,7 +525,7 @@ function enterObserver(now = performance.now(), { resumeRoute = observerMayDrive
   return changed;
 }
 
-const a = await describeAdapter();
+const a = GPU_PROFILE;
 hud.set('backend', 'WebGPU');
 hud.set('vendor', `${a.vendor} · ${a.arch}`);
 hud.set('tier', `${CFG.tier} · ${a.storageMB} MB storage`);
@@ -548,17 +557,28 @@ rover.auto = false;
 rover.setViewMode('rear');
 uObserverR.value = Math.hypot(...BH.start);
 ground.syncTo(rover.pos.x, rover.pos.z);
+window.TI_BOOT?.beat('first-compute');
 try { await rebuild(); }
 catch (e) { fatal(e, 'first compute'); await HALT(); }
 
 roverReveal.finish();
 shotDirector.setIntro(false);
 
+window.TI_BOOT?.beat('pipelines');
+try { await prewarmPipelines(); }
+catch (e) { fatal(e, 'pipeline prewarm'); await HALT(); }
+
 running = true;
 tPrev = performance.now();
-window.TI_READY = true;                      // clears the watchdog in index.html
+window.TI_BOOT?.ready();
+window.TI_READY = true;
 window.TI_WORLD = world;
 window.TI_RENDER_MODE = () => ({ archive: archiveMode, dpr: adaptive.dpr, lens: !!lens });
+window.TI_AUDIO = () => ({
+  started: ambient.started,
+  muted: ambient.muted,
+  state: ambient.ctx?.state ?? 'uninitialized',
+});
 window.TI_BLUEPRINT = () => roverReveal.snapshot();
 window.TI_MATTER_PASSAGE = () => matterPassage.snapshot();
 window.TI_CAMERA = () => ({
@@ -600,11 +620,11 @@ window.TI_MEMORY = () => ({
   ledger: missionMemory.snapshot(),
   geological: geologicalMemory.snapshot(),
 });
-window.TI_RESTORATION = level => {
+window.TI_RESTORATION = TEST ? level => {
   if (level == null) return restoration.snapshot();
   restoration.reset(level);
   return restoration.snapshot();
-};
+} : undefined;
 window.TI_SEQUENCE = () => ({
   world, planets: Object.keys(PLANETS).length, restoration: restoration.count,
   prologue: prologuePhase,
@@ -643,15 +663,16 @@ function releasePrologue() {
   if (prologuePhase !== 'text') return;
   prologuePhase = 'blueprint';
   document.body.classList.add('ti-prologue-out');
-  const mobileStart = document.getElementById('ti-mobile-start');
-  if (mobileStart) mobileStart.disabled = true;
+  for (const id of ['ti-start', 'ti-mobile-start']) {
+    const button = document.getElementById(id);
+    if (button) button.disabled = true;
+  }
   const now = performance.now();
   rover.auto = false;
   rover.missionHold = true;
   rover.scriptedDrive = { throttle: 0, steer: 0 };
   kiosk.last = now;
-  removeEventListener('keydown', releasePrologue);
-  removeEventListener('pointerdown', releasePrologue);
+  removeEventListener('keydown', onPrologueKey);
   clearTimeout(blueprintStartTimer);
   /* The text must be gone before the modelling field appears. Matching the
      prologue's 2.6 s fade makes these two events sequential, not overlaid. */
@@ -709,15 +730,35 @@ function activateArrivalMission(key, now) {
   }
 }
 
-mobileControl.bindStart(releasePrologue);
+mobileControl.bindStart(() => {
+  ambient.start();
+  releasePrologue();
+});
+const desktopStart = document.getElementById('ti-start');
+desktopStart?.addEventListener('pointerdown', e => e.stopPropagation());
+desktopStart?.addEventListener('click', e => {
+  e.preventDefault();
+  e.stopPropagation();
+  ambient.start();
+  releasePrologue();
+});
+
+function onPrologueKey(e) {
+  if (e.repeat || (e.code !== 'Enter' && e.code !== 'Space')) return;
+  e.preventDefault();
+  ambient.start();
+  releasePrologue();
+}
 
 function armPrologue() {
-  if (released) return;
+  if (released || prologuePhase !== 'text') return;
   document.getElementById('ti-prologue')?.classList.add('armed');
-  const mobileStart = document.getElementById('ti-mobile-start');
-  if (mobileStart) mobileStart.disabled = false;
-  addEventListener('keydown', releasePrologue);
-  addEventListener('pointerdown', releasePrologue);
+  for (const id of ['ti-start', 'ti-mobile-start']) {
+    const button = document.getElementById(id);
+    if (button) button.disabled = false;
+  }
+  addEventListener('keydown', onPrologueKey);
+  if (!mobileControl.active) desktopStart?.focus({ preventScroll: true });
 }
 
 if (location.search.includes('embed')) {
@@ -730,17 +771,27 @@ if (location.search.includes('embed')) {
 }
 
 const resume = () => {
+  const now = performance.now();
   if (archiveMode) {
     document.body.classList.add('ti-terminal');
     adaptive.lockAt(0.58);
   }
-  if (!running) { running = true; tPrev = performance.now(); }
-  queueLoop();
+  document.body.classList.remove('ti-paused');
+  ambient?.resume();
+  roverReveal?.resume();
+  matterPassage?.resume(now);
+  if (!running) { running = true; tPrev = now; loopGeneration++; }
+  queueLoop(loopGeneration);
   mobileControl?.recalibrate();
 };
 const pause = () => {
   running = false;
+  loopGeneration++;
   if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
+  document.body.classList.add('ti-paused');
+  ambient?.suspend();
+  roverReveal?.suspend();
+  matterPassage?.suspend(performance.now());
 };
 addEventListener('pageshow', resume);
 addEventListener('pagehide', pause);
@@ -755,24 +806,62 @@ async function rebuild() {
   rc.ground = t1 - t0; rc.field = t2 - t1; rc.scatter = performance.now() - t2;
 }
 
-async function loop(now = performance.now()) {
+async function prewarmPipelines() {
+  await renderer.compileAsync(scene, camera);
+  const hidden = [matterPassage.group, graniteField.mesh, geologicalMemory.group, roverReveal.wire];
+  for (const object of hidden) {
+    if (!object) continue;
+    const visible = object.visible;
+    object.visible = true;
+    try { await renderer.compileAsync(object, camera, scene); }
+    finally { object.visible = visible; }
+  }
+  if (!off('wake')) await wake.step(renderer, 0, 0, 0, 0, 0);
+  await matterPassage.prewarm();
+  if (lens) await lens.prewarm();
+  else {
+    renderer.render(scene, camera);
+    await renderer.backend?.device?.queue?.onSubmittedWorkDone?.();
+  }
+}
+
+function handleGpuFault(err) {
+  running = false;
+  const lost = /device lost/i.test(err?.message ?? String(err));
+  if (lost) {
+    try {
+      if (sessionStorage.getItem('ti_device_recovery') !== '1') {
+        sessionStorage.setItem('ti_device_recovery', '1');
+        location.reload();
+        return;
+      }
+    } catch {}
+  }
+  fatal(err, 'gpu');
+}
+
+async function loop(now = performance.now(), generation = loopGeneration) {
   rafId = 0;
-  if (!running) return;
+  if (!running || generation !== loopGeneration || frameInFlight) return;
   /* Terminal cadence is intentionally 30 Hz. Input events still arrive at the
      browser's native rate, while simulation, compute and raster work happen
      once per archival frame. */
   if (archiveMode && now - lastArchiveFrame < 30) {
-    queueLoop();
+    queueLoop(generation);
     return;
   }
   lastArchiveFrame = now;
+  frameInFlight = true;
   try { await frame(); }
-  catch (e) { running = false; fatal(e, 'frame'); return; }
-  queueLoop();
+  catch (e) { running = false; fatal(e, 'frame'); }
+  finally { frameInFlight = false; }
+  if (running) queueLoop(loopGeneration);
 }
 
-function queueLoop() {
-  if (running && !rafId) rafId = requestAnimationFrame(loop);
+function queueLoop(generation = loopGeneration) {
+  if (running && !rafId && !frameInFlight) {
+    rafId = requestAnimationFrame(now => loop(now, generation));
+  }
 }
 
 async function frame() {
@@ -1206,8 +1295,11 @@ async function returnToStart() {
     prologuePhase = 'text';
     document.body.classList.remove('ti-prologue-out');
     document.getElementById('ti-prologue')?.classList.remove('armed');
-    const mobileStart = document.getElementById('ti-mobile-start');
-    if (mobileStart) mobileStart.disabled = true;
+    removeEventListener('keydown', onPrologueKey);
+    for (const id of ['ti-start', 'ti-mobile-start']) {
+      const button = document.getElementById(id);
+      if (button) button.disabled = true;
+    }
     rover.auto = false;
     setTimeout(releasePrologue, PROLOGUE_MS);
     setTimeout(armPrologue, ARM_MS);

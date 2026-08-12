@@ -35,6 +35,7 @@ import { cfg } from '../config.js';
 export class Lens {
   constructor(renderer, scene, camera) {
     const P = cfg().post;
+    this.renderer = renderer;
 
     this.uFocus = uniform(float(P.focusMax));
     this.uFocalLength = uniform(float(P.focalLength));
@@ -85,6 +86,15 @@ export class Lens {
 
   /* renderAsync() deprecated r181 — renderer.init() is already awaited */
   render() { this.post.render(); }
+
+  /** Compile both the scene pass and the full-screen RenderPipeline while the
+      written prologue still covers the canvas. This turns the visitor's first
+      visible camera transition into a normal frame instead of a shader hitch. */
+  async prewarm() {
+    await this.scenePass.compileAsync(this.renderer);
+    this.post.render();
+    await this.renderer.backend?.device?.queue?.onSubmittedWorkDone?.();
+  }
 
   dispose() {
     this.post.dispose?.();

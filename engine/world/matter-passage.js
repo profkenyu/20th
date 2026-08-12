@@ -115,6 +115,7 @@ export class MatterPassage {
     this.hidden = false;
     this.savedVisibility = new Map();
     this.startedAt = 0;
+    this.pausedAt = 0;
 
     this.sourcePosition = attributeArray(this.count, 'vec4');
     this.targetPosition = attributeArray(this.count, 'vec4');
@@ -247,6 +248,7 @@ export class MatterPassage {
     this._capture(this.sourcePosition, this.sourceColour);
     this.uCore.value.copy(this.roots.lander.getWorldPosition(new THREE.Vector3())).add(new THREE.Vector3(0, 2.8, 0));
     this.targetReady = false;
+    this.pausedAt = 0;
     this.uTargetReady.value = 0;
     this.active = true; this.hidden = false; this.startedAt = now;
     this.group.visible = true;
@@ -287,6 +289,25 @@ export class MatterPassage {
     await this.renderer.computeAsync(this.compute);
   }
 
+  /** Compile the later transfer compute pipeline during the prologue. The
+      zeroed buffers make this preflight visually inert and deterministic. */
+  async prewarm() {
+    await this.renderer.computeAsync(this.compute);
+  }
+
+  suspend(now = performance.now()) {
+    if (!this.active || this.pausedAt) return;
+    this.pausedAt = now;
+    this.timeline.pause();
+  }
+
+  resume(now = performance.now()) {
+    if (!this.active || !this.pausedAt) return;
+    this.startedAt += now - this.pausedAt;
+    this.pausedAt = 0;
+    this.timeline.resume();
+  }
+
   _timelineComplete() {
     /* Voyage owns the exact phase boundary; leave restoration visible but
        retain active=true until finish() performs deterministic cleanup. */
@@ -310,6 +331,7 @@ export class MatterPassage {
     this.savedVisibility.clear();
     this.group.visible = false;
     this.active = false; this.hidden = false; this.targetReady = false;
+    this.pausedAt = 0;
     this.uOpacity.value = 0; this.uTargetReady.value = 0;
   }
 }

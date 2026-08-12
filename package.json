@@ -9,17 +9,20 @@
     "build": "node --experimental-vm-modules tools/build.mjs",
     "fonts": "node tools/fonts.mjs",
     "smoke": "node tools/smoke.mjs",
+    "smoke:mobile": "MOBILE=1 VIEWPORT=844x390 node tools/smoke.mjs",
     "smoke:sequence": "SEQUENCE=1 node tools/smoke.mjs",
     "harness": "node tools/harness.mjs",
     "memory": "node tools/memory.mjs",
     "terrain": "node tools/terrain.mjs",
-    "verify": "node tools/verify.mjs"
+    "verify": "node tools/verify.mjs",
+    "release": "npm run build && npm run verify && npm run terrain && npm run memory && npm run harness && npm run smoke && npm run smoke:mobile"
   },
   "devDependencies": {
-    "esbuild": "^0.25.12",
-    "playwright": "^1.62.0"
+    "esbuild": "0.25.12",
+    "playwright": "1.62.0"
   },
   "dependencies": {
-    "animejs": "^4.5.0"
+    "animejs": "4.5.0",
+    "three": "0.185.1"
   }
 }

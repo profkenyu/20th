@@ -30,8 +30,10 @@ import { nuRatioCPU } from '../cpu/metric.js';
 export class Ambient {
   constructor() {
     this.ctx = null;
-    this.muted = false;
+    try { this.muted = sessionStorage.getItem('ti_audio_muted') === '1'; }
+    catch { this.muted = false; }
     this.started = false;
+    this.control = null;
     this.silenceUntil = 0;
     this.voyageActive = false;
     const start = () => this.start();
@@ -41,7 +43,7 @@ export class Ambient {
   }
 
   start() {
-    if (this.started) return;
+    if (this.started) { this.resume(); return; }
     this.started = true;
     const A = cfg().audio;
     const ctx = this.ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -109,6 +111,36 @@ export class Ambient {
     lfoGain.gain.value = A.noiseGain * 0.45;
     lfo.connect(lfoGain).connect(this.noiseGain.gain);
     lfo.start();
+    this._syncControl();
+  }
+
+  bindControl(button) {
+    this.control = button;
+    if (!button) return;
+    button.addEventListener('pointerdown', e => e.stopPropagation());
+    button.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      /* The sound control owns this gesture: its pointerdown is deliberately
+         isolated from the global unlock listener. A first click therefore
+         means "start audible", not "start and immediately mute". */
+      if (!this.started) {
+        this.muted = false;
+        try { sessionStorage.setItem('ti_audio_muted', '0'); } catch {}
+        this.start();
+        return;
+      }
+      this.toggle();
+    });
+    this._syncControl();
+  }
+
+  suspend() {
+    if (this.ctx?.state === 'running') this.ctx.suspend().catch(() => {});
+  }
+
+  resume() {
+    if (this.ctx?.state === 'suspended') this.ctx.resume().catch(() => {});
   }
 
   /** q = ν_o/ν_e for a source at droneEmitR heard from radius rO.
@@ -185,6 +217,19 @@ export class Ambient {
   toggle() {
     this.muted = !this.muted;
     if (this.master) this.master.gain.setTargetAtTime(this.muted ? 0 : 1, this.ctx.currentTime, 0.2);
+    try { sessionStorage.setItem('ti_audio_muted', this.muted ? '1' : '0'); } catch {}
+    this._syncControl();
     return this.muted;
+  }
+
+  _syncControl() {
+    if (!this.control) return;
+    const audible = !this.muted;
+    this.control.setAttribute('aria-pressed', String(audible));
+    this.control.setAttribute('aria-label', audible
+      ? '앰비언트 사운드 끄기 · Mute ambient sound'
+      : '앰비언트 사운드 켜기 · Enable ambient sound');
+    const label = this.control.querySelector('[data-sound-label]');
+    if (label) label.textContent = audible ? 'SOUND ON' : 'SOUND OFF';
   }
 }

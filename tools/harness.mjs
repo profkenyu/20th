@@ -34,7 +34,11 @@ const server = createServer(async (req, res) => {
 await new Promise(r => server.listen(0, '127.0.0.1', r));
 const port = server.address().port;
 
-const browser = await chromium.launch({ headless: true, channel: 'chromium', args: ['--enable-unsafe-swiftshader'] });
+const browser = await chromium.launch({
+  headless: true,
+  channel: process.env.BROWSER_CHANNEL ?? 'chrome',
+  args: ['--enable-unsafe-swiftshader'],
+});
 const page = await browser.newPage();
 const errors = [];
 page.on('pageerror', e => errors.push(String(e).split('\n')[0]));

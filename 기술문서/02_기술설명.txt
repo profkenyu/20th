@@ -1,0 +1,127 @@
+════════════════════════════════════════════════════════════════════
+ TERRA INCOGNITA — 지도 이전의 세 표면
+ 20회 개인전 · 작품 기술 해설
+════════════════════════════════════════════════════════════════════
+
+■ 공통 기술 스택
+
+  · 렌더링   : Three.js 0.185.1 WebGPURenderer + TSL(NodeMaterial).
+               TSL 노드 그래프가 WGSL을 생성하며, storage buffer와
+               compute pass가 지형·벡터장·흔적·기억장 계산을 수행
+  · 모션     : Anime.js 4.5.0 — 로버 설계도 조립과 물질 통과의
+               bind → dissolve → compress → reconstruct 타임라인
+  · 후처리   : Three.js RenderPipeline — Depth of Field → Bloom 순서,
+               ACES Filmic tone mapping, exposure 1.02, 하드웨어 MSAA
+  · 형식     : esbuild ES2022 번들. Three.js·TSL·후처리·Anime.js와
+               한글/영문 폰트까지 인라인한 무네트워크 단일 HTML
+  · 버전     : Three.js 0.185.1, Anime.js 4.5.0, esbuild 0.25.12,
+               Playwright 1.62.0을 exact pin하여 전시 기간 자동 갱신 차단
+  · 검증     : navigator.gpu 확인 뒤 WebGPURenderer가 실제 획득한
+               GPUDevice의 core-features-and-limits와 storage/compute
+               한계값을 검사. WebGL2 자동 폴백은 compute가 성립하지 않아 거부
+
+■ 장치 적응형 성능
+
+  · HIGH     : 지형 640²(816,642 triangles), 벡터장 320²,
+               필라멘트 746,900개 / 약 7.46M vertices, DPR 상한 1.5
+  · MID      : 지형 480²(458,882 triangles), 벡터장 256²,
+               필라멘트 343,489개 / 약 3.45M vertices, DPR 상한 1.0
+  · LOW      : 지형 320²(203,522 triangles), 벡터장 192²,
+               필라멘트 120,323개, DPR 상한 0.75
+  · 판정     : 데스크톱은 CPU 코어·deviceMemory를 함께 사용. 모바일은
+               기본 LOW이며, 메모리 8GB·8코어 이상이 명시된 기기만 MID
+  · 적응     : 48프레임 중앙값을 기준으로 DPR을 단계 조절. 최저 해상도에서도
+               과부하가 지속되면 DoF/Bloom을 버리고 30Hz ARCHIVAL
+               TERMINAL로 단방향 전환
+
+
+────────────────────────────────────────
+ 01 · TERRA INCOGNITA
+────────────────────────────────────────
+
+ · 렌더 구조 : 최근접 중심을 따라 이동하는 높이장 clipmap, 발산 없는
+               벡터장, 3중 링 LOD의 instanced filament, world-anchored
+               wheel wake를 하나의 TSL 계산 계통으로 결합
+
+ · 파이프라인: 첫 compute 뒤 장면·숨겨진 후속 오브젝트·wake·물질 통과
+               compute·RenderPipeline을 서문 뒤에서 사전 컴파일. 관람객에게
+               처음 보이는 카메라 전환의 shader compilation hitch를 억제
+
+ · BODY 01 수학
+             : G = c = 1인 기하화 단위계에서 Schwarzschild 등면 궤도의
+               단위 질량당 유효 퍼텐셜을 사용
+
+                 V(r) = −M/r + L²/(2r²) − ML²/r³
+
+               M = 20 m, L = 88 m, rs = 2M = 40 m.
+               극값은 r² − (L²/M)r + 3L² = 0의 두 근이며,
+               r = 74.23 m는 불안정 원궤도 장벽,
+               r = 312.97 m는 안정 극소점
+
+ · 지형 변위 : depth·V(r), depth = 260 m. 장벽은 약 +14.2 m,
+               극소점은 약 −7.7 m, 사건지평선은 −130 m로 대응.
+               r < rs에서는 외부 관측자용 퍼텐셜을 주장하지 않고
+               V(rs)에서 바닥 처리
+
+ · CPU/GPU 미러
+             : GPU TSL은 clipmap 높이·법선·렌더링을 계산하고, 동일 식의
+               CPU 구현은 8개 바퀴 접지·경사·태양 차폐·먼지 충돌을 계산.
+               자동 검증에서 두 구현의 키·구조와 유한값을 교차 점검
+
+ · 로버 물리 : 8륜 독립 접지, 1.96 m 휠베이스, 1.24 m 트랙,
+               0.29 m 바퀴 반지름. 바퀴는 점이 아니라 진행 방향의
+               세 접촉 높이 중 최댓값을 사용해 작은 요철을 실제처럼 연결
+
+ · 동력계    : 태양광 패널 각도·지형 차폐·기본 전자 부하·주행 부하·전조등을
+               하나의 배터리 모델로 결합. 서스펜션 충격은 버스 전압 저하와
+               전조등 깜박임에 직접 연결되며 난수 효과로 대체하지 않음
+
+ · 먼지      : 중력가속도 3.71 m/s²의 탄도 운동. 바퀴 접지 속도와
+               서스펜션 충격이 방출량·초기 속도를 결정하고 지형 CPU 함수로 충돌
+
+ · 흔적      : 256²(HIGH/MID) 또는 128²(LOW) storage grid에 좌·우 바퀴
+               Gaussian stamp를 기록. clipmap 재중심 이동은 정수 셀로만
+               이동해 누적 재표본화와 흐림을 방지
+
+ · BODY 02   : yardang·소결 지각·유리질 wadi를 방향성 FBM과 ridge noise로
+               생성. 수분 임무는 표면 물이 아니라 1.9 µm 수화 규산염과
+               지하 공극 얼음의 결합 신호를 기록
+
+ · BODY 03   : BODY 01의 여덟 물질 위상과 BODY 02의 수분 위상을 보존한 뒤
+               두 장의 곱을 WebGPU storage-compute로 합성. 결정적으로 분리된
+               세 결절과 모아레형 지질 기억 입자장을 생성
+
+ · 물질 통과 : 실제 로버·착륙선 메시의 삼각형 면적 CDF에서 표면을 샘플링.
+               HIGH 4,600 / MID 3,000 / LOW 1,700개의 입자를 storage
+               buffer에서 계산하며 Anime.js는 다섯 시간 매개변수만 지휘
+
+ · 사운드    : Web Audio API. 16열 Voss–McCartney 방식 pink noise와
+               sine/triangle 드론을 합성. 중력 드론의 주파수비는
+
+                 νₒ/νₑ = √(1−rs/rₑ) / √(1−rs/rₒ)
+
+               행성 간 이동은 43 Hz와 67.3 Hz 반송음을 사용하고,
+               배터리 충전량이 master gain에 직접 반영. 마이크·FFT는 미사용
+
+ · 수명주기  : pagehide/pageshow·visibilitychange에 generation token과
+               frame-in-flight 잠금을 적용해 비동기 compute 프레임 중첩 방지.
+               AudioContext·Anime.js 타임라인·CSS breathing을 함께 정지·복귀
+
+ · 오류 복구 : module → device → world → first-compute → pipelines 단계별
+               30초 watchdog. 늦은 성공 시 오류 패널을 해제하고, WebGPU
+               validation error는 이중언어 fault로 표시. device loss는
+               세션당 한 번 자동 재시도한 뒤 반복 실패를 화면에 보고
+
+ · 접근성    : 매 프레임 갱신되는 임무 HUD는 aria-hidden으로 연속 낭독을
+               차단하고, 캡션·저연산 전환·복원 진행처럼 단계가 바뀌는 상태만
+               aria-live로 전달. prefers-reduced-motion에서는 로버 조립,
+               breathing drift와 긴 dissolve를 제거하되 임무 순서는 유지
+
+ · 배포 검증 : 빌드 전에 JavaScript 파싱과 외부 URL 잔존 여부를 검사한 뒤
+               단일 HTML을 생성하고 SHA-256 sidecar를 함께 기록. verify,
+               terrain, memory, WebGL2 구성 harness와 실제 WebGPU smoke로 검증
+
+════════════════════════════════════════════════════════════════════
+ (문서 갱신: 2026-08-12 · 버전·수식·수치·입력 방식은 현재 소스와
+  자동 검증 결과에서 직접 확인했습니다.)
+════════════════════════════════════════════════════════════════════

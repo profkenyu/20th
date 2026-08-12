@@ -42,6 +42,7 @@ export class ShotDirector {
     this.current = 'wide';
     this.rendered = 'wide';
     this.transition = null;
+    this.reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
     this.manualShot = null;
     this.experience = 'observer';
     this.forceDissolveOnce = false;
@@ -223,7 +224,8 @@ export class ShotDirector {
     if (!this.transition && desired !== this.current) {
       const forcedDissolve = this.forceDissolveOnce && !this._authoredLock();
       this.forceDissolveOnce = false;
-      if (!forcedDissolve && this.transitionKind(this.current, desired) === 'cut') {
+      if (this.reducedMotion
+          || (!forcedDissolve && this.transitionKind(this.current, desired) === 'cut')) {
         this.current = desired;
         this.lastCutAt = now;
       }
@@ -280,7 +282,8 @@ export class ShotDirector {
     const midX = includeLander ? (l.x + r.x) * 0.5 : r.x - dx * 5.5;
     const midZ = includeLander ? (l.z + r.z) * 0.5 : r.z - dz * 5.5;
     const breadth = includeLander ? Math.max(25, separation * 0.72) : 27;
-    const breath = Math.sin(now * 0.000065) * Math.min(3, breadth * 0.035);
+    const breath = this.reducedMotion ? 0
+      : Math.sin(now * 0.000065) * Math.min(3, breadth * 0.035);
     const axial = includeLander ? separation * 0.06 : 3.8;
     const x = midX + sideX * (breadth + breath) - dx * axial;
     const z = midZ + sideZ * (breadth + breath) - dz * axial;
@@ -295,7 +298,7 @@ export class ShotDirector {
     const heading = this.rover.heading;
     const fx = -Math.sin(heading), fz = -Math.cos(heading);
     const sx = -fz, sz = fx;
-    const breathe = Math.sin(now * 0.00008) * 0.10;
+    const breathe = this.reducedMotion ? 0 : Math.sin(now * 0.00008) * 0.10;
     const x = this.rover.pos.x - fx * 5.2 + sx * (0.34 + breathe);
     const z = this.rover.pos.z - fz * 5.2 + sz * (0.34 + breathe);
     this._camera.set(x, Math.max(this.heightAt(x, z) + 1.05, this.rover.deckY + 0.72), z);
@@ -324,7 +327,7 @@ export class ShotDirector {
     const wheelZ = this.rover.pos.z + fz * 0.66 + sz * 0.62;
     const targetX = (wheelX + specimen.x) * 0.5;
     const targetZ = (wheelZ + specimen.z) * 0.5;
-    const side = Math.sin(now * 0.00017) * 0.08;
+    const side = this.reducedMotion ? 0 : Math.sin(now * 0.00017) * 0.08;
     const x = targetX + sx * (2.34 + side) - fx * 0.38;
     const z = targetZ + sz * (2.34 + side) - fz * 0.38;
     this._camera.set(x, this.heightAt(x, z) + 0.76, z);
@@ -347,14 +350,14 @@ export class ShotDirector {
   }
 
   telephoto(now) {
-    const drift = Math.sin(now * 0.000055) * 0.7;
+    const drift = this.reducedMotion ? 0 : Math.sin(now * 0.000055) * 0.7;
     this._camera.copy(this.lander.dockingPoint(-25.5, 10.5 + drift, 6.7));
     this._aim.copy(this.lander.dockingPoint(-0.7, 0, 3.82));
     this.camera.fov = 23;
   }
 
   lowSide(now) {
-    const drift = Math.sin(now * 0.00009) * 0.32;
+    const drift = this.reducedMotion ? 0 : Math.sin(now * 0.00009) * 0.32;
     this._camera.copy(this.lander.dockingPoint(-7.4, 9.6 + drift, 1.34));
     this._camera.y = Math.max(this._camera.y, this.heightAt(this._camera.x, this._camera.z) + 0.42);
     this._aim.copy(this.lander.dockingPoint(-3.15, 0, 2.28));
@@ -363,7 +366,7 @@ export class ShotDirector {
 
   underside(now) {
     const transit = this.voyage.phase === 'transit';
-    const drift = Math.sin(now * 0.000075) * 0.9;
+    const drift = this.reducedMotion ? 0 : Math.sin(now * 0.000075) * 0.9;
     this._camera.copy(this.lander.dockingPoint(transit ? -16.5 : -11.5,
       (transit ? 16.5 : 12.5) + drift, transit ? -5.5 : -3.0));
     this._aim.copy(this.lander.dockingPoint(-0.6, 0, 1.55));

@@ -18,13 +18,21 @@ import { cfg } from '../config.js';
  */
 export function unsupported(reason = 'api', title = '') {
   window.TI_READY = true;      // the module ran and reached a verdict
-  const why = reason === 'adapter'
-    ? ['NO WEBGPU ADAPTER',
-       'This browser exposes WebGPU but could not obtain an adapter — usually a blocklisted driver or a machine without a usable GPU. Check that <span style="color:#d9dde2">chrome://gpu</span> reports WebGPU as hardware accelerated.',
-       '브라우저에 WebGPU는 있으나 어댑터를 얻지 못했다. 드라이버 차단이거나 사용 가능한 GPU가 없는 경우다. chrome://gpu에서 WebGPU 항목을 확인할 것.']
-    : ['WEBGPU UNAVAILABLE',
-       `${title || 'This work'} requires WebGPU. Open in Chrome or Edge 121+ on desktop, or Safari 26+.`,
-       '이 작품은 WebGPU를 요구한다. 데스크톱 Chrome/Edge 121 이상 또는 Safari 26 이상에서 열 것.'];
+  const reasons = {
+    adapter: ['NO WEBGPU ADAPTER',
+      'This browser exposes WebGPU but could not obtain a hardware adapter. Check the browser GPU status and graphics driver.',
+      '브라우저에 WebGPU는 있으나 하드웨어 어댑터를 얻지 못했다. 브라우저 GPU 상태와 그래픽 드라이버를 확인할 것.'],
+    compatibility: ['CORE WEBGPU REQUIRED',
+      'The available adapter exposes only WebGPU compatibility mode. This work requires the core feature and limit profile used by its storage-compute fields.',
+      '사용 가능한 어댑터가 WebGPU 호환 모드만 제공한다. 이 작품의 스토리지·컴퓨트 장에는 코어 기능과 한계 프로필이 필요하다.'],
+    limits: ['GPU LIMITS BELOW PROFILE',
+      'WebGPU is available, but this adapter does not meet the storage-buffer or compute-workgroup limits required by the work.',
+      'WebGPU는 사용할 수 있으나 이 작품에 필요한 스토리지 버퍼 또는 컴퓨트 워크그룹 한계에 미달한다.'],
+    api: ['WEBGPU UNAVAILABLE',
+      `${title || 'This work'} requires WebGPU. Use a current hardware-accelerated Chrome, Edge, Safari, or supported Firefox build.`,
+      '이 작품은 WebGPU가 필요하다. 하드웨어 가속이 활성화된 최신 Chrome·Edge·Safari 또는 지원되는 Firefox에서 열 것.'],
+  };
+  const why = reasons[reason] ?? reasons.api;
   document.body.innerHTML = `
     <div class="bar t"></div><div class="bar b"></div>
     <div style="position:fixed;inset:0;background:#050506;display:flex;flex-direction:column;
@@ -79,7 +87,11 @@ export function fatal(err, where = '') {
 
 export function createRenderer(canvas) {
   const C = cfg();
-  const renderer = new THREE.WebGPURenderer({ canvas, antialias: true });
+  const renderer = new THREE.WebGPURenderer({
+    canvas,
+    antialias: true,
+    powerPreference: 'high-performance',
+  });
   renderer.setPixelRatio(C.dprCeiling());
   renderer.setSize(innerWidth, innerHeight);
   renderer.setClearColor(new THREE.Color(...C.color.void), 1);
@@ -116,19 +128,21 @@ export function createRenderer(canvas) {
  * the first is the one that means anything.
  */
 export function captureDeviceErrors(renderer, onError) {
-  const device = renderer.backend?.device;
-  if (!device) return false;
+  if (!renderer) return false;
   let fired = false;
-  device.addEventListener?.('uncapturederror', e => {
+  const defaultLost = renderer.onDeviceLost?.bind(renderer);
+  renderer.onError = info => {
     if (fired) return;
     fired = true;
-    onError(e.error ?? e);
-  });
-  device.lost?.then(info => {
+    const detail = info?.message || `${info?.api ?? 'GPU'} ${info?.type ?? 'error'}`;
+    onError(new Error(detail));
+  };
+  renderer.onDeviceLost = info => {
+    defaultLost?.(info);
     if (fired) return;
     fired = true;
-    onError(new Error(`device lost: ${info.reason} — ${info.message}`));
-  });
+    onError(new Error(`device lost: ${info?.reason ?? 'unknown'} — ${info?.message ?? ''}`));
+  };
   return true;
 }
 
@@ -141,15 +155,37 @@ export function enableTimestamps(renderer) {
   } catch { return false; }
 }
 
-export async function describeAdapter() {
-  const a = await navigator.gpu?.requestAdapter();
-  const i = a?.info ?? {};
+const REQUIRED_LIMITS = Object.freeze({
+  maxStorageBuffersPerShaderStage: 8,
+  maxStorageBufferBindingSize: 128 * 1024 * 1024,
+  maxBufferSize: 256 * 1024 * 1024,
+  maxComputeWorkgroupSizeX: 256,
+  maxComputeInvocationsPerWorkgroup: 256,
+});
+
+/** Inspect the exact device acquired by WebGPURenderer. A second adapter
+    request can select a different physical GPU, so it is never used here. */
+export function describeAdapter(renderer) {
+  const backend = renderer?.backend;
+  const device = backend?.device;
+  const limits = device?.limits;
+  const i = device?.adapterInfo ?? {};
+  const missing = [];
+  for (const [name, minimum] of Object.entries(REQUIRED_LIMITS)) {
+    const actual = Number(limits?.[name] ?? 0);
+    if (actual < minimum) missing.push(`${name} ${actual} < ${minimum}`);
+  }
+  const compatibility = backend?.compatibilityMode === true
+    || !device?.features?.has?.('core-features-and-limits');
   return {
-    vendor: i.vendor || 'undisclosed',
+    vendor: i.vendor || i.description || 'undisclosed',
     arch: i.architecture || i.device || '—',
-    storageMB: a ? Math.round(a.limits.maxStorageBufferBindingSize / 1048576) : 0,
-    workgroupX: a ? a.limits.maxComputeWorkgroupSizeX : 0,
-    storageBuffers: a ? a.limits.maxStorageBuffersPerShaderStage : 0,
-    maxBufferMB: a ? Math.round(a.limits.maxBufferSize / 1048576) : 0,
+    storageMB: limits ? Math.round(limits.maxStorageBufferBindingSize / 1048576) : 0,
+    workgroupX: limits?.maxComputeWorkgroupSizeX ?? 0,
+    storageBuffers: limits?.maxStorageBuffersPerShaderStage ?? 0,
+    maxBufferMB: limits ? Math.round(limits.maxBufferSize / 1048576) : 0,
+    compatibility,
+    missing,
+    supported: !!device && !compatibility && missing.length === 0,
   };
 }

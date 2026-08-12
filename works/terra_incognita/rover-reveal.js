@@ -30,6 +30,7 @@ export class RoverReveal {
     this.onComplete = onComplete;
     this.state = { wire: 0, solid: 0, scan: 0, overlay: 0 };
     this.finished = true;
+    this.suspended = false;
 
     const style = document.createElement('style');
     style.textContent = CSS;
@@ -117,6 +118,18 @@ export class RoverReveal {
     this._done();
   }
 
+  suspend() {
+    if (this.finished || this.suspended) return;
+    this.suspended = true;
+    this.timeline.pause();
+  }
+
+  resume() {
+    if (this.finished || !this.suspended) return;
+    this.suspended = false;
+    this.timeline.resume();
+  }
+
   _apply() {
     const p = Math.max(0, Math.min(1, this.state.solid));
     const threshold = p * (this.solids.length + 4);
@@ -134,6 +147,7 @@ export class RoverReveal {
   _done() {
     if (this.finished) return;
     this.finished = true;
+    this.suspended = false;
     for (const part of this.solids) part.object.visible = part.visible;
     this.wire.visible = false;
     this.overlay.style.display = 'none';

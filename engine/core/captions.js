@@ -55,6 +55,9 @@ export class Captions {
 
     this.el = document.createElement('div');
     this.el.id = 'fh-cap-line';
+    this.el.setAttribute('role', 'status');
+    this.el.setAttribute('aria-live', 'polite');
+    this.el.setAttribute('aria-atomic', 'true');
     document.body.appendChild(this.el);
 
     this.fired = new Set();

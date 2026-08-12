@@ -10,10 +10,11 @@ export class MobileControl {
   constructor(rover) {
     this.rover = rover;
     this.active = navigator.maxTouchPoints > 0
-      && (matchMedia('(pointer:coarse)').matches || matchMedia('(hover:none)').matches);
+      && (matchMedia('(any-pointer:coarse)').matches || matchMedia('(hover:none)').matches);
     this.root = document.getElementById('ti-mobile-drive');
     this.start = document.getElementById('ti-mobile-start');
     this.tilt = document.getElementById('ti-mobile-tilt');
+    this.steer = document.getElementById('ti-mobile-steer');
     this.toggle = document.getElementById('ti-mobile-toggle');
     this.sensorLabel = document.getElementById('ti-mobile-sensor');
     this.driveLabel = document.getElementById('ti-mobile-state');
@@ -35,6 +36,8 @@ export class MobileControl {
     this.longPress = false;
     this.pressTimer = 0;
     this.explorer = false;
+    this.dragging = false;
+    this.dragSteer = 0;
     this.onIntent = null;
     this.lastIntentRoll = 0;
     this.lastIntentElevation = 0;
@@ -81,6 +84,28 @@ export class MobileControl {
       else if (this.permission !== 'denied' && this.permission !== 'unavailable') this.requestTilt();
     });
 
+    this.steer?.addEventListener('pointerdown', e => {
+      stop(e);
+      if (this.steer.disabled) return;
+      this.dragging = true;
+      this._intent('drag-steer');
+      try { this.steer.setPointerCapture?.(e.pointerId); } catch {}
+      this._drag(e);
+    });
+    this.steer?.addEventListener('pointermove', e => {
+      if (!this.dragging) return;
+      stop(e);
+      this._drag(e);
+    });
+    const endDrag = e => {
+      if (!this.dragging) return;
+      stop(e);
+      this.dragging = false;
+      this.dragSteer = 0;
+    };
+    this.steer?.addEventListener('pointerup', endDrag);
+    this.steer?.addEventListener('pointercancel', endDrag);
+
     this.toggle?.addEventListener('pointerdown', e => {
       stop(e);
       this.longPress = false;
@@ -115,12 +140,22 @@ export class MobileControl {
     this.onIntent?.(kind, performance.now());
   }
 
+  _drag(e) {
+    const rect = this.steer?.getBoundingClientRect();
+    if (!rect?.width) return;
+    const x = (e.clientX - rect.left) / rect.width * 2 - 1;
+    this.dragSteer = Math.max(-1, Math.min(1, -x));
+    this._intent('drag-motion');
+  }
+
   setExplorer(active) {
     this.explorer = !!active;
     this.rover.mobileInputEnabled = this.explorer;
     if (!this.explorer) {
       this.rover.operatorHold = false;
       this._zero();
+      this.dragging = false;
+      this.dragSteer = 0;
       this.rawThrottle = 1;
       this.filteredThrottle = 1;
       this.rover.mobileThrottle = 1;
@@ -238,10 +273,13 @@ export class MobileControl {
 
   update(now, dt, { released = false, blocked = false, missionHold = false } = {}) {
     if (!this.active) return;
-    const usable = this.explorer && this.permission === 'granted' && !this.calibrating
+    const sensorUsable = this.explorer && this.permission === 'granted' && !this.calibrating
       && now - this.lastSample <= 700 && released && !blocked
       && !missionHold && !this.rover.operatorHold;
-    const target = usable ? this.rawSteer : 0;
+    const dragUsable = this.explorer && this.dragging && released && !blocked
+      && !missionHold && !this.rover.operatorHold;
+    const usable = sensorUsable || dragUsable;
+    const target = dragUsable ? this.dragSteer : sensorUsable ? this.rawSteer : 0;
     this.filteredSteer += (target - this.filteredSteer) * (1 - Math.exp(-dt / 0.34));
     if (Math.abs(this.filteredSteer) < 0.001) this.filteredSteer = 0;
     /* Roll is a wheel angle, not an absolute compass target: left tilt turns
@@ -273,6 +311,8 @@ export class MobileControl {
     if (!this.active) return;
     this.rover.operatorHold = false;
     this._zero();
+    this.dragging = false;
+    this.dragSteer = 0;
     this.rawThrottle = 1;
     this.filteredThrottle = 1;
     this.tiltParked = false;
@@ -288,8 +328,8 @@ export class MobileControl {
     const sensor = this.permission === 'granted'
       ? (this.calibrating ? 'CALIBRATING · 수평 유지' : 'TILT READY · 기울여 조향 / 세우면 정지')
       : this.permission === 'pending' ? 'REQUESTING SENSOR'
-      : this.permission === 'denied' ? 'AUTO COURSE · 센서 거절됨'
-      : this.permission === 'unavailable' ? 'AUTO COURSE · 센서 미지원'
+      : this.permission === 'denied' ? 'DRAG STEER · 센서 거절됨'
+      : this.permission === 'unavailable' ? 'DRAG STEER · 센서 미지원'
       : 'ENABLE TILT · 기울기 조향';
     const state = blocked ? 'LINK SEQUENCE'
       : missionHold ? 'SURVEYING'
@@ -302,8 +342,13 @@ export class MobileControl {
       : !this.explorer ? '탭하여 직접 탐사'
       : this.rover.operatorHold ? '탭하여 탐사 재개'
       : this.tiltParked ? '기울이면 출발'
-      : '기울여 조향 · 탭하여 일시 정지';
-    const key = `${sensor}|${state}|${hint}|${blocked}`;
+      : this.permission === 'granted'
+        ? '기울이거나 드래그 · 탭하여 일시 정지'
+        : '좌우 드래그 조향 · 탭하여 일시 정지';
+    /* released/missionHold affect disabled states even when the labels do not
+       change. Omitting them left every mobile control permanently disabled
+       after the prologue because the cached pre-release label matched. */
+    const key = `${sensor}|${state}|${hint}|${blocked}|${missionHold}|${released}`;
     if (key === this.lastUi) return;
     this.lastUi = key;
     if (this.sensorLabel) this.sensorLabel.textContent = sensor;
@@ -315,8 +360,8 @@ export class MobileControl {
     }
     if (this.tilt) {
       this.tilt.setAttribute('aria-pressed', String(this.permission === 'granted'));
-      this.tilt.disabled = this.permission === 'pending'
-        || this.permission === 'denied' || this.permission === 'unavailable';
+      this.tilt.disabled = this.permission === 'pending';
     }
+    if (this.steer) this.steer.disabled = blocked || missionHold || !released;
   }
 }

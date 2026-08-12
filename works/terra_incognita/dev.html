@@ -25,6 +25,14 @@
     font-family:'Space Mono',ui-monospace,monospace;font-size:9px;
     letter-spacing:.26em;color:#3a3e45;pointer-events:none;
   }
+  #ti-sound{position:fixed;z-index:34;right:24px;bottom:calc(var(--bar) + 48px);
+    min-height:34px;padding:0 10px;border:1px solid rgba(217,221,226,.16);background:rgba(5,5,6,.64);
+    color:#737982;font:700 8px/1 'DM Mono',ui-monospace,monospace;letter-spacing:.16em;
+    appearance:none;-webkit-appearance:none;touch-action:manipulation;text-transform:uppercase}
+  #ti-sound::before{content:"";display:inline-block;width:5px;height:5px;margin-right:7px;border-radius:50%;
+    background:#33373d;box-shadow:none;transition:background .25s ease,box-shadow .25s ease}
+  #ti-sound[aria-pressed="true"]::before{background:#c0152a;box-shadow:0 0 9px rgba(192,21,42,.62)}
+  #ti-sound:focus-visible{outline:1px solid #d9dde2;outline-offset:3px}
   #ti-monitor{position:fixed;z-index:31;top:calc(var(--bar) + 18px);right:20px;
     width:190px;height:217px;padding:6px 6px 8px;pointer-events:none;overflow:hidden;
     border:1px solid rgba(91,238,128,.24);background:
@@ -142,12 +150,15 @@
     font-family:'DM Mono',ui-monospace,monospace;font-size:9px;letter-spacing:.22em;
     color:#33373d;text-transform:uppercase;opacity:0;transition:opacity 1.4s ease}
   #ti-prologue.armed .skip{opacity:1}
-  #ti-prologue #ti-mobile-start{display:none;border:1px solid rgba(217,221,226,.42);background:rgba(5,5,6,.88);
+  #ti-prologue #ti-start,#ti-prologue #ti-mobile-start{border:1px solid rgba(217,221,226,.42);background:rgba(5,5,6,.88);
     min-width:220px;min-height:48px;padding:0 18px;align-items:center;justify-content:center;
     font:700 9px/1.4 'DM Mono',ui-monospace,monospace;letter-spacing:.18em;color:#f0f1f2;
-    appearance:none;-webkit-appearance:none;touch-action:manipulation}
-  #ti-prologue #ti-mobile-start:disabled{color:#4b5057;border-color:rgba(217,221,226,.16)}
-  #ti-prologue.armed #ti-mobile-start{pointer-events:auto}
+    appearance:none;-webkit-appearance:none;touch-action:manipulation;margin-left:auto;margin-right:auto}
+  #ti-prologue #ti-start{display:inline-flex}
+  #ti-prologue #ti-mobile-start{display:none}
+  #ti-prologue #ti-start:disabled,#ti-prologue #ti-mobile-start:disabled{color:#4b5057;border-color:rgba(217,221,226,.16)}
+  #ti-prologue.armed #ti-start,#ti-prologue.armed #ti-mobile-start{pointer-events:auto}
+  #ti-prologue button:focus-visible{outline:1px solid #d9dde2;outline-offset:4px}
   body.ti-prologue-out #ti-prologue{opacity:0;visibility:hidden}
   body.embed #ti-prologue{display:none}
 
@@ -156,8 +167,8 @@
      course. The signal dot follows the rover's physical beacon uniform. */
   #ti-mobile-drive{display:none;position:fixed;z-index:33;left:50%;
     bottom:calc(var(--bar) + max(12px,env(safe-area-inset-bottom)));transform:translateX(-50%);
-    width:min(330px,calc(100vw - max(28px,env(safe-area-inset-left)) - max(28px,env(safe-area-inset-right))));
-    grid-template-columns:minmax(0,1fr) 140px;gap:6px;padding:5px;
+    width:min(480px,calc(100vw - max(28px,env(safe-area-inset-left)) - max(28px,env(safe-area-inset-right))));
+    grid-template-columns:1.15fr .82fr 1fr;gap:5px;padding:5px;
     border:1px solid rgba(217,221,226,.15);background:rgba(2,3,4,.80);
     backdrop-filter:blur(8px);font-family:'DM Mono',ui-monospace,monospace}
   #ti-mobile-drive button{min-height:48px;border:0;margin:0;padding:7px 10px;appearance:none;
@@ -166,6 +177,8 @@
     touch-action:none;border-radius:0}
   #ti-mobile-drive button:disabled{opacity:.48}
   #ti-mobile-tilt{position:relative;padding-left:25px!important}
+  #ti-mobile-steer{text-align:center!important;border-left:1px solid rgba(217,221,226,.12)!important;
+    color:#d9dde2!important;cursor:ew-resize}
   #ti-mobile-signal{position:absolute;left:10px;top:50%;width:7px;height:7px;margin-top:-3.5px;
     border-radius:50%;background:#ffb21c;box-shadow:0 0 8px rgba(255,178,28,.48);
     opacity:.18;transform:scale(.88);transform-origin:center}
@@ -187,28 +200,51 @@
   .mobile-controls{display:none}
   @media (max-width:760px){
     #universe-id{right:max(14px,env(safe-area-inset-right));bottom:calc(var(--bar) + max(14px,env(safe-area-inset-bottom)))}
+    #ti-sound{right:max(14px,env(safe-area-inset-right));top:calc(var(--bar) + 14px);bottom:auto;min-height:38px}
     #ti-monitor{right:max(14px,env(safe-area-inset-right));transform:scale(.62);transform-origin:top right}
     #ti-terminal-cue{left:max(14px,env(safe-area-inset-left));right:auto;width:min(46vw,180px);text-align:left}
   }
   @media (pointer:coarse), (max-width:760px){
     #ti-prologue .controls{bottom:calc(var(--bar) + max(18px,env(safe-area-inset-bottom)));font-size:8px}
     body.ti-mobile .desktop-controls{display:none}body.ti-mobile .mobile-controls{display:inline}
-    body.ti-mobile #ti-mobile-start{display:inline-flex}
-    body.ti-mobile #ti-prologue .desktop-start{display:none}
+    body.ti-mobile #ti-prologue #ti-mobile-start{display:inline-flex}
+    body.ti-mobile #ti-prologue #ti-start{display:none}
     body.ti-mobile.ti-prologue-out #ti-mobile-drive,body.ti-mobile.embed #ti-mobile-drive{display:grid}
   }
-  @media (prefers-reduced-motion:reduce){#ti-terminal-screen,#ti-monitor::after{animation:none!important}}
+  body.ti-mobile #ti-monitor{right:max(14px,env(safe-area-inset-right));transform:scale(.62);transform-origin:top right}
+  body.ti-mobile #ti-sound{right:max(14px,env(safe-area-inset-right));top:calc(var(--bar) + 160px);bottom:auto}
+  body.ti-mobile #universe-id{right:max(14px,env(safe-area-inset-right));bottom:calc(var(--bar) + max(14px,env(safe-area-inset-bottom)))}
+  body.ti-mobile #fh-keys{display:none!important}
+  body.ti-mobile #ti-terminal-cue{left:50%;right:auto;top:calc(var(--bar) + 48px);width:min(300px,42vw);
+    text-align:center;transform:translate(-50%,-5px)}
+  body.ti-mobile #ti-terminal-cue.on{transform:translate(-50%,0)}
+  @media (pointer:coarse) and (orientation:landscape) and (max-height:520px){
+    body.ti-mobile #ti-prologue{place-items:center start;padding:calc(var(--bar) + 12px) 35vw calc(var(--bar) + 12px) 6vw}
+    body.ti-mobile #ti-prologue .inner{width:58vw;text-align:left;max-height:100%}
+    body.ti-mobile #ti-prologue .rule{margin:9px 0}
+    body.ti-mobile #ti-prologue .ko{font-size:12px;line-height:1.55}
+    body.ti-mobile #ti-prologue .en{margin-top:8px;font-size:11px;line-height:1.4}
+    body.ti-mobile #ti-prologue .mission{margin-top:8px;font-size:7px;letter-spacing:.14em}
+    body.ti-mobile #ti-prologue #ti-mobile-start{position:fixed;right:max(22px,env(safe-area-inset-right));
+      bottom:calc(var(--bar) + max(18px,env(safe-area-inset-bottom)));min-width:215px}
+    body.ti-mobile #ti-prologue .controls{display:none}
+  }
+  body.ti-paused *{animation-play-state:paused!important}
+  @media (prefers-reduced-motion:reduce){
+    #ti-terminal-screen,#ti-monitor::after,#ti-sensor,#survey-log div{animation:none!important}
+    #ti-prologue,#arrive,#depart,#ti-terminal-cue{transition-duration:.12s!important}
+  }
 </style>
 </head>
 <body>
-<canvas id="gl"></canvas>
+<canvas id="gl" role="img" aria-label="세 행성의 물질·수분·지질 기억을 자율 로버가 통과하는 실시간 WebGPU 작품 Terra Incognita"></canvas>
 <div id="ti-terminal-screen" aria-hidden="true"></div>
 <div id="ti-terminal-cue" role="status" aria-live="polite" aria-hidden="true"><b>Archival Terminal</b>제한된 연산 자원 · 기록 신호로 전환<br>Low-compute telemetry recovered</div>
 <div id="ti-sensor" aria-hidden="true"></div>
 <div id="ti-monitor" role="img" aria-label="세 행성의 착륙선 재구성, 로버 위치와 지질 기억을 표시하는 녹색 형광체 임무 모니터">
   <canvas id="ti-minimap" width="308" height="352" aria-hidden="true"></canvas>
 </div>
-<div id="survey-log" aria-live="polite"></div>
+<div id="survey-log" aria-hidden="true"></div>
 <div id="ti-restoration" role="status" aria-live="polite" aria-label="Lander reconstruction progress">
   <div class="head"><span>Lander Reconstruction</span><span id="ti-restoration-progress">0 / 8</span></div>
   <div id="ti-restoration-cells" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
@@ -216,24 +252,22 @@
 </div>
 <div class="bar t"></div>
 <div class="bar b"></div>
+<button id="ti-sound" type="button" aria-pressed="true"><span data-sound-label>SOUND ON</span></button>
 <div id="ti-mobile-drive" aria-label="모바일 로버 조작">
   <button id="ti-mobile-tilt" type="button" aria-pressed="false">
     <i id="ti-mobile-signal" aria-hidden="true"></i><span id="ti-mobile-sensor">ENABLE TILT · 기울기 조향</span>
   </button>
+  <button id="ti-mobile-steer" type="button" disabled>DRAG STEER<br>좌우 드래그</button>
   <button id="ti-mobile-toggle" type="button" aria-pressed="false">
     <strong id="ti-mobile-state">STANDBY</strong><small id="ti-mobile-hint">자동 탐사 대기</small>
   </button>
 </div>
 
 <div id="fh-watchdog">
-  <h1>MODULE DID NOT START</h1>
+  <h1>BOOT STAGE STALLED</h1>
   <div class="r"></div>
-  <p>The scene failed to initialise within nine seconds. In development this
-  usually means the import map could not reach the CDN. The built file in
-  <span style="color:#d9dde2">dist/</span> has no external dependencies and
-  should be used in the gallery.</p>
-  <p>모듈이 9초 안에 시작하지 못했다. 개발 중이라면 CDN 연결을 확인할 것.
-  전시에는 외부 의존이 없는 dist 빌드를 쓴다.</p>
+  <p id="fh-watchdog-en">The current boot stage did not complete within 30 seconds.</p>
+  <p id="fh-watchdog-ko">현재 시작 단계가 30초 안에 완료되지 않았다.</p>
 </div>
 
 <div id="arrive"></div>
@@ -248,10 +282,10 @@
       두 세계의 증거는 세 번째 행성의 지질 기억으로 다시 나타난다.</p>
     <p class="en">One memory crosses three unmapped surfaces. Eight material signatures restore the lander on Body 01; water is confirmed on Body 02. Their combined evidence reappears as geological memory on Body 03.</p>
     <span class="mission">Three-Body Autonomous Survey · Matter / Water / Memory<span id="ti-terminal-state">Archival Terminal · Low Bandwidth</span></span>
-    <span class="skip desktop-start">아무 키나 눌러 로버 구성 시작 · Resolve rover to begin</span>
+    <button id="ti-start" class="skip desktop-start" type="button" disabled>로버 구성 시작 · RESOLVE ROVER</button>
     <button id="ti-mobile-start" class="skip" type="button" disabled>로버 구성 시작 · ENABLE TILT</button>
   </div>
-  <div class="controls"><span class="desktop-controls">OBSERVER BY DEFAULT &nbsp;·&nbsp; <kbd>WASD</kbd> EXPLORE &nbsp;·&nbsp; <kbd>C</kbd> CAMERA &nbsp;·&nbsp; <kbd>SPACE</kbd> OBSERVER</span><span class="mobile-controls">탭하고 기울여 직접 탐사 · 무입력 시 감상으로 복귀<br>Tap and tilt to explore · Returns to observer</span></div>
+  <div class="controls"><span class="desktop-controls">OBSERVER BY DEFAULT &nbsp;·&nbsp; <kbd>WASD</kbd> EXPLORE &nbsp;·&nbsp; <kbd>C</kbd> CAMERA &nbsp;·&nbsp; <kbd>SPACE</kbd> OBSERVER</span><span class="mobile-controls">기울이거나 좌우 드래그하여 탐사 · 무입력 시 감상으로 복귀<br>Tilt or drag to explore · Returns to observer</span></div>
 </section>
 
 <script>
@@ -286,23 +320,35 @@
   },true);
 })();
 
-/* watchdog — main.js sets window.TI_READY once the first frame is queued */
-setTimeout(function(){
-  if(window.TI_READY) return;
-  /* unsupported() rewrites document.body, so the node may be gone. It is not
-     an error state then — the module ran and reported a missing adapter. */
-  var el=document.getElementById('fh-watchdog');
-  if(el) el.classList.add('on');
-}, 9000);
+/* Stage-aware watchdog. Every completed boot stage renews the deadline; a late
+   successful first frame always clears the panel. */
+(function(){
+  var timer=0,stage='module';
+  function hide(){var el=document.getElementById('fh-watchdog');if(el)el.classList.remove('on');}
+  function fail(){
+    if(window.TI_READY){hide();return;}
+    var el=document.getElementById('fh-watchdog');if(!el)return;
+    var en=document.getElementById('fh-watchdog-en'),ko=document.getElementById('fh-watchdog-ko');
+    if(en)en.textContent='Boot stage '+stage.toUpperCase()+' did not complete within 30 seconds. Reload the local exhibition file or inspect the GPU status.';
+    if(ko)ko.textContent='시작 단계 '+stage.toUpperCase()+'가 30초 안에 완료되지 않았다. 전시 파일을 다시 열거나 GPU 상태를 확인할 것.';
+    el.classList.add('on');
+  }
+  function schedule(){clearTimeout(timer);timer=setTimeout(fail,30000);}
+  window.TI_BOOT={
+    beat:function(next){stage=next||stage;hide();schedule();},
+    ready:function(){window.TI_READY=true;clearTimeout(timer);hide();}
+  };
+  window.TI_BOOT.beat('module');
+})();
 </script>
 
 <script type="importmap">
 {
   "imports": {
-    "three": "https://unpkg.com/three@0.185.1/build/three.webgpu.js",
-    "three/webgpu": "https://unpkg.com/three@0.185.1/build/three.webgpu.js",
-    "three/tsl": "https://unpkg.com/three@0.185.1/build/three.tsl.js",
-    "three/addons/": "https://unpkg.com/three@0.185.1/examples/jsm/",
+    "three": "../../node_modules/three/build/three.webgpu.js",
+    "three/webgpu": "../../node_modules/three/build/three.webgpu.js",
+    "three/tsl": "../../node_modules/three/build/three.tsl.js",
+    "three/addons/": "../../node_modules/three/examples/jsm/",
     "animejs": "../../node_modules/animejs/dist/modules/index.js"
   }
 }

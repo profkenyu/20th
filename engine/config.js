@@ -18,7 +18,10 @@ export function deviceTier() {
   if (forced === 'mid') return 'mid';
   const mem = navigator.deviceMemory ?? 8;
   const cores = navigator.hardwareConcurrency ?? 4;
-  if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) return 'low';
+  if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+    const memoryKnown = Number.isFinite(navigator.deviceMemory);
+    return memoryKnown && cores >= 8 && mem >= 8 ? 'mid' : 'low';
+  }
   return (cores >= 8 && mem >= 8) ? 'high' : 'mid';
 }
 

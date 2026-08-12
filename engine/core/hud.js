@@ -104,8 +104,9 @@ export class Hud {
 
     const mission = document.createElement('div');
     mission.id = 'fh-mission';
-    mission.setAttribute('role', 'status');
-    mission.setAttribute('aria-live', 'polite');
+    /* Frame telemetry changes continuously and must not become a screen-reader
+       announcement stream. Authored captions own the live region instead. */
+    mission.setAttribute('aria-hidden', 'true');
     mission.innerHTML = '<span class="experience">OBSERVER · AUTONOMOUS</span>'
       + '<span class="body">BODY 01 · SHEAR BODY</span>'
       + '<span class="objective">OBJECTIVE · MATERIAL 0 / 8</span>'
@@ -168,9 +169,14 @@ export class Hud {
 
   setMission({ body, objective, systems }) {
     if (!this.missionEl) return;
-    if (body != null) this.missionEl.querySelector('.body').textContent = body;
-    if (objective != null) this.missionEl.querySelector('.objective').textContent = objective;
-    if (systems != null) this.missionEl.querySelector('.systems').textContent = systems;
+    const setText = (selector, value) => {
+      if (value == null) return;
+      const el = this.missionEl.querySelector(selector);
+      if (el && el.textContent !== value) el.textContent = value;
+    };
+    setText('.body', body);
+    setText('.objective', objective);
+    setText('.systems', systems);
   }
 
   setExperience(mode) {

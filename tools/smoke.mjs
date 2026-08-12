@@ -23,21 +23,30 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const TARGET = process.argv[2] ?? `file://${ROOT}/index.html`;
 const DWELL = Number(process.env.DWELL ?? 15000);
 const SEQUENCE = process.env.SEQUENCE === '1';
+const MOBILE = process.env.MOBILE === '1';
+const TARGET = process.argv[2] ?? `file://${ROOT}/index.html?test${MOBILE ? '&quality=low' : ''}`;
 const [viewportWidth, viewportHeight] = String(process.env.VIEWPORT ?? '1600x900')
   .split('x').map(Number);
 
 const browser = await chromium.launch({
   headless: process.env.HEADED ? false : true,
-  channel: 'chromium',
+  channel: process.env.BROWSER_CHANNEL ?? 'chrome',
   args: ['--allow-file-access-from-files'],
 });
-const page = await browser.newPage({ viewport: {
-  width: Number.isFinite(viewportWidth) ? viewportWidth : 1600,
-  height: Number.isFinite(viewportHeight) ? viewportHeight : 900,
-} });
+const page = await browser.newPage({
+  viewport: {
+    width: Number.isFinite(viewportWidth) ? viewportWidth : 1600,
+    height: Number.isFinite(viewportHeight) ? viewportHeight : 900,
+  },
+  isMobile: MOBILE,
+  hasTouch: MOBILE,
+  userAgent: MOBILE
+    ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1'
+    : undefined,
+});
+if (MOBILE) await page.emulateMedia({ reducedMotion: 'reduce' });
 
 const errors = [];
 page.on('console', m => { if (m.type() === 'error') errors.push(m.text().slice(0, 200)); });
@@ -52,15 +61,93 @@ const introObserved = await page.evaluate(() => ({
   blueprint: window.TI_BLUEPRINT?.() ?? null,
   phase: window.TI_SEQUENCE?.().prologue ?? null,
 }));
-/* First input closes the written prologue only. The WebGPU/Anime.js modelling
-   field begins after its 2.6 s fade and must finish before driving unlocks. */
-await page.keyboard.press('KeyC');
-await page.waitForFunction(() => window.TI_SEQUENCE?.().prologue === 'blueprint', null,
+/* The explicit prologue CTA accepts Enter/Space. Diagnostic or navigation keys
+   must never dismiss the first reading screen. */
+const startId = MOBILE ? 'ti-mobile-start' : 'ti-start';
+await page.waitForFunction(id => document.getElementById(id)?.disabled === false, startId,
   { timeout: 5000 });
-await page.waitForTimeout(3800);
-const blueprintObserved = await page.evaluate(() => window.TI_BLUEPRINT?.() ?? null);
-await page.waitForFunction(() => window.TI_SEQUENCE?.().prologue === 'released', null,
-  { timeout: 12000 });
+const mobileIntro = MOBILE ? await page.evaluate(id => {
+  const el = document.getElementById(id), rect = el?.getBoundingClientRect();
+  return { visible: !!rect && rect.width >= 200 && rect.height >= 44, width: rect?.width, height: rect?.height };
+}, startId) : null;
+if (MOBILE) await page.click(`#${startId}`);
+else await page.keyboard.press('Enter');
+let blueprintObserved = null;
+if (MOBILE) {
+  await page.waitForFunction(() => window.TI_SEQUENCE?.().prologue === 'released', null,
+    { timeout: 8000 });
+  blueprintObserved = await page.evaluate(() => window.TI_BLUEPRINT?.() ?? null);
+} else {
+  await page.waitForFunction(() => window.TI_SEQUENCE?.().prologue === 'blueprint', null,
+    { timeout: 5000 });
+  await page.waitForTimeout(3800);
+  blueprintObserved = await page.evaluate(() => window.TI_BLUEPRINT?.() ?? null);
+  await page.waitForFunction(() => window.TI_SEQUENCE?.().prologue === 'released', null,
+    { timeout: 12000 });
+}
+
+let mobileControl = null;
+if (MOBILE) {
+  await page.waitForTimeout(1600);
+  await page.waitForFunction(() => document.getElementById('ti-mobile-steer')?.disabled === false,
+    null, { timeout: 12000 });
+  mobileControl = await page.evaluate(() => {
+    const root = document.getElementById('ti-mobile-drive')?.getBoundingClientRect();
+    const steer = document.getElementById('ti-mobile-steer')?.getBoundingClientRect();
+    const sound = document.getElementById('ti-sound')?.getBoundingClientRect();
+    const monitor = document.getElementById('ti-monitor')?.getBoundingClientRect();
+    const cue = document.getElementById('ti-terminal-cue')?.getBoundingClientRect();
+    const overlap = (a, b) => !!a && !!b && a.width > 0 && b.width > 0
+      && !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom);
+    return {
+      rootVisible: !!root && root.width > 0 && root.height >= 48,
+      steerVisible: !!steer && steer.width > 60 && steer.height >= 44,
+      soundVisible: !!sound && sound.width > 0 && sound.height >= 34,
+      overlapSoundControl: overlap(sound, root),
+      overlapSoundMonitor: overlap(sound, monitor),
+      overlapCueControl: overlap(cue, root),
+      overlapCueSound: overlap(cue, sound),
+      steerX: steer ? steer.left + steer.width * .88 : 0,
+      steerY: steer ? steer.top + steer.height * .5 : 0,
+      audio: window.TI_AUDIO?.() ?? null,
+    };
+  });
+  mobileControl.dispatched = await page.evaluate(({ x, y }) => {
+    const el = document.getElementById('ti-mobile-steer');
+    if (!el) return false;
+    el.dispatchEvent(new PointerEvent('pointerdown', {
+      bubbles: true, cancelable: true, pointerId: 7, pointerType: 'touch', isPrimary: true,
+      clientX: x, clientY: y,
+    }));
+    return true;
+  }, { x: mobileControl.steerX, y: mobileControl.steerY });
+  await page.waitForTimeout(220);
+  mobileControl.dragExperience = await page.evaluate(() => window.TI_EXPERIENCE?.().mode ?? null);
+  await page.evaluate(({ x, y }) => {
+    document.getElementById('ti-mobile-steer')?.dispatchEvent(new PointerEvent('pointerup', {
+      bubbles: true, cancelable: true, pointerId: 7, pointerType: 'touch', isPrimary: true,
+      clientX: x, clientY: y,
+    }));
+  }, { x: mobileControl.steerX, y: mobileControl.steerY });
+
+  const failed = !mobileIntro?.visible || !mobileControl.rootVisible
+    || !mobileControl.steerVisible || !mobileControl.soundVisible
+    || mobileControl.overlapSoundControl || mobileControl.overlapSoundMonitor
+    || mobileControl.overlapCueControl || mobileControl.overlapCueSound
+    || !mobileControl.audio?.started || mobileControl.audio?.muted
+    || !mobileControl.dispatched || mobileControl.dragExperience !== 'explorer' || errors.length > 0;
+  console.log(`\n  mobile intro CTA       ${JSON.stringify(mobileIntro)}`);
+  console.log(`  mobile controls        ${JSON.stringify(mobileControl)}`);
+  if (errors.length) console.log(`  browser errors         ${errors.slice(0, 6).join(' · ')}`);
+  await page.screenshot({ path: `${ROOT}/dist/mobile-smoke.png` });
+  await browser.close();
+  if (failed) {
+    console.log('\n✗ FAIL — mobile CTA/drag/sound contract');
+    process.exit(1);
+  }
+  console.log('\n✓ PASS — mobile CTA visible, drag steering enters Explorer, sound control visible');
+  process.exit(0);
+}
 
 const sequencePhases = [];
 let sequenceComplete = !SEQUENCE;
@@ -184,6 +271,7 @@ const report = await page.evaluate(() => {
     r: read('r'), region: read('region'), divergence: read('delta'),
     filaments: read('fcount'), vertices: read('fverts'),
     camera: window.TI_CAMERA?.() ?? null,
+    audio: window.TI_AUDIO?.() ?? null,
     experience: window.TI_EXPERIENCE?.() ?? null,
     anomalies: window.TI_ANOMALIES?.().length ?? 0,
     water: window.TI_WATER?.() ?? null,
@@ -202,6 +290,8 @@ report.cameraCycle = cameraCycle;
 report.sequenceShots = sequenceShots;
 report.introObserved = introObserved;
 report.blueprintObserved = blueprintObserved;
+report.mobileIntro = mobileIntro;
+report.mobileControl = mobileControl;
 
 await page.screenshot({ path: `${ROOT}/dist/${SEQUENCE ? 'sequence-smoke' : 'smoke'}.png` });
 await browser.close();
@@ -221,6 +311,14 @@ if (!blueprintObserved?.active || blueprintObserved.wire < 0.1
   fatal.push(`Anime.js rover blueprint was not observed: ${JSON.stringify(blueprintObserved)}`);
 }
 if (report.gate) fatal.push(`adapter gate fired: ${report.gate}`);
+if (!report.audio?.started || report.audio?.muted) {
+  fatal.push(`start gesture did not unlock audible score: ${JSON.stringify(report.audio)}`);
+}
+if (MOBILE && (!mobileIntro?.visible || !mobileControl?.rootVisible
+    || !mobileControl?.steerVisible || !mobileControl?.soundVisible
+    || mobileControl?.dragExperience !== 'explorer')) {
+  fatal.push(`mobile CTA/drag/sound contract failed: ${JSON.stringify({ mobileIntro, mobileControl })}`);
+}
 if (!['wide', 'rear', 'macro', 'tele', 'return', 'ascent'].includes(report.camera?.shot))
   fatal.push(`camera escaped authored/operator grammar: ${report.camera?.shot ?? 'missing'}`);
 if (!SEQUENCE && (cameraCycle.before.shot === cameraCycle.after?.shot
