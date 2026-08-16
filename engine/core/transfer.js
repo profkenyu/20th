@@ -117,7 +117,7 @@ export class PlanetTransfer {
       document.body.classList.remove('tx-blackout'); document.body.classList.add('tx-arrival');
       this.ambient?.transferCue('arrival');
       const ko = this.destination.arrivalKo ?? '원격 행성 · 몸체 연결';
-      const en = this.destination.arrivalEn ?? `${this.destination.id ?? 'REMOTE BODY'} · LINK ACQUIRED`;
+      const en = this.destination.arrivalEn ?? `${this.destination.id ?? 'REMOTE PLANET'} · LINK ACQUIRED`;
       this.copy.innerHTML = `<span class="ko">${ko}</span><span class="en">${en}</span>`; return;
     }
     if (this.phase === 'arrival') {
@@ -131,7 +131,7 @@ export class PlanetTransfer {
   finish() {
     const completedTransfer = this.active;
     this.active = false; this.phase = 'idle'; this.light = 1; this.audio = 1; this.trigger.disabled = false;
-    this.trigger.textContent = `${this.destination?.id ?? 'BODY'} · 1 2 3 SELECT`; this.effect?.finish();
+    this.trigger.textContent = `${this.destination?.id ?? 'PLANET'} · 1 2 3 SELECT`; this.effect?.finish();
     document.body.classList.remove('tx-active', 'tx-orient', 'tx-lock', 'tx-blackout', 'tx-arrival');
     if (completedTransfer) this.ambient?.transferCue('online');
   }

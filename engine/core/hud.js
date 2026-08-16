@@ -109,7 +109,7 @@ export class Hud {
        announcement stream. Authored captions own the live region instead. */
     mission.setAttribute('aria-hidden', 'true');
     mission.innerHTML = '<span class="experience">OBSERVER · AUTONOMOUS</span>'
-      + '<span class="body">BODY 01 · SHEAR BODY</span>'
+      + '<span class="body">PLANET 01 · SHEAR WORLD</span>'
       + '<span class="objective">OBJECTIVE · MATERIAL 0 / 8</span>'
       + '<span class="systems">PWR — · COMMS LOCAL</span>';
     document.body.appendChild(mission);

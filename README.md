@@ -39,7 +39,7 @@ npm run dev
 npm run build      # index.html 및 dist/TERRA_INCOGNITA.html 생성
 npm run verify     # 모듈, HUD, 폰트, 단일 파일 검증
 npm run terrain    # 지형 기복·경사·로버 주행성 측정
-npm run memory     # BODY 01·02 기록에서 BODY 03 임무를 합성하는 순수 데이터 검증
+npm run memory     # PLANET 01·02 기록에서 PLANET 03 임무를 합성하는 순수 데이터 검증
 npm run harness    # 차량·착륙선·WebGPU 노드 구성 통합 검증
 npm run smoke      # 실제 WebGPU 브라우저 스모크 테스트
 npm run smoke:mobile # 844×390 터치·드래그·사운드 UX 검증
@@ -47,7 +47,7 @@ npm run fonts      # 한글 텍스트 변경 후 폰트 서브셋 재생성
 npm run release    # 빌드부터 실제 WebGPU 스모크까지 릴리스 검증
 ```
 
-전체 작품은 세 행성을 하나의 보존 흐름으로 연결한다. BODY 01의 8개 물질 서명과 BODY 02의 수분 측정은 임무 기억에 남고, 격납된 로버와 착륙선은 Anime.js가 지휘하는 WebGPU 입자장으로 분해·압축·재조립된다. 두 기록의 위상 간섭은 BODY 03에서 세 개의 지질 기억 교차 결절을 생성한다.
+전체 작품은 세 행성을 하나의 보존 흐름으로 연결한다. PLANET 01의 8개 물질 서명과 PLANET 02의 수분 측정은 임무 기억에 남고, 격납된 로버와 착륙선은 Anime.js가 지휘하는 WebGPU 입자장으로 분해·압축·재조립된다. 두 기록의 위상 간섭은 PLANET 03에서 세 개의 지질 기억 교차 결절을 생성한다.
 
 ## 구성
 

@@ -37,7 +37,7 @@ export class MiniMap {
        the visible instrument can be reassigned to the lander's material state. */
     this.restoration = options.restoration ?? null;
     this.reset(start, {
-      id: options.id ?? 'BODY 01', label: options.label ?? 'TERRA', archives: [],
+      id: options.id ?? 'PLANET 01', label: options.label ?? 'TERRA', archives: [],
     });
   }
 
@@ -56,10 +56,10 @@ export class MiniMap {
        old path as one archival memory, never as knowledge of the new body. */
     if (Array.isArray(options)) {
       options = options.length ? {
-        archives: [{ id: 'BODY 01', label: 'LEGACY PATH', cell: 24, cells: [], trail: options }],
+        archives: [{ id: 'PLANET 01', label: 'LEGACY PATH', cell: 24, cells: [], trail: options }],
       } : {};
     }
-    this.id = options.id ?? 'BODY 01';
+    this.id = options.id ?? 'PLANET 01';
     this.label = options.label ?? 'LOCAL FRAME';
     this.archives = (options.archives ?? []).slice(-2).map(a => ({
       ...a,

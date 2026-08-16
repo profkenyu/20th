@@ -146,24 +146,24 @@ const VOYAGE_LINES = Object.freeze({
   descent: { r: 0, ko: '다음 행성 지표 획득 · 하강', en: 'NEXT BODY ACQUIRED · CONTROLLED DESCENT' },
   touchdown: { r: 0, ko: '6점 접지 확인', en: 'SIX-POINT GROUND CONTACT CONFIRMED' },
   egress: { r: 0, ko: '격납 해제 · 탐사선 재배치', en: 'STOW RELEASE · ROVER REDEPLOYMENT' },
-  epilogue: { r: 0, ko: '두 번째 표면에 첫 좌표가 남는다', en: 'BODY 02 · THE FIRST COORDINATE REMAINS' },
+  epilogue: { r: 0, ko: '두 번째 표면에 첫 좌표가 남는다', en: 'PLANET 02 · THE FIRST COORDINATE REMAINS' },
 });
 
 const DESERT_START = [96, 520];
 
 const PLANETS = Object.freeze({
   terra: Object.freeze({
-    key: 'terra', number: 1, id: 'BODY 01', label: 'SHEAR BODY', start: BH.start,
+    key: 'terra', number: 1, id: 'PLANET 01', label: 'SHEAR WORLD', start: BH.start,
     mode: 'terra', metric: true, storm: false, initialCharge: 1,
     lines: LINES, survey: TERRA_SURVEY, next: 'desert', mission: 'samples',
   }),
   desert: Object.freeze({
-    key: 'desert', number: 2, id: 'BODY 02', label: 'YARDANG FIELD', start: DESERT_START,
+    key: 'desert', number: 2, id: 'PLANET 02', label: 'YARDANG FIELD', start: DESERT_START,
     mode: 'desert', metric: false, storm: false, initialCharge: 0.86,
     lines: DESERT_LINES, survey: DESERT_SURVEY, next: 'granite', mission: 'water',
   }),
   granite: Object.freeze({
-    key: 'granite', number: 3, id: 'BODY 03', label: 'JOINTED GRANITE', start: [120, 460],
+    key: 'granite', number: 3, id: 'PLANET 03', label: 'JOINTED GRANITE', start: [120, 460],
     mode: 'granite', metric: false, storm: false, initialCharge: 0.90,
     lines: GRANITE_LINES, survey: GRANITE_SURVEY, next: null, mission: 'geological-memory',
   }),
@@ -403,7 +403,7 @@ roverReveal = new RoverReveal(rover, {
 });
 power = new Power(heightCPU, solarAccessCPU);
 minimap = new MiniMap(document.getElementById('ti-minimap'), BH.start, {
-  heightAt: heightCPU, id: 'BODY 01', label: 'SHEAR BODY', restoration,
+  heightAt: heightCPU, id: 'PLANET 01', label: 'SHEAR WORLD', restoration,
 });
 optics = new Optics();
 survey = new Survey(heightCPU, TERRA_SURVEY);
@@ -731,8 +731,8 @@ function activateArrivalMission(key, now) {
     shotDirector.mission = geologicalMemory;
     rover.auto = activated; rover.missionHold = false; rover.operatorHold = !activated;
     captions.force(activated
-      ? { r: 0, ko: 'BODY 03 · 두 기억장의 교차 결절 추적', en: 'BODY 03 · TRACE THREE MEMORY CONCORDANCE NODES' }
-      : { r: 0, ko: 'BODY 03 · 이전 행성 데이터 불완전', en: 'BODY 03 · PRIOR-BODY EVIDENCE INCOMPLETE' }, now, 7200);
+      ? { r: 0, ko: 'PLANET 03 · 두 기억장의 교차 결절 추적', en: 'PLANET 03 · TRACE THREE MEMORY CONCORDANCE NODES' }
+      : { r: 0, ko: 'PLANET 03 · 이전 행성 데이터 불완전', en: 'PLANET 03 · PRIOR-PLANET EVIDENCE INCOMPLETE' }, now, 7200);
   }
 }
 
@@ -1334,7 +1334,7 @@ async function returnToStart() {
   captions.lines = LINES; captions.rearm();
   survey.reset(TERRA_SURVEY);
   minimap.restoration = restoration;
-  minimap.reset(BH.start, { id: 'BODY 01', label: 'SHEAR BODY', archives: [] });
+  minimap.reset(BH.start, { id: 'PLANET 01', label: 'SHEAR WORLD', archives: [] });
   ground.syncTo(rover.pos.x, rover.pos.z);
   if (!off('wake')) await wake.clear(renderer);
   await rebuild();
