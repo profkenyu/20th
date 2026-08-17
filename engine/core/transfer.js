@@ -4,7 +4,7 @@
  */
 
 const CSS = `
-#ti-transfer-trigger{position:fixed;z-index:32;right:20px;top:calc(var(--bar) + 210px);border:0;border-top:1px solid rgba(105,224,145,.22);background:rgba(5,5,6,.38);padding:8px 2px 4px;width:154px;text-align:right;cursor:pointer;font:8px/1.4 'DM Mono',ui-monospace,monospace;letter-spacing:.18em;color:rgba(163,201,177,.48);transition:color .8s,opacity .8s}
+#ti-transfer-trigger{position:fixed;z-index:32;right:20px;top:calc(var(--frame-top) + 210px);border:0;border-top:1px solid rgba(105,224,145,.22);background:rgba(5,5,6,.38);padding:8px 2px 4px;width:154px;text-align:right;cursor:pointer;font:8px/1.4 'DM Mono',ui-monospace,monospace;letter-spacing:.18em;color:rgba(163,201,177,.48);transition:color .8s,opacity .8s}
 #ti-transfer-trigger:hover,#ti-transfer-trigger:focus-visible{color:#69e091;outline:none}#ti-transfer-trigger:disabled{opacity:.18;cursor:default}
 #ti-transfer-layer{position:fixed;inset:0;z-index:43;pointer-events:none;opacity:0;display:grid;place-items:center;overflow:hidden;color:#d9dde2;background:radial-gradient(circle at 50% 50%,transparent 0 10%,rgba(5,5,6,.18) 42%,rgba(5,5,6,.84) 100%);transition:opacity 1.8s cubic-bezier(.4,0,.2,1)}
 #ti-transfer-layer::before{content:'';position:absolute;inset:-12%;opacity:0;background:repeating-linear-gradient(0deg,rgba(105,224,145,.018) 0 1px,transparent 1px 5px);transform:scaleY(1.4);transition:opacity 1.2s}
@@ -107,7 +107,7 @@ export class PlanetTransfer {
       if (elapsed < 5050) return;
       this.phase = 'blackout'; this.t0 = now; this.effect?.blackout(0); document.body.classList.remove('tx-lock'); document.body.classList.add('tx-blackout');
       this.ambient?.transferCue('release');
-      this.copy.innerHTML = '<span class="ko">플랫폼 정지 · 탐사 세션 연속</span><span class="en">THE BODY REMAINS · THE SURVEY CONTINUES</span>'; return;
+      this.copy.innerHTML = '<span class="ko">플랫폼 정지 · 탐사 세션 연속</span><span class="en">THE PLANET REMAINS · THE SURVEY CONTINUES</span>'; return;
     }
     if (this.phase === 'blackout') {
       this.effect?.blackout(elapsed);

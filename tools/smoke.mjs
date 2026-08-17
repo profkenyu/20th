@@ -67,8 +67,20 @@ const startId = MOBILE ? 'ti-mobile-start' : 'ti-start';
 await page.waitForFunction(id => document.getElementById(id)?.disabled === false, startId,
   { timeout: 5000 });
 const mobileIntro = MOBILE ? await page.evaluate(id => {
-  const el = document.getElementById(id), rect = el?.getBoundingClientRect();
-  return { visible: !!rect && rect.width >= 200 && rect.height >= 44, width: rect?.width, height: rect?.height };
+  const el = document.getElementById(id);
+  const root = document.documentElement;
+  root.style.setProperty('--safe-top', '44px');
+  root.style.setProperty('--safe-bottom', '34px');
+  const rect = el?.getBoundingClientRect();
+  const topFrame = document.querySelector('.bar.t')?.getBoundingClientRect().height ?? 0;
+  const bottomFrame = document.querySelector('.bar.b')?.getBoundingClientRect().height ?? 0;
+  const prologue = document.getElementById('ti-prologue')?.getBoundingClientRect();
+  return {
+    visible: !!rect && rect.width >= 200 && rect.height >= 44,
+    insideViewport: !!rect && rect.top >= topFrame && rect.bottom <= innerHeight - bottomFrame,
+    prologueInsideViewport: !!prologue && prologue.top >= 0 && prologue.bottom <= innerHeight + 1,
+    topFrame, bottomFrame, width: rect?.width, height: rect?.height,
+  };
 }, startId) : null;
 if (MOBILE) await page.click(`#${startId}`);
 else await page.keyboard.press('Enter');
@@ -138,7 +150,8 @@ if (MOBILE) {
   const on = await page.evaluate(() => window.TI_AUDIO?.() ?? null);
   soundCycle = { off, on };
 
-  const failed = !mobileIntro?.visible || !mobileControl.rootVisible
+  const failed = !mobileIntro?.visible || !mobileIntro?.insideViewport
+    || !mobileIntro?.prologueInsideViewport || !mobileControl.rootVisible
     || !mobileControl.steerVisible || !mobileControl.soundVisible
     || mobileControl.overlapSoundControl || mobileControl.overlapSoundMonitor
     || mobileControl.overlapCueControl || mobileControl.overlapCueSound

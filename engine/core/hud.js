@@ -9,14 +9,14 @@
 
 const CSS = `
 #fh-hud{
-  position:fixed;z-index:30;top:calc(var(--bar) + 24px);left:24px;width:272px;
+  position:fixed;z-index:30;top:calc(var(--frame-top) + 24px);left:24px;width:272px;
   pointer-events:none;   /* the panel is read-only — it must never eat a drag */
   font-family:'DM Mono',ui-monospace,monospace;font-size:10px;line-height:1.55;
   letter-spacing:.06em;color:#8a9099;transition:opacity .45s ease;
 }
 #fh-hud.hidden{opacity:0;pointer-events:none}
 #fh-mission{
-  position:fixed;z-index:30;top:calc(var(--bar) + 22px);left:24px;width:240px;
+  position:fixed;z-index:30;top:calc(var(--frame-top) + 22px);left:24px;width:240px;
   pointer-events:none;font-family:'DM Mono',ui-monospace,monospace;text-transform:uppercase;
   color:#e3e5e8;border-left:1px solid rgba(192,21,42,.64);padding:3px 8px 3px 11px;
   background:linear-gradient(90deg,rgba(5,5,6,.42),rgba(5,5,6,.08) 82%,transparent);
@@ -52,7 +52,7 @@ body.tx-active #fh-keys{opacity:0}
 #fh-pulse{display:inline-block;width:6px;height:6px;background:#2a2d33;margin-left:7px;
   vertical-align:1px;transition:background .06s linear}
 #fh-pulse.on{background:#c0152a}
-#fh-keys{position:fixed;z-index:30;left:24px;bottom:calc(var(--bar) + 24px);pointer-events:none;
+#fh-keys{position:fixed;z-index:30;left:24px;bottom:calc(var(--frame-bottom) + 24px);pointer-events:none;
   padding:7px 10px 6px;border-left:1px solid rgba(217,221,226,.13);
   background:linear-gradient(90deg,rgba(5,5,6,.38),rgba(5,5,6,0));
   font-family:'DM Mono','Noto Sans KR',ui-monospace,monospace;font-size:8px;letter-spacing:.10em;
@@ -61,10 +61,10 @@ body.tx-active #fh-keys{opacity:0}
 #fh-keys b{font-weight:500;color:rgba(217,221,226,.68);letter-spacing:.08em}
 #fh-keys .mode{display:inline-block;width:34px;color:rgba(192,21,42,.72);letter-spacing:.16em}
 @media (max-width:760px){
-  #fh-hud{width:206px;left:14px;top:calc(var(--bar) + 14px)}
-  #fh-mission{width:184px;left:14px;top:calc(var(--bar) + 14px);padding-left:9px}
+  #fh-hud{width:206px;left:14px;top:calc(var(--frame-top) + 14px)}
+  #fh-mission{width:184px;left:14px;top:calc(var(--frame-top) + 14px);padding-left:9px}
   #fh-spark{width:206px}
-  #fh-keys{left:14px;right:14px;bottom:calc(var(--bar) + 12px);font-size:7px;letter-spacing:.06em}
+  #fh-keys{left:14px;right:14px;bottom:calc(var(--frame-bottom) + 12px);font-size:7px;letter-spacing:.06em}
 }
 `;
 

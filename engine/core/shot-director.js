@@ -14,9 +14,9 @@ export const CAMERA_SHOTS = Object.freeze({
 });
 
 const CSS = `
-#ti-shot-dissolve{position:fixed;z-index:24;inset:var(--bar) 0;pointer-events:none;
+#ti-shot-dissolve{position:fixed;z-index:24;inset:var(--frame-top) 0 var(--frame-bottom);pointer-events:none;
   opacity:0;background:#020304;mix-blend-mode:normal;will-change:opacity}
-#ti-shot-cue{position:fixed;z-index:32;left:50%;top:calc(var(--bar) + 22px);
+#ti-shot-cue{position:fixed;z-index:32;left:50%;top:calc(var(--frame-top) + 22px);
   pointer-events:none;font:700 8px/1.5 'DM Mono',ui-monospace,monospace;
   letter-spacing:.15em;text-transform:uppercase;color:rgba(217,221,226,.72);
   opacity:0;transform:translate(-50%,3px);transition:opacity .42s ease,transform .42s ease;

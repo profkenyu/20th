@@ -88,6 +88,7 @@ export class Lens {
     this.profile = '';
     this._resize = () => { this.uAspect.value = camera.aspect; };
     addEventListener('resize', this._resize);
+    addEventListener('ti-viewportresize', this._resize);
   }
 
   /** Lens behaviour belongs to a shot, not to a global beauty filter. */
@@ -131,6 +132,7 @@ export class Lens {
 
   dispose() {
     removeEventListener('resize', this._resize);
+    removeEventListener('ti-viewportresize', this._resize);
     this.post.dispose?.();
     this.scenePass.dispose?.();
   }

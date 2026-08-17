@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { createTimeline } from 'animejs';
 
 const CSS = `
-#ti-blueprint-reveal{position:fixed;z-index:45;inset:var(--bar) 0;pointer-events:none;
+#ti-blueprint-reveal{position:fixed;z-index:45;inset:var(--frame-top) 0 var(--frame-bottom);pointer-events:none;
   opacity:0;overflow:hidden;font:9px/1.5 'DM Mono',ui-monospace,monospace;
   letter-spacing:.2em;color:rgba(217,221,226,.7);text-transform:uppercase}
 #ti-blueprint-reveal .scan{position:absolute;left:0;right:0;top:calc(var(--scan,0)*100%);

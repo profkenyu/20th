@@ -87,28 +87,54 @@ export function fatal(err, where = '') {
 
 export function createRenderer(canvas) {
   const C = cfg();
+  const viewportSize = () => {
+    const viewport = window.visualViewport;
+    return {
+      width: Math.max(1, Math.round(viewport?.width || innerWidth)),
+      height: Math.max(1, Math.round(viewport?.height || innerHeight)),
+    };
+  };
+  const initialViewport = viewportSize();
   const renderer = new THREE.WebGPURenderer({
     canvas,
     antialias: true,
     powerPreference: 'high-performance',
   });
   renderer.setPixelRatio(C.dprCeiling());
-  renderer.setSize(innerWidth, innerHeight);
+  renderer.setSize(initialViewport.width, initialViewport.height);
   renderer.setClearColor(new THREE.Color(...C.color.void), 1);
   /* trackTimestamp is enabled AFTER init, and only if the device actually has
      the feature — asking for query sets a device cannot make is a boot-time
      throw on some drivers. See enableTimestamps(). */
 
   const camera = new THREE.PerspectiveCamera(
-    C.atmosphere.fov, innerWidth / innerHeight, 0.1, C.atmosphere.far);
+    C.atmosphere.fov, initialViewport.width / initialViewport.height, 0.1, C.atmosphere.far);
 
   /* NOTE: the pixel ratio is NOT reset here. Adaptive owns it after boot, and
-     resetting it on resize would silently discard its decision. */
-  addEventListener('resize', () => {
-    camera.aspect = innerWidth / innerHeight;
+     resetting it on resize would silently discard its decision. External-app
+     browser chrome can resize only `visualViewport`, so listen to both. The
+     trailing delay avoids reallocating WebGPU targets on every toolbar frame. */
+  let resizeTimer = 0;
+  let renderedWidth = initialViewport.width;
+  let renderedHeight = initialViewport.height;
+  const applyViewport = () => {
+    resizeTimer = 0;
+    const viewport = viewportSize();
+    if (viewport.width === renderedWidth && viewport.height === renderedHeight) return;
+    renderedWidth = viewport.width;
+    renderedHeight = viewport.height;
+    camera.aspect = renderedWidth / renderedHeight;
     camera.updateProjectionMatrix();
-    renderer.setSize(innerWidth, innerHeight);
-  });
+    renderer.setSize(renderedWidth, renderedHeight);
+    dispatchEvent(new Event('ti-viewportresize'));
+  };
+  const scheduleViewport = () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(applyViewport, 140);
+  };
+  addEventListener('resize', scheduleViewport, { passive: true });
+  addEventListener('orientationchange', scheduleViewport, { passive: true });
+  visualViewport?.addEventListener('resize', scheduleViewport, { passive: true });
 
   return { renderer, camera };
 }

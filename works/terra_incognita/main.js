@@ -117,7 +117,7 @@ const DESERT_LINES = [
 ];
 
 const GRANITE_SURVEY = [
-  [520, 'MEMORY · CROSS-BODY FIELD SYNTHESIS'],
+  [520, 'MEMORY · CROSS-PLANET FIELD SYNTHESIS'],
   [410, 'LITHOLOGY · QUARTZ / FELDSPAR / MICA'],
   [300, 'STRUCTURE · CONJUGATE JOINT SETS'],
   [190, 'WEATHERING · EXFOLIATION DOMES'],
@@ -143,7 +143,7 @@ const VOYAGE_LINES = Object.freeze({
   fold: { r: 0, ko: '6개 착륙 지지계 수납', en: 'SIX LANDING LOAD PATHS · RETRACTING' },
   lift: { r: 0, ko: '표면 기준 분리 · 저속 상승', en: 'SURFACE DATUM RELEASED · LOW ASCENT' },
   transit: { r: 0, ko: '관성 기준 전환 · 목적지 좌표 동기', en: 'INERTIAL FRAME · DESTINATION COORDINATES LOCKED' },
-  descent: { r: 0, ko: '다음 행성 지표 획득 · 하강', en: 'NEXT BODY ACQUIRED · CONTROLLED DESCENT' },
+  descent: { r: 0, ko: '다음 행성 지표 획득 · 하강', en: 'NEXT PLANET ACQUIRED · CONTROLLED DESCENT' },
   touchdown: { r: 0, ko: '6점 접지 확인', en: 'SIX-POINT GROUND CONTACT CONFIRMED' },
   egress: { r: 0, ko: '격납 해제 · 탐사선 재배치', en: 'STOW RELEASE · ROVER REDEPLOYMENT' },
   epilogue: { r: 0, ko: '두 번째 표면에 첫 좌표가 남는다', en: 'PLANET 02 · THE FIRST COORDINATE REMAINS' },

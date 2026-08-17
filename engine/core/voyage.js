@@ -10,7 +10,7 @@ const hash = n => {
 };
 
 const CSS = `
-#ti-voyage{position:fixed;z-index:30;inset:var(--bar) 0;pointer-events:none;opacity:0;transition:opacity 1.2s;color:rgba(224,228,232,.78);font:9px/1.6 'DM Mono',monospace;letter-spacing:.2em}
+#ti-voyage{position:fixed;z-index:30;inset:var(--frame-top) 0 var(--frame-bottom);pointer-events:none;opacity:0;transition:opacity 1.2s;color:rgba(224,228,232,.78);font:9px/1.6 'DM Mono',monospace;letter-spacing:.2em}
 body.ti-voyage #ti-voyage{opacity:1}
 body.ti-voyage #ti-monitor,body.ti-voyage #fh-hud,body.ti-voyage #fh-mission,body.ti-voyage #ti-transfer-trigger{opacity:0!important;pointer-events:none!important}
 #ti-voyage-route{position:absolute;left:max(24px,env(safe-area-inset-left));bottom:max(38px,calc(env(safe-area-inset-bottom) + 20px));border-left:2px solid #ffb21c;padding:3px 0 3px 13px;background:linear-gradient(90deg,rgba(2,3,4,.72),transparent)}

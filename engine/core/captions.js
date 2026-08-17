@@ -19,7 +19,7 @@
 const CSS = `
 #fh-cap-line{
   position:fixed;z-index:31;left:50%;transform:translateX(-50%);
-  bottom:calc(var(--bar) + 78px);
+  bottom:calc(var(--frame-bottom) + 78px);
   text-align:center;pointer-events:none;
   font-family:'DM Mono',ui-monospace,monospace;
   opacity:0;transition:opacity 1.9s cubic-bezier(.4,0,.2,1);
@@ -40,7 +40,7 @@ const CSS = `
   margin:16px auto 0;opacity:.75;
 }
 @media (max-width:760px){
-  #fh-cap-line{bottom:calc(var(--bar) + max(94px,env(safe-area-inset-bottom)));max-width:84vw}
+  #fh-cap-line{bottom:calc(var(--frame-bottom) + 94px);max-width:84vw}
   #fh-cap-line .ko{font-size:12px}
   #fh-cap-line .en{font-size:9px}
 }
