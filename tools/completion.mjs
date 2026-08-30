@@ -3,6 +3,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const TARGET = `file://${ROOT}/index.html?embed`;
+const requestedCase = process.argv[2];
 const cases = [
   { name: "desktop", viewport: { width: 1600, height: 900 }, quality: "high", columns: 5 },
   {
@@ -22,7 +23,8 @@ const cases = [
     reduced: true,
     safe: [20, 20]
   }
-];
+].filter((test) => !requestedCase || test.name === requestedCase);
+if (!cases.length) throw new Error(`Unknown completion smoke case: ${requestedCase}`);
 const browser = await chromium.launch({
   headless: process.env.HEADED ? false : true,
   channel: process.env.BROWSER_CHANNEL ?? "chrome",
@@ -63,7 +65,6 @@ for (const test of cases) {
     null,
     { timeout: 1e4 }
   );
-  await page.waitForTimeout(1300);
   const measure = () => page.evaluate(() => {
     const root = document.getElementById("ti-restoration");
     const rect = root?.getBoundingClientRect();
@@ -108,6 +109,8 @@ for (const test of cases) {
       monitorOpacity: Number(getComputedStyle(document.getElementById("ti-monitor")).opacity)
     };
   });
+  const initial = await measure();
+  await page.waitForTimeout(1300);
   const visible = await measure();
   const before = visible.state;
   await page.evaluate(() => dispatchEvent(new Event("pagehide")));
@@ -117,7 +120,12 @@ for (const test of cases) {
   await page.waitForTimeout(180);
   const resumed = await measure();
   await page.waitForFunction(
-    () => window.TI_OBSERVED?.().fixed === true,
+    () => {
+      const observed = window.TI_OBSERVED?.();
+      return observed?.fixed === true && observed.resources?.every(
+        (resource) => resource.displayedValue >= 0.999
+      );
+    },
     null,
     { timeout: 6e3 }
   );
@@ -131,19 +139,22 @@ for (const test of cases) {
   const inside = visible.rect && visible.rect.left >= -1 && visible.rect.right <= visible.frame.width + 1 && visible.rect.top >= visible.frame.top - 1 && visible.rect.bottom <= visible.frame.height - visible.frame.bottom + 1;
   const noCaptionOverlap = !overlap(visible.rect, visible.caption);
   const lifecycle = hidden.state?.suspended && Math.abs((hidden.state?.progress ?? 0) - (before?.progress ?? 0)) < 0.02 && !resumed.state?.suspended && resumed.state?.active && Math.abs((resumed.state?.progress ?? 0) - (before?.progress ?? 0)) < 0.07;
+  const completionGaugePass = initial.state?.resources?.every((resource) => resource.displayedValue <= 0.001) && visible.state?.resources?.every((resource) => resource.displayedValue > 0.01 && resource.displayedValue < 0.99) && fixed.state?.resources?.every((resource) => resource.displayedValue >= 0.999);
   const fixedPass = fixed.state?.fixed && fixed.state?.registered === 5 && fixed.state?.phase === "PLANNED 05 \u2192 OBSERVED 05" && fixed.state?.sample === "LANDER / STRUCTURE FIXED" && fixed.state?.resources?.length === 3 && fixed.state.resources.every((resource) => resource.value >= 0.999);
   const handoffPass = !handedOff.state?.active && handedOff.sequence?.tableau === "idle" && handedOff.sequence?.docking !== "idle" && !handedOff.body.includes("ti-completion-tableau");
-  const pass = simultaneous && visible.state?.active && inside && noCaptionOverlap && visible.pointerEvents === "none" && visible.opacity > 0.96 && visible.columns === test.columns && visible.captionWordBreak === "keep-all" && visible.soundOpacity < 0.02 && visible.monitorOpacity < 0.02 && lifecycle && fixedPass && handoffPass && errors.length === 0;
-  console.log(`  ${pass ? "\u2713" : "\u2717"} ${test.name.padEnd(18)} ${Math.round(visible.rect?.width ?? 0)}\xD7${Math.round(visible.rect?.height ?? 0)} \xB7 ${visible.columns} cols \xB7 fixed ${fixed.state?.registered ?? 0}/5 + 3 gauges \xB7 handoff ${handoffPass ? handedOff.sequence?.docking : "failed"} \xB7 lifecycle ${lifecycle ? "held" : "failed"}`);
+  const pass = simultaneous && visible.state?.active && inside && noCaptionOverlap && visible.pointerEvents === "none" && visible.opacity > 0.96 && visible.columns === test.columns && visible.captionWordBreak === "keep-all" && visible.soundOpacity < 0.02 && visible.monitorOpacity < 0.02 && lifecycle && completionGaugePass && fixedPass && handoffPass && errors.length === 0;
+  console.log(`  ${pass ? "\u2713" : "\u2717"} ${test.name.padEnd(18)} ${Math.round(visible.rect?.width ?? 0)}\xD7${Math.round(visible.rect?.height ?? 0)} \xB7 ${visible.columns} cols \xB7 gauges 0\u2192${Math.round((visible.state?.resources?.[0]?.displayedValue ?? 0) * 100)}\u2192100% \xB7 fixed ${fixed.state?.registered ?? 0}/5 \xB7 handoff ${handoffPass ? handedOff.sequence?.docking : "failed"} \xB7 lifecycle ${lifecycle ? "held" : "failed"}`);
   if (!pass) failures.push({
     name: test.name,
     simultaneous,
     inside,
     noCaptionOverlap,
     lifecycle,
+    completionGaugePass,
     fixedPass,
     handoffPass,
     visible,
+    initial,
     hidden,
     resumed,
     fixed,

@@ -1450,6 +1450,10 @@ function beginCompletionTableau(now) {
   rover.missionHold = true;
   rover.scriptedDrive = { throttle: 0, steer: 0 };
   rover.setViewMode("cinematic", { yaw: 0, pitch: 0.2, dist: 24 });
+  restoration.setCompletionRegistration(
+    lander.setCompletionHighlight(restoration.registrationReduced ? 1 : 0),
+    0
+  );
   document.body.classList.add("ti-completion-tableau");
   captions.force(COMPLETION_CAPTION, now, COMPLETION_TABLEAU_MS - 350);
   kiosk.last = now;

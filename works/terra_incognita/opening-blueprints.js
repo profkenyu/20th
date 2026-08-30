@@ -75,7 +75,7 @@ body.embed #ti-opening-blueprints {
   background: #050506;
 }
 body.ti-blueprints-active #ti-opening-blueprints::after {
-  animation: bp-entry-flicker .46s steps(1, end) both;
+  opacity: 0;
 }
 #ti-opening-blueprints .bp-frame {
   position: absolute;
@@ -352,26 +352,6 @@ body.ti-prologue-out #ti-opening-blueprints.bp-residual-title {
 #ti-opening-blueprints .bp-resolution {
   color: #858b92;
   text-align: right;
-}
-@keyframes bp-entry-flicker {
-  0%, 17% {
-    opacity: 1;
-  }
-  18%, 35% {
-    opacity: 0;
-  }
-  36%, 53% {
-    opacity: 1;
-  }
-  54%, 71% {
-    opacity: 0;
-  }
-  72%, 84% {
-    opacity: 1;
-  }
-  85%, 100% {
-    opacity: 0;
-  }
 }
 @media (max-width: 760px) {
   #ti-opening-blueprints .bp-frame {

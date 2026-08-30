@@ -101,6 +101,13 @@ const CANCEL_RADIUS = 2.85;
 const SCAN_SPEED = 0.12;
 const SCAN_MS = 3600;
 const EVENT_MS = 5400;
+const RESERVE_FILL_MS = 1600;
+const COMPLETION_GAUGE_START = 0.08;
+const COMPLETION_GAUGE_END = 0.58;
+const smoothstep = (value) => {
+  const p = clamp01(value);
+  return p * p * (3 - 2 * p);
+};
 const hash = (n) => {
   const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
   return x - Math.floor(x);
@@ -128,6 +135,7 @@ export class Restoration {
     this.items = RESTORATION_ITEMS;
     this.count = 0;
     this.gaugeValues = new Float32Array(RESERVE_GAUGE_COUNT);
+    this.gaugeDisplayValues = new Float32Array(RESERVE_GAUGE_COUNT);
     this.event = null;
     this.holdUntil = 0;
     this.state = "approach";
@@ -329,7 +337,10 @@ export class Restoration {
         phase: this.registrationPhase?.textContent ?? "",
         sample: this.registrationSample?.textContent ?? "",
         module: this.registrationModule?.textContent ?? "",
-        resources: this.gauges,
+        resources: this.gauges.map((resource, index) => ({
+          ...resource,
+          displayedValue: Number(this.gaugeDisplayValues[index] ?? 0)
+        })),
         reduced: this.registrationReduced
       }
     };
@@ -342,13 +353,14 @@ export class Restoration {
     if (this.label) this.label.textContent = message || (this.complete ? "LANDER + RESERVE STATE \xB7 COMPLETE" : this.structureComplete ? `LANDER FIXED \xB7 RESERVE ${this.reserveCount} / ${RESERVE_GAUGE_COUNT}` : this.count ? `${this.items[this.count - 1].module} \xB7 MATERIAL FIXED` : "WIRE STATE \xB7 5 STRUCTURES + 3 RESERVES REQUIRED");
     this.root?.classList.toggle("complete", this.complete);
   }
-  _syncGauges() {
+  _syncGauges(values = this.gaugeValues, completionCharge = false) {
     this.gaugeElements.forEach((element, index) => {
-      const value = clamp01(this.gaugeValues[index] ?? 0);
+      const value = clamp01(values[index] ?? 0);
+      this.gaugeDisplayValues[index] = value;
       const percent = Math.round(value * 100);
       element.style.setProperty("--reserve-level", value.toFixed(3));
       element.classList.toggle("on", value >= 0.999);
-      element.classList.toggle("active", this.event?.item?.kind === "reserve" && this.event.item.reserve === index);
+      element.classList.toggle("active", completionCharge || (this.event?.item?.kind === "reserve" && this.event.item.reserve === index));
       const output = element.querySelector("small");
       if (output) output.textContent = `${String(percent).padStart(3, "0")}%`;
       const meter = element.querySelector('[role="meter"]');
@@ -408,9 +420,18 @@ export class Restoration {
         cell.style.removeProperty("--registration-weight");
         cell.style.removeProperty("--registration-opacity");
       }
+      this._syncGauges();
       return;
     }
     const timeline = clamp01(timelineProgress);
+    const completionGaugeLevel = smoothstep(
+      (timeline - COMPLETION_GAUGE_START) /
+      (COMPLETION_GAUGE_END - COMPLETION_GAUGE_START)
+    );
+    this._syncGauges(
+      [completionGaugeLevel, completionGaugeLevel, completionGaugeLevel],
+      completionGaugeLevel > 0 && completionGaugeLevel < 0.999
+    );
     const allSolid = this.lander.parts.every((part) => part.state === "solid");
     let registered = this.registrationReduced ? this.cells.length : 0;
     if (!this.registrationReduced) {
@@ -583,7 +604,7 @@ export class Restoration {
     this._animate(now);
     if (this.event.committed && this.event.item.kind === "reserve") {
       const gaugeIndex = this.event.item.reserve;
-      const value = clamp01((now - this.event.committedAt) / 1200);
+      const value = smoothstep((now - this.event.committedAt) / RESERVE_FILL_MS);
       if (value !== this.gaugeValues[gaugeIndex]) {
         this.gaugeValues[gaugeIndex] = value;
         this._syncGauges();
@@ -617,6 +638,7 @@ export class Restoration {
     this.count = Math.max(0, Math.min(this.items.length, Math.floor(level)));
     for (let i = 0; i < this.gaugeValues.length; i++)
       this.gaugeValues[i] = this.count > STRUCTURAL_MATERIAL_COUNT + i ? 1 : 0;
+    this.gaugeDisplayValues.set(this.gaugeValues);
     this.event = null;
     this.holdUntil = 0;
     this.state = this.complete ? "complete" : "approach";

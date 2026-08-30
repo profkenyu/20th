@@ -997,38 +997,9 @@
     color: #c0152a;
     text-transform: uppercase;
   }
-  #ti-prologue .title-coordinate {
-    position: absolute;
-    left: 50%;
-    top: calc(50% - clamp(106px, 13vh, 136px));
-    width: min(174px, 28vw);
-    height: 1px;
-    pointer-events: none;
-    background: #c0152a;
-    opacity: 0;
-    transform: translateX(-50%) scaleX(.16);
-    transform-origin: center;
-    box-shadow: 0 0 12px rgba(192, 21, 42, .18);
-  }
-  #ti-prologue.ti-title-rebinding .title-coordinate {
-    opacity: var(--ti-title-coordinate,0);
-    transform: translateX(-50%) scaleX(calc(.16 + var(--ti-title-coordinate,0) * .84));
-  }
   #ti-prologue.ti-title-rebinding h1 {
     opacity: var(--ti-title-heading,0);
     transform: translateY(calc((1 - var(--ti-title-heading,0)) * 7px));
-  }
-  #ti-prologue .rule {
-    width: 44px;
-    height: 1px;
-    background: #c0152a;
-    margin: clamp(14px, 2.6vh, 24px) auto;
-    opacity: .8;
-  }
-  #ti-prologue.ti-title-rebinding .rule {
-    opacity: calc(var(--ti-title-rule,0) * .8);
-    transform: scaleX(calc(.22 + var(--ti-title-rule,0) * .78));
-    transform-origin: center;
   }
   #ti-prologue .ko {
     font-family:
@@ -1515,9 +1486,6 @@
       font-size: 12px;
       letter-spacing: .24em;
     }
-    #ti-prologue .rule {
-      margin: 11px auto;
-    }
     #ti-prologue .ko {
       font-size: 13px;
       line-height: 1.72;
@@ -1551,9 +1519,6 @@
     }
     #ti-prologue h1 {
       font-size: 11px;
-    }
-    #ti-prologue .rule {
-      margin: 8px auto;
     }
     #ti-prologue .ko {
       font-size: clamp(11.5px, 1.4vw, 15px);
@@ -1630,9 +1595,6 @@
       width: 58vw;
       text-align: left;
       max-height: 100%;
-    }
-    body.ti-mobile #ti-prologue .rule {
-      margin: 9px 0;
     }
     body.ti-mobile #ti-prologue .ko {
       font-size: 12px;
@@ -1782,15 +1744,10 @@
 <div id="depart"></div>
 <div id="ti-entry-veil" aria-hidden="true"></div>
 <section id="ti-prologue" aria-label="Terra Incognita prologue">
-  <span class="title-coordinate" aria-hidden="true"></span>
   <div class="inner">
     <h1>Terra Incognita</h1>
-    <div class="rule"></div>
-    <p class="ko">지도 이전의 세 표면을 하나의 기억이 통과한다.
-      무인 로버는 첫 행성에서 여덟 물질을 회수해 착륙선을 복원하고,
-      두 번째 행성에서 수분을 확인한다.
-      두 세계의 증거는 세 번째 행성의 지질 기억으로 다시 나타난다.</p>
-    <p class="en">One memory crosses three unmapped surfaces. Eight material signatures restore the lander on Planet 01; water is confirmed on Planet 02. Their combined evidence reappears as geological memory on Planet 03.</p>
+    <p class="ko">인류의 여정은 세 행성을 거치며 새로운 이주의 가능성을 탐색한다. 무인 로버는 첫 번째 행성에서 다섯 가지 물질과 세 가지 생존 자원을 회수해 착륙선을 보강하고, 두 번째 행성에서 물의 존재 여부를 확인한다. 두 행성에서 수집한 증거는 세 번째 행성의 지질 기억으로 다시 나타난다.</p>
+    <p class="en">Humanity’s journey spans three planets in search of a path toward migration. On the first planet, an autonomous rover recovers five materials and three life-sustaining resources to reinforce the lander; on the second, it determines whether water is present. Evidence gathered from both worlds re-emerges as geological memory on the third planet.</p>
     <span class="mission">Three-Body Autonomous Survey · Matter / Water / Memory<span id="ti-terminal-state">Archival Terminal · Low Bandwidth</span></span>
     <button id="ti-start" class="skip desktop-start" type="button" disabled><span>START</span></button>
     <button id="ti-mobile-start" class="skip" type="button" disabled><span>START</span></button>

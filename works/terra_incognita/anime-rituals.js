@@ -12,7 +12,7 @@ export class AnimeRituals {
     )];
     this.readout = document.getElementById("ti-registration-module");
     this.reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    this.title = { coordinate: 0, heading: 0, rule: 0 };
+    this.title = { heading: 0 };
     this.receiver = { monitor: 0, instruments: 0, caption: 0 };
     this.completion = { cadence: 0, silence: 0 };
     this.completionStarted = false;
@@ -28,7 +28,7 @@ export class AnimeRituals {
       ["#ti-sound", "instruments"],
       ["#fh-cap-line", "caption"]
     ];
-    this.titleTimeline = createTimeline({ autoplay: false, onUpdate: () => this._renderTitle() }).add(this.title, { coordinate: 1, duration: 560, ease: "out(3)" }, 0).add(this.title, { heading: 1, duration: 640, ease: "out(3)" }, 130).add(this.title, { rule: 1, duration: 510, ease: "out(2)" }, 310);
+    this.titleTimeline = createTimeline({ autoplay: false, onUpdate: () => this._renderTitle() }).add(this.title, { heading: 1, duration: 640, ease: "out(3)" }, 0);
     this.receiverTimeline = createTimeline({ autoplay: false, onUpdate: () => this._renderReceiver(), onComplete: () => {
       this.receiverActive = false;
       this._clearReceiver();
@@ -41,11 +41,11 @@ export class AnimeRituals {
   beginTitleBinding() {
     if (!this.root) return;
     this.titleTimeline.pause();
-    Object.assign(this.title, { coordinate: 0, heading: 0, rule: 0 });
+    Object.assign(this.title, { heading: 0 });
     this.root.classList.add("ti-title-rebinding");
     this.titleActive = true;
     if (this.reduced) {
-      Object.assign(this.title, { coordinate: 1, heading: 1, rule: 1 });
+      Object.assign(this.title, { heading: 1 });
       this._renderTitle();
       return;
     }
@@ -105,9 +105,7 @@ export class AnimeRituals {
   }
   _renderTitle() {
     if (!this.root) return;
-    this.root.style.setProperty("--ti-title-coordinate", smooth(this.title.coordinate).toFixed(3));
     this.root.style.setProperty("--ti-title-heading", smooth(this.title.heading).toFixed(3));
-    this.root.style.setProperty("--ti-title-rule", smooth(this.title.rule).toFixed(3));
   }
   _renderReceiver() {
     for (const [selector, key] of this.receiverTargets) {
