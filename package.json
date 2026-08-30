@@ -1,0 +1,31 @@
+{
+  "name": "terra-incognita",
+  "private": true,
+  "version": "0.1.0-phase1",
+  "description": "Terra Incognita · 20th solo exhibition",
+  "type": "module",
+  "scripts": {
+    "dev": "python3 -m http.server 5173",
+    "build": "node --experimental-vm-modules tools/build.mjs",
+    "fonts": "node tools/fonts.mjs",
+    "smoke": "node tools/smoke.mjs",
+    "smoke:mobile": "MOBILE=1 VIEWPORT=844x390 node tools/smoke.mjs",
+    "smoke:mobile:portrait": "MOBILE=1 VIEWPORT=390x844 node tools/smoke.mjs",
+    "smoke:mobile:narrow": "MOBILE=1 VIEWPORT=320x568 node tools/smoke.mjs",
+    "smoke:completion": "node tools/completion.mjs",
+    "smoke:sequence": "SEQUENCE=1 node tools/smoke.mjs",
+    "harness": "node tools/harness.mjs",
+    "memory": "node tools/memory.mjs",
+    "terrain": "node tools/terrain.mjs",
+    "verify": "node tools/verify.mjs",
+    "release": "npm run build && npm run verify && npm run terrain && npm run memory && npm run harness && npm run smoke && npm run smoke:mobile && npm run smoke:mobile:portrait && npm run smoke:mobile:narrow"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12",
+    "playwright": "1.62.0"
+  },
+  "dependencies": {
+    "animejs": "4.5.0",
+    "three": "0.185.1"
+  }
+}
