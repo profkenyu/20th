@@ -4,810 +4,935 @@
 "three/tsl":"../vendor/three.tsl.js","three/addons/":"../vendor/addons/",
 "animejs":"../node_modules/animejs/dist/modules/index.js"}}</script>
 <script type="module">
-window.RESULT = { steps: [], error: null };
-const step = async (name, fn) => {
-  const t0 = performance.now();
-  try { const v = await fn(); window.RESULT.steps.push([name,'ok',+(performance.now()-t0).toFixed(1), typeof v==='string'?v:'']); return v; }
-  catch (e) { window.RESULT.steps.push([name,'THREW',+(performance.now()-t0).toFixed(1), String(e).split('\n')[0]]);
-              window.RESULT.error = name; throw e; }
-};
-const MODE = new URLSearchParams(location.search).get('mode') ?? 'work';
-
-try {
-  window.UNIVERSE_SEED = 'BEEF01';
-  const THREE = await step('import three', () => import('three'));
-  const E = await step('import engine barrel', () => import('../engine/index.js'));
-
-  const renderer = new THREE.WebGPURenderer({ canvas: document.getElementById('gl'), forceWebGL: true });
-  const camera = new THREE.PerspectiveCamera(46, 1.7, .1, 2200);
-  const scene = new THREE.Scene();
-
-  if (MODE === 'work') {
-    const { T, BH, TERRA_SAMPLE_SITES, BODY02_WATER_SITE } = await step('import work spec', () => import('../works/terra_incognita/spec.js'));
-    const S = await step('import work surface', () => import('../works/terra_incognita/surface.js'));
-    const { MiniMap } = await step('import local survey atlas', () => import('../engine/core/survey.js'));
-
-    await step('configure(work)', () => {
-      const pick = o => o[E.deviceTier()];
-      const c = E.configure({
-        lattice: { seed: (T.seedBase + E.universeSeed()) >>> 0 },
-        metric: { rs: BH.rs },
-        vehicle: { cruise: 2.0, boost: 6.0 },
-        atmosphere: { fogDensity: 0 },
-        scatter: { rings: [
-            { r0: 0, r1: 25.5, seg: 6, cell: pick({high:.085,mid:.125,low:.21}) },
-            { r0: 22, r1: 67.5, seg: 3, cell: pick({high:.29,mid:.42,low:.7}) },
-            { r0: 64, r1: 136, seg: 1, cell: pick({high:.66,mid:1.0,low:1.75}) }],
-          fadeBand: 3.5, clumpCell: 2.35, minPixels: 1.3, length: .58, width: .019, bend: .62,
-          breath: .17, breathRate: .21, spineBoost: .95, slopeGate: [.055,.3] },
-        audio: { droneEmitR: BH.rs * 1.01 },
+  window.RESULT = { steps: [], error: null };
+  const step = async (name, fn) => {
+    const t0 = performance.now();
+    try {
+      const v = await fn();
+      window.RESULT.steps.push([name, "ok", +(performance.now() - t0).toFixed(1), typeof v === "string" ? v : ""]);
+      return v;
+    } catch (e) {
+      window.RESULT.steps.push([name, "THREW", +(performance.now() - t0).toFixed(1), String(e).split("\n")[0]]);
+      window.RESULT.error = name;
+      throw e;
+    }
+  };
+  const MODE = new URLSearchParams(location.search).get("mode") ?? "work";
+  try {
+    window.UNIVERSE_SEED = "BEEF01";
+    const THREE = await step("import three", () => import("three"));
+    const E = await step("import engine barrel", () => import("../engine/index.js"));
+    const renderer = new THREE.WebGPURenderer({ canvas: document.getElementById("gl"), forceWebGL: true });
+    const camera = new THREE.PerspectiveCamera(46, 1.7, 0.1, 2200);
+    const scene = new THREE.Scene();
+    if (MODE === "work") {
+      const { T, BH, TERRA_SAMPLE_SITES, BODY02_WATER_SITE } = await step("import work spec", () => import("../works/terra_incognita/spec.js"));
+      const S = await step("import work surface", () => import("../works/terra_incognita/surface.js"));
+      const { MiniMap } = await step("import local survey atlas", () => import("../engine/core/survey.js"));
+      await step("configure(work)", () => {
+        const pick = (o) => o[E.deviceTier()];
+        const c = E.configure({
+          lattice: { seed: T.seedBase + E.universeSeed() >>> 0 },
+          metric: { rs: BH.rs },
+          vehicle: { cruise: 2, boost: 6 },
+          atmosphere: { fogDensity: 0 },
+          scatter: {
+            rings: [
+              { r0: 0, r1: 25.5, seg: 6, cell: pick({ high: 0.085, mid: 0.125, low: 0.21 }) },
+              { r0: 22, r1: 67.5, seg: 3, cell: pick({ high: 0.29, mid: 0.42, low: 0.7 }) },
+              { r0: 64, r1: 136, seg: 1, cell: pick({ high: 0.66, mid: 1, low: 1.75 }) }
+            ],
+            fadeBand: 3.5,
+            clumpCell: 2.35,
+            minPixels: 1.3,
+            length: 0.58,
+            width: 0.019,
+            bend: 0.62,
+            breath: 0.17,
+            breathRate: 0.21,
+            spineBoost: 0.95,
+            slopeGate: [0.055, 0.3]
+          },
+          audio: { droneEmitR: BH.rs * 1.01 }
+        });
+        return `seed ${c.lattice.seed} \xB7 ${c.scatter.count.toLocaleString()} instances`;
       });
-      return `seed ${c.lattice.seed} · ${c.scatter.count.toLocaleString()} instances`;
-    });
-
-    const C = E.cfg();
-    await step('ATLAS · measured cells, finite memory, isolated bodies', () => {
-      const cv = document.createElement('canvas'); cv.width = 308; cv.height = 352;
-      const h = (x, z) => Math.sin(x * .021) * 3 + Math.cos(z * .017) * 2;
-      const atlas = new MiniMap(cv, [0, 0], {
-        heightAt: h, id: 'BODY 01', label: 'TEST PLAIN',
-        detailLimit: 48, coarseLimit: 16, trailLimit: 40,
-      });
-      let now = performance.now() + 1000;
-      for (let i = 0; i < 160; i++, now += 500) {
-        const x = i * 3, z = Math.sin(i * .12) * 24;
-        atlas.update({ x, z, ground: h(x, z) }, now, 0.72, true);
-      }
-      const a = atlas.stats, snap = atlas.snapshot(), live = atlas.state();
-      if (a.detail > 48 || a.coarse > 16 || a.trail > 40)
-        throw new Error(`atlas budget exceeded: ${JSON.stringify(a)}`);
-      if (!snap.cells.length || snap.cells.length > 1024 || snap.trail.length > 192)
-        throw new Error('archive packing failed');
-      atlas.reset([600, 500], { id: 'BODY 02', label: 'TEST DUNE', archives: [snap] });
-      if (atlas.stats.detail !== 0 || atlas.stats.coarse !== 0 || atlas.archives.length !== 1)
-        throw new Error('new body inherited live terrain instead of archival memory');
-      atlas.update({ x: 600, z: 500, ground: h(600, 500) }, now + 500, 0.25, true);
-      if ([...atlas.cells.values()].some(p => p.x < 540) || atlas.archives[0].id !== 'BODY 01')
-        throw new Error('planet coordinate frames collided');
-      const body2 = atlas.snapshot();
-      atlas.reset([0, 0], { id: 'BODY 01', label: 'TEST PLAIN', archives: [body2], memory: live });
-      if (atlas.stats.detail !== a.detail || atlas.stats.coarse !== a.coarse || atlas.stats.trail !== a.trail)
-        throw new Error('revisited body did not restore its live atlas');
-      return `${a.detail} detail + ${a.coarse} coarse · ${snap.cells.length} archived · BODY 01 restored`;
-    });
-    await step('ATLAS TRANSFER · archive survives, destination stays blank', async () => {
-      const cv = document.createElement('canvas'); cv.width = 308; cv.height = 352;
-      const atlas = new MiniMap(cv, [0, 0], {
-        heightAt: (x, z) => Math.sin(x * .02) + Math.cos(z * .03),
-        id: 'BODY 01', label: 'TEST PLAIN',
-      });
-      const now = performance.now() + 1000;
-      atlas.update({ x: 18, z: -12, ground: 0 }, now, 0.8, true);
-      const memory = atlas.snapshot();
-      let swapped = false, arrived = false, surveyCollapse = 0, targetSeen = false;
-      const noop = () => {};
-      const tx = new E.PlanetTransfer({
-        minimap: atlas,
-        survey: { collapse: v => { surveyCollapse = v; } },
-        effect: { beginDeparture: noop, depart: noop, blackout: noop, beginArrival: noop, arrive: noop, finish: noop },
-        ambient: { transferCue: noop },
-        onBlackout: (_reason, snapshot, destination) => {
-          targetSeen = destination.key === 'desert';
-          atlas.reset([600, 500], {
-            id: 'BODY 02', label: 'TEST DUNE', archives: [snapshot.atlas],
-          });
-          swapped = true;
-        },
-        onArrived: () => { arrived = true; },
-      });
-      tx.request('manual', { completion: .5, atlas: memory }, {
-        key: 'desert', id: 'BODY 02', arrivalKo: '시험 행성 연결', arrivalEn: 'TEST BODY 02',
-      });
-      await tx.update(tx.t0 + 5500);
-      if (surveyCollapse <= 0 || tx.phase !== 'blackout') throw new Error('atlas did not collapse into transfer');
-      await tx.update(tx.t0 + 3100);
-      if (!swapped || !targetSeen || atlas.id !== 'BODY 02' || atlas.stats.detail !== 0 || atlas.archives[0]?.id !== 'BODY 01')
-        throw new Error('archive/live frame separation failed during blackout');
-      await tx.update(tx.t0 + 8300);
-      if (tx.active || !arrived) throw new Error('atlas transfer did not finish');
-      tx.layer.remove(); tx.trigger.remove();
-      return `${memory.cells.length} cells collapsed · BODY 01 memory / BODY 02 live blank`;
-    });
-    await step('VACUUM · persistent distance fog is absent', () => {
-      if (C.atmosphere.fogDensity !== 0) throw new Error(`fog density ${C.atmosphere.fogDensity}`);
-      return 'fog density 0 · ballistic emitters only';
-    });
-    const wake   = await step('new Wake      (3 passes, two-track stamp)', () => new E.Wake());
-    const ground = await step('new Clipmap   (grid, 2 passes, wake relief)', () => new E.Clipmap({ height: S.heightGPU, shade: S.shadeGround(C.color), albedo: S.albedoGround(C.color), wake }));
-    const field  = await step('new Field     (curl grid + sampler)', () => new E.Field(ground, { potential: S.potential }));
-    const scat   = await step('new Scatter   (3 rings, scatter + ribbons)', () => new E.Scatter(ground, field, wake, { shade: S.shadeBlade(C.color) }));
-    const sky    = await step('buildSky', () => E.buildSky(S.shadeSky));
-    const rover  = await step('new Rover     (8 wheels, sprung, hinged lid)', () => new E.Rover(camera, document.getElementById('gl'), S.heightCPU));
-    const lander = await step('new Lander    (clear bay + six load paths)', () => new E.Lander(S.heightCPU));
-    await step('BODY 01 SCAN · real contact, full stop, 3.6 s integration', () => {
-      const recovery = new E.Restoration(lander, S.heightCPU, TERRA_SAMPLE_SITES);
-      const site = TERRA_SAMPLE_SITES[0], t0 = performance.now() + 1000;
-      const probe = (distance, speed) => ({
-        x: site.x + distance, z: site.z, speed, heading: 0,
-        ground: S.heightCPU(site.x + distance, site.z),
-      });
-      recovery.update(probe(2.10, 0), t0, true);
-      if (recovery.event || recovery.shouldHold(probe(2.10, 0)))
-        throw new Error('scan or hold begins outside the 2 m contact envelope');
-      recovery.update(probe(1.80, 0.20), t0 + 100, true);
-      if (recovery.event) throw new Error('moving rover began a contact scan');
-      recovery.update(probe(1.80, 0.11), t0 + 200, true);
-      if (!recovery.scanning || !recovery.shouldHold(probe(1.80, 0.11)))
-        throw new Error('stopped rover did not lock the physical specimen');
-      recovery.update(probe(1.80, 0), t0 + 3690, true);
-      if (recovery.count !== 0) throw new Error('sample committed before 3.6 s integration');
-      recovery.update(probe(1.80, 0), t0 + 3810, true);
-      if (recovery.count !== 1 || !recovery.event?.committed)
-        throw new Error('full integration did not restore the measured module');
-      recovery.reset(0);
-      return 'd≤2.0 m · |v|≤0.12 m/s · continuous 3.6 s';
-    });
-    await step('scene.add all', () => { scene.add(sky, ground.mesh, ...scat.meshes, rover.group, lander.group); return scene.children.length + ' children'; });
-    await step('BODY 03 MEMORY · persistent fields + GPU storage compute', () => {
-      const memory = new E.MissionMemory({ storage: {
-        getItem: () => null, setItem: () => {}, removeItem: () => {},
-      }, key: 'harness:memory' });
-      memory.recordSamples({
-        count: 8,
-        items: E.RESTORATION_ITEMS,
-        sites: TERRA_SAMPLE_SITES,
-      });
-      memory.recordWater({ complete: true, site: BODY02_WATER_SITE });
-      const model = memory.composeBody03({ start: [120, 460] });
-      const geological = new E.GeologicalMemory({ renderer, heightAt: S.heightCPU });
-      if (!geological.activate(model, performance.now())) throw new Error('BODY 03 mission did not activate');
-      const state = geological.snapshot();
-      if (!memory.ready || state.total !== 3 || !state.gpu.enabled
-          || state.gpu.backend !== 'webgpu-storage-compute' || state.gpu.particles < 300
-          || geological.fieldData?.value?.array?.length !== state.gpu.particles * 4)
-        throw new Error(`geological compute buffers incomplete: ${JSON.stringify(state.gpu)}`);
-      scene.add(geological.group);
-      window.__geologicalMemory = geological;
-      return `5 structure + 3 reserves + H₂O → ${state.total} nodes · ${state.gpu.particles} GPU particles`;
-    });
-    await step('new Hud / Captions / Kiosk / Ambient', () => { new E.Hud([['A',[['x','X']]]]); new E.Captions([]); new E.Kiosk(90000); new E.Ambient(); });
-    await step('new Lens      (pass + dof + bloom)', () => new E.Lens(renderer, scene, camera));
-
-    const power = await step('new Power     (array, shadow probe, budget)', () => new E.Power(S.heightCPU));
-
-    await step('POWER · blueshift gain shares the renderer ceiling', () => {
-      const r = BH.rs * 1.000001;
-      const raw = Math.pow(E.nuRatioCPU(1e7, r), 4);
-      const capped = E.blueshiftGainCPU(1e7, r);
-      power.reset();
-      const pw = power.update(0, {
-        pitch: 0, roll: 0, heading: 0, x: 0, z: r,
-        ground: S.heightCPU(0, r), radius: r, speed: 0,
-        traction: 1, lamps: false, lidTilt: 0,
-      });
-      if (capped !== E.BLUESHIFT_GAIN_MAX || pw.blueshiftGain !== E.BLUESHIFT_GAIN_MAX)
-        throw new Error(`renderer/power ceiling mismatch: ${capped} / ${pw.blueshiftGain}`);
-      return `raw q⁴ ${raw.toExponential(2)} → ${pw.blueshiftGain.toFixed(1)}×`;
-    });
-
-    const drive = (x, z, heading, seconds, lamps = true, lid = 0) => {
-      rover.reset(x, z, heading);
-      rover.lamps = lamps;
-      rover.lidTilt = lid;
-      rover.disabled = false;
-      power.reset();
-      rover.keys.add('KeyW');
-      let mp = 0, mr = 0, mt = 1, sp = 0, sr = 0, n = 0, v;
-      let shadow = 0, diedAt = -1, pw = null;
-      for (let i = 0; i < seconds * 60; i++) {
-        v = rover.update(1 / 60);
-        pw = power.update(1 / 60, { ...v, lamps: rover.lamps, lidTilt: rover.lidTilt });
-        rover.disabled = pw.dead;
-        if (!pw.sunlit) shadow++;
-        if (pw.dead && diedAt < 0) diedAt = i / 60;
-        mp = Math.max(mp, Math.abs(v.pitch)); mr = Math.max(mr, Math.abs(v.roll));
-        mt = Math.min(mt, v.traction); sp += Math.abs(v.pitch); sr += Math.abs(v.roll); n++;
-      }
-      rover.keys.delete('KeyW');
-      return { v, pw, meanPitch: sp / n * 57.3, meanRoll: sr / n * 57.3,
-               maxPitch: mp * 57.3, maxRoll: mr * 57.3, minTraction: mt,
-               shadowPct: (100 * shadow / n).toFixed(0), diedAt };
-    };
-
-    await step('drive 40 s from the start (r 620 → inward)', () => {
-      const d = drive(BH.start[0], BH.start[1], Math.atan2(BH.start[0], BH.start[1]), 40);
-      return `${d.v.odometer.toFixed(0)} m · r ${d.v.radius.toFixed(0)} m · pitch mean ${d.meanPitch.toFixed(1)}° max ${d.maxPitch.toFixed(1)}° · traction min ${(d.minTraction*100).toFixed(0)}%`;
-    });
-
-    await step('ROVER model · geometry and mass budget', () => {
-      let meshes = 0, tris = 0;
-      rover.group.traverse(o => { if (o.isMesh) { meshes++;
-        const g = o.geometry; tris += (g.index ? g.index.count : g.attributes.position.count) / 3; } });
-      const wheels = rover.wheels.length;
-      /* The optical stack added 1.2k triangles without another draw call;
-         keep the production ceiling explicit instead of failing a stale 60k
-         estimate by two percent. */
-      if (tris < 52000 || tris > 62000)
-        throw new Error(`rover triangle budget ${Math.round(tris).toLocaleString()} is outside 52–62k`);
-      if (meshes > 160) throw new Error(`rover draw-call budget exceeded: ${meshes} meshes`);
-      return `${meshes} meshes · ${Math.round(tris).toLocaleString()} triangles · ${wheels} wheels · lid ${rover.lid ? 'hinged' : 'MISSING'}`;
-    });
-
-    await step('ROVER design · expedition systems remain present', () => {
-      const roles = new Map();
-      rover.group.traverse(o => {
-        const role = o.userData.designRole;
-        if (role) roles.set(role, (roles.get(role) ?? 0) + 1);
-      });
-      for (const role of ['armoured-hull', 'service-panels', 'suspension-pivots', 'front-service-array', 'camera-mast-structure', 'solar-gimbal', 'solar-array', 'solar-backplane', 'solar-cell-matrix', 'avionics-pod', 'sample-arm', 'lidar-cluster'])
-        if (roles.get(role) !== 1) throw new Error(`${role}: expected 1, got ${roles.get(role) ?? 0}`);
-      if (roles.get('suspension-coil') !== 8)
-        throw new Error(`suspension-coil: expected 8, got ${roles.get('suspension-coil') ?? 0}`);
-      const wheelLayers = rover.wheels[0]?.children.filter(o => o.isMesh) ?? [];
-      if (wheelLayers.length !== 2 || wheelLayers[0].material === wheelLayers[1].material)
-        throw new Error('wheel rubber and metal layers are not materially separated');
-      let front = null;
-      rover.group.traverse(o => { if (o.userData.designRole === 'front-service-array') front = o; });
-      if (!front || front.children.filter(o => o.isMesh).length < 4)
-        throw new Error('front fascia is not a layered four-stage assembly');
-      let mast = null;
-      rover.group.traverse(o => { if (o.userData.designRole === 'camera-mast-structure') mast = o; });
-      if (!mast || mast.children.filter(o => o.isMesh).length < 7)
-        throw new Error('camera mast lacks base/yoke/brace/duct load path');
-      return 'layered armour · closed nose · grounded twin camera mast · 6×12 cell matrix · rubber/metal wheels';
-    });
-
-    await step('ROVER · autonomous survey hold is a true stop', () => {
-      rover.reset(BH.start[0], BH.start[1], Math.atan2(BH.start[0], BH.start[1]));
-      rover.auto = true; rover.missionHold = true;
-      for (let i = 0; i < 240; i++) rover.update(1 / 60);
-      if (rover.odometer > 1e-5 || Math.abs(rover.speed) > 1e-5)
-        throw new Error('autonomous survey hold still drives the rover');
-      rover.missionHold = false;
-      for (let i = 0; i < 120; i++) rover.update(1 / 60);
-      if (rover.odometer < 1) throw new Error('autonomous route does not resume after survey hold');
-      return '14 s mission pauses can remain mechanically still';
-    });
-
-    await step('TRANSFER · ordered parts, material points, exact restore', () => {
-      const fx = new E.ResolutionTransferFX(rover.group);
-      scene.add(fx.group);
-      rover.reset(BH.start[0], BH.start[1], Math.atan2(BH.start[0], BH.start[1]));
-      rover.chase = true; rover.update(0);
-      const before = new Map();
-      const beforePos = new Map();
-      rover.group.traverse(o => { if (o.isMesh) before.set(o, o.visible); });
-      rover.group.traverse(o => { if (o.userData.transferRig || o.userData.transferChassis) beforePos.set(o, o.position.clone()); });
-
-      const palette = { signal: new Set(), panel: new Set(), wheel: new Set(), body: new Set() };
-      rover.group.traverse(mesh => {
-        if (!mesh.isMesh) return;
-        let node = mesh, part = 'body';
-        while (node && node !== rover.group) {
-          if (node.userData.transferPart) { part = node.userData.transferPart; break; }
-          node = node.parent;
+      const C = E.cfg();
+      await step("ATLAS \xB7 measured cells, finite memory, isolated bodies", () => {
+        const cv = document.createElement("canvas");
+        cv.width = 308;
+        cv.height = 352;
+        const h = (x, z) => Math.sin(x * 0.021) * 3 + Math.cos(z * 0.017) * 2;
+        const atlas = new MiniMap(cv, [0, 0], {
+          heightAt: h,
+          id: "BODY 01",
+          label: "TEST PLAIN",
+          detailLimit: 48,
+          coarseLimit: 16,
+          trailLimit: 40
+        });
+        let now = performance.now() + 1e3;
+        for (let i = 0; i < 160; i++, now += 500) {
+          const x = i * 3, z = Math.sin(i * 0.12) * 24;
+          atlas.update({ x, z, ground: h(x, z) }, now, 0.72, true);
         }
-        if (mesh.userData.transferColor != null) palette[part].add(mesh.userData.transferColor);
+        const a = atlas.stats, snap = atlas.snapshot(), live = atlas.state();
+        if (a.detail > 48 || a.coarse > 16 || a.trail > 40)
+          throw new Error(`atlas budget exceeded: ${JSON.stringify(a)}`);
+        if (!snap.cells.length || snap.cells.length > 1024 || snap.trail.length > 192)
+          throw new Error("archive packing failed");
+        atlas.reset([600, 500], { id: "BODY 02", label: "TEST DUNE", archives: [snap] });
+        if (atlas.stats.detail !== 0 || atlas.stats.coarse !== 0 || atlas.archives.length !== 1)
+          throw new Error("new body inherited live terrain instead of archival memory");
+        atlas.update({ x: 600, z: 500, ground: h(600, 500) }, now + 500, 0.25, true);
+        if ([...atlas.cells.values()].some((p) => p.x < 540) || atlas.archives[0].id !== "BODY 01")
+          throw new Error("planet coordinate frames collided");
+        const body2 = atlas.snapshot();
+        atlas.reset([0, 0], { id: "BODY 01", label: "TEST PLAIN", archives: [body2], memory: live });
+        if (atlas.stats.detail !== a.detail || atlas.stats.coarse !== a.coarse || atlas.stats.trail !== a.trail)
+          throw new Error("revisited body did not restore its live atlas");
+        return `${a.detail} detail + ${a.coarse} coarse \xB7 ${snap.cells.length} archived \xB7 BODY 01 restored`;
       });
-      if (palette.panel.size < 3) throw new Error('panel frame/cell/rail colours collapsed');
-      if (palette.signal.size < 4) throw new Error('signal hardware materials or instrument tag missing');
-      if (!palette.body.has(0xc0152a) || !palette.body.has(0xd8d5c2))
-        throw new Error('body identity or lamp colour missing');
-
-      fx.beginDeparture('manual');
-      fx.depart(0.12);
-      if (!fx.clouds.signal.points.visible || fx.clouds.panel.points.visible)
-        throw new Error('departure does not begin with signal hardware');
-      fx.depart(0.55);
-      if (!fx.clouds.wheel.points.visible || fx.clouds.body.points.visible)
-        throw new Error('running gear is not ahead of the body');
-      if (fx.chassis.position.y - fx.chassisBaseY < 0.035)
-        throw new Error('chassis does not rise as mass leaves');
-      fx.depart(0.90); fx.blackout(0);
-      if (Math.abs(fx.chassis.position.y - fx.chassisBaseY) > 1e-6)
-        throw new Error('departure pose leaked through blackout');
-      if (!fx.axis.visible || fx.axis.material.opacity <= 0)
-        throw new Error('transmission cylinder does not persist after departure');
-      fx.blackout(2000);
-      if (!fx.axis.visible) throw new Error('transmission cylinder fades before two seconds');
-      fx.blackout(2700);
-      if (fx.axis.visible) throw new Error('transmission cylinder does not clear after its residue');
-
-      fx.beginArrival('manual'); fx.arrive(0);
-      if (!fx.axis.visible || fx.meshes.some(mesh => mesh.visible))
-        throw new Error('arrival does not establish an empty transmission cylinder first');
-      fx.arrive(0.12);
-      if (!fx.clouds.body.points.visible || fx.clouds.wheel.points.visible)
-        throw new Error('arrival does not begin with the body');
-      if (fx.chassis.position.y - fx.chassisBaseY < 0.08)
-        throw new Error('arrival chassis does not begin above its settled pose');
-      fx.arrive(0.45);
-      if (!fx.clouds.wheel.points.visible || fx.clouds.panel.points.visible)
-        throw new Error('arrival running gear order is wrong');
-      const fallingWheel = fx.rigNodes.find(o => o.userData.transferPart === 'wheel');
-      if (!fallingWheel || fallingWheel.position.y <= fx.rigBase.get(fallingWheel).y)
-        throw new Error('arrival running gear does not drop from above');
-      fx.arrive(0.88);
-      if (!fx.clouds.signal.points.visible)
-        throw new Error('signal hardware is not the final arrival stage');
-      fx.finish();
-
-      for (const [mesh, visible] of before)
-        if (mesh.visible !== visible) throw new Error('mesh visibility was not restored');
-      for (const [node, position] of beforePos)
-        if (node.position.distanceTo(position) > 1e-6) throw new Error('mechanical pose was not restored');
-      scene.remove(fx.group); rover.chase = false;
-      return 'signal → panel → wheel → body / exact reverse · 4 material-colour clouds';
-    });
-
-    await step('SUSPENSION · contact retention against a rigid chassis', () => {
-      const run = (secs, boost) => {
-        rover.reset(BH.start[0], BH.start[1], Math.atan2(BH.start[0], BH.start[1]));
-        rover.keys.add('KeyW'); if (boost) rover.keys.add('ShiftLeft');
-        let sa = 0, ma = 0, stops = 0, n = 0, lost = 0, gap = 0;
-        for (let i = 0; i < secs * 60; i++) {
-          const v = rover.update(1 / 60);
-          sa += v.artic; ma = Math.max(ma, v.artic);
-          if (v.artic >= v.travel - 1e-6) stops++;
-          /* what a RIGID chassis would have done: it can only sit on the plane
-             the eight contacts define, so every wheel whose ground differs
-             from that plane is either floating or buried */
-          for (const e of v.stroke) { if (Math.abs(e) > 0.02) lost++; gap += e * e; }
-          n++;
-        }
-        rover.keys.delete('KeyW'); rover.keys.delete('ShiftLeft');
-        return { artic: sa / n, maxArtic: ma, stops: 100 * stops / n,
-                 lost: lost / n, rms: Math.sqrt(gap / (n * 8)) };
-      };
-      const a = run(30, false), b = run(30, true);
-      return `cruise — a rigid chassis loses ${a.lost.toFixed(1)} of 8 wheels (rms gap ${(a.rms*100).toFixed(1)} cm); the stroke keeps all 8 down at ${(a.artic*100).toFixed(0)} cm mean, ${(a.maxArtic*100).toFixed(0)} max · stops ${a.stops.toFixed(0)}%   ||   6 m/s — stops ${b.stops.toFixed(0)}%`;
-    });
-
-    await step('ROVER · 8-wheel contact cost', () => {
-      rover.reset(BH.start[0], BH.start[1], Math.atan2(BH.start[0], BH.start[1])); rover.keys.add('KeyW');
-      const t0 = performance.now();
-      for (let i = 0; i < 600; i++) rover.update(1 / 60);
-      rover.keys.delete('KeyW');
-      const per = (performance.now() - t0) / 600;
-      return `${per.toFixed(3)} ms/frame  (${(per * 60).toFixed(1)} ms/s of a 16.7 ms budget)`;
-    });
-
-    await step('SLAM · does speed cost anything?', () => {
-      const at = boost => {
-        rover.reset(BH.start[0], BH.start[1], Math.atan2(BH.start[0], BH.start[1]));
-        rover.keys.add('KeyW'); if (boost) rover.keys.add('ShiftLeft');
-        power.reset();
-        let sl = 0, tr = 0, ld = 0, sp = 0, n = 0;
-        for (let i = 0; i < 25 * 60; i++) {
-          const v = rover.update(1 / 60);
-          const pw = power.update(1 / 60, { ...v, lamps: true });
-          sl += v.slam; tr += v.traction; ld += pw.load; sp += v.speed; n++;
-        }
-        rover.keys.delete('KeyW'); rover.keys.delete('ShiftLeft');
-        return { slam: sl / n, trac: tr / n, load: ld / n, speed: sp / n };
-      };
-      const a = at(false), b = at(true);
-      return `cruise ${a.speed.toFixed(1)} m/s — stops ${(a.slam*100).toFixed(0)}%, grip ${(a.trac*100).toFixed(0)}%, draw ${a.load.toFixed(2)}  ||  fast ${b.speed.toFixed(1)} m/s — stops ${(b.slam*100).toFixed(0)}%, grip ${(b.trac*100).toFixed(0)}%, draw ${b.load.toFixed(2)} %/s`;
-    });
-
-    await step('LAMP BUS · does a jolt actually reach the light?', () => {
-      const at = boost => {
-        rover.reset(BH.start[0], BH.start[1], Math.atan2(BH.start[0], BH.start[1]));
-        rover.keys.add('KeyW'); if (boost) rover.keys.add('ShiftLeft');
-        rover.lamps = true; power.reset();
-        let sum = 0, min = 1, dark = 0, n = 0;
-        for (let i = 0; i < 25 * 60; i++) {
-          const v = rover.update(1 / 60);
-          const pw = power.update(1 / 60, { ...v, lamps: true });
-          sum += pw.bus; min = Math.min(min, pw.bus);
-          if (pw.bus < 0.6) dark++;
-          n++;
-        }
-        rover.keys.delete('KeyW'); rover.keys.delete('ShiftLeft');
-        return { mean: sum / n, min, dark: 100 * dark / n };
-      };
-      const a = at(false), b = at(true);
-      return `cruise — bus ${(a.mean*100).toFixed(0)}% mean, ${(a.min*100).toFixed(0)}% min, dark ${a.dark.toFixed(0)}%   ||   fast — ${(b.mean*100).toFixed(0)}% mean, ${(b.min*100).toFixed(0)}% min, dark ${b.dark.toFixed(0)}%`;
-    });
-
-    await step('LAMP BUS · brownout as the cell empties', () => {
-      power.reset();
-      const out = [];
-      for (const c of [1.0, 0.20, 0.12, 0.06, 0.0]) {
-        power.charge = c; power.bus = 1;
-        for (let i = 0; i < 120; i++) power.busLevel(1 / 60, 0);
-        out.push(`${(c*100).toFixed(0)}% → ${(power.bus*100).toFixed(0)}%`);
-      }
-      return out.join(' · ');
-    });
-
-    await step('LID · array output against hinge angle', () => {
-      /* The test must stand somewhere SUNLIT, and the start position is not:
-         a ridge 30–46 m toward the sun blocks a 6.6° elevation. The first
-         version of this step passed ground:0 at an arbitrary spot, measured
-         0.00 at every angle, and that reads exactly like a control that is not
-         wired up. Find real ground in real sunlight first. */
-      let spot = null;
-      for (let i = 0; i < 400 && !spot; i++) {
-        const a = (i / 400) * Math.PI * 2, r = 500 + (i % 7) * 40;
-        const x = Math.cos(a) * r, z = Math.sin(a) * r;
-        if (power.lit(x, z, S.heightCPU(x, z) + C.power.deckHeight)) spot = [x, z];
-      }
-      if (!spot) throw new Error('no sunlit ground found in 400 probes');
-      const g = S.heightCPU(spot[0], spot[1]);
-      const out = [];
-      for (const deg of [0, 20, 40, 55, 69]) {
-        power.reset();
-        const pw = power.update(1 / 60, {
-          pitch: 0, roll: 0, heading: 0, x: spot[0], z: spot[1], ground: g,
-          radius: Math.hypot(...spot), speed: 0, traction: 1, lamps: false,
-          lidTilt: deg * Math.PI / 180 });
-        out.push(`${deg}° → ${pw.solar.toFixed(2)}`);
-      }
-      return out.join(' · ') + ' %/s   (load with lamps ≈0.64)';
-    });
-
-    await step('LID · autonomous sun tracking survives reset and mode changes', () => {
-      const heading = Math.atan2(BH.start[0], BH.start[1]);
-      rover.reset(BH.start[0], BH.start[1], heading);
-      rover.auto = false; rover.lidTilt = 0;
-      for (let i = 0; i < 300; i++) rover.update(1 / 60);
-      const toward = rover.lidTilt;
-      rover.heading += Math.PI;
-      for (let i = 0; i < 300; i++) rover.update(1 / 60);
-      const away = rover.lidTilt;
-      rover.setMobileMode(true); rover.setMobileMode(false);
-      if (!rover.arrayAuto) throw new Error('desktop/mobile transition disabled sun tracking');
-      if (toward < 0.30 || toward - away < 0.20)
-        throw new Error(`array did not follow solar azimuth: ${toward.toFixed(2)} → ${away.toFixed(2)} rad`);
-      rover.reset(BH.start[0], BH.start[1], heading);
-      if (!rover.arrayAuto) throw new Error('reset disabled sun tracking');
-      return `${(toward*180/Math.PI).toFixed(0)}° toward sun → ${(away*180/Math.PI).toFixed(0)}° away · AUTO retained`;
-    });
-
-    await step('POWER · 6 min on the open plain, lamps ON', () => {
-      const d = drive(BH.start[0], BH.start[1], Math.atan2(BH.start[0], BH.start[1]), 360);
-      return `cell ${(d.pw.charge*100).toFixed(0)}% · shadowed ${d.shadowPct}% of the time · ${d.diedAt<0 ? 'survived' : 'DIED at ' + d.diedAt.toFixed(0) + ' s'}`;
-    });
-
-    await step('POWER · descend from r 95, lamps ON', () => {
-      const d = drive(0, 95, 0, 420);
-      return `${d.diedAt < 0 ? 'cell ' + (d.pw.charge*100).toFixed(0) + '% · survived' : 'DIED at ' + Math.floor(d.diedAt/60) + 'm ' + Math.round(d.diedAt%60) + 's · r ' + d.v.radius.toFixed(1) + ' m'} · shadowed ${d.shadowPct}%`;
-    });
-
-    await step('POWER · descend from r 95, lamps ON, LID FULL', () => {
-      const d = drive(0, 95, 0, 420, true, 0.55);
-      return `${d.diedAt < 0 ? 'cell ' + (d.pw.charge*100).toFixed(0) + '% · survived' : 'DIED at ' + Math.floor(d.diedAt/60) + 'm ' + Math.round(d.diedAt%60) + 's · r ' + d.v.radius.toFixed(1) + ' m'} · shadowed ${d.shadowPct}%`;
-    });
-
-    await step('POWER · descend from r 95, lamps OFF', () => {
-      const d = drive(0, 95, 0, 420, false);
-      return `${d.diedAt < 0 ? 'cell ' + (d.pw.charge*100).toFixed(0) + '% · survived' : 'DIED at ' + Math.floor(d.diedAt/60) + 'm ' + Math.round(d.diedAt%60) + 's · r ' + d.v.radius.toFixed(1) + ' m'} · shadowed ${d.shadowPct}%`;
-    });
-
-    await step('ROVER · legacy mast/rear/front API remains internally sound', () => {
-      rover.reset(BH.start[0], BH.start[1], Math.atan2(BH.start[0], BH.start[1]));
-      rover.auto = false;
-      rover.setViewMode('mast');
-      let v = rover.update(0);
-      if (v.viewMode !== 'mast' || rover.group.visible)
-        throw new Error('mast view does not hide the rover body');
-
-      rover.cycleViewMode();
-      for (let i = 0; i < 90; i++) v = rover.update(1 / 60);
-      const fx = -Math.sin(rover.heading), fz = -Math.cos(rover.heading);
-      let relX = camera.position.x - rover.pos.x, relZ = camera.position.z - rover.pos.z;
-      const rearDot = relX * fx + relZ * fz;
-      if (v.viewMode !== 'rear' || !rover.group.visible || rearDot >= 0)
-        throw new Error('rear chase is not behind the rover');
-
-      rover.cycleViewMode();
-      for (let i = 0; i < 120; i++) v = rover.update(1 / 60);
-      relX = camera.position.x - rover.pos.x; relZ = camera.position.z - rover.pos.z;
-      const frontDot = relX * fx + relZ * fz;
-      if (v.viewMode !== 'front' || frontDot <= 0 || v.chaseDist > 8.0)
-        throw new Error('front inspection is not close to the rover nose');
-
-      rover.cycleViewMode(); v = rover.update(0);
-      if (v.viewMode !== 'mast') throw new Error('front does not cycle back to mast');
-      return `rear dot ${rearDot.toFixed(1)} m · front dot ${frontDot.toFixed(1)} m · front boom ${v.chaseDist.toFixed(1)} m`;
-    });
-
-    await step('CAMERA · C adds rear + 8 mm rover POV without escaping authored shots', () => {
-      lander.group.visible = true;
-      const restoration = {
-        event: null, scanning: false, complete: false,
-        target: { x: rover.pos.x + 2, z: rover.pos.z - 2 },
-        scanFocus: null, group: { visible: true },
-      };
-      const mission = { event: null, active: false, complete: false,
-        target: null, scanFocus: null, lastDistance: Infinity,
-        group: { visible: false } };
-      const docking = { started: false };
-      const voyage = { active: false, phase: 'idle' };
-      const director = new E.ShotDirector({
-        camera, rover, lander, restoration, mission, docking, voyage,
-        heightAt: S.heightCPU,
-      });
-      director.update(1000);
-      if (director.rendered !== 'wide') throw new Error(`initial observer ${director.rendered}`);
-      if (!director.cycle(1100)) throw new Error('C rejected on survey surface');
-      director.update(1100);
-      if (director.rendered !== 'rear' || director.source !== 'manual')
-        throw new Error(`first C ${director.rendered}/${director.source}`);
-      const rearForward = new THREE.Vector3(-Math.sin(rover.heading), 0, -Math.cos(rover.heading));
-      const rearOffset = camera.position.clone().sub(rover.pos);
-      if (rearOffset.dot(rearForward) > -4.5)
-        throw new Error(`rear eye is not behind rover: ${rearOffset.dot(rearForward).toFixed(2)}m`);
-      director.cycle(1200); director.update(1200);
-      if (director.rendered !== 'mast' || camera.fov !== 112 || rover.group.visible)
-        throw new Error(`second C did not enter 8 mm mast POV: ${director.rendered}/${camera.fov}/${rover.group.visible}`);
-      director.cycle(1300); director.update(1300);
-      if (director.rendered !== 'macro') throw new Error(`third C ${director.rendered}`);
-      director.cycle(1400); director.update(1400); director.update(3901);
-      if (director.rendered !== 'tele') throw new Error(`fourth C ${director.rendered}`);
-      director.cycle(4000); director.update(4000); director.update(6601);
-      if (director.rendered !== 'wide') throw new Error(`fifth C ${director.rendered}`);
-
-      /* BODY 01's restored state persists as evidence, but its hidden tableau
-         must not lock the operator camera on BODY 02 or BODY 03. */
-      director.reset();
-      restoration.complete = true; restoration.group.visible = false;
-      mission.active = true; mission.target = { x: rover.pos.x + 80, z: rover.pos.z };
-      mission.lastDistance = 80; mission.group.visible = true;
-      const laterWorldShots = director.availableManualShots();
-      if (!laterWorldShots.includes('rear') || !director.cycle(4000))
-        throw new Error(`later-world C locked by hidden restoration: ${laterWorldShots.join(',')}`);
-      director.update(4000);
-      if (director.rendered !== 'rear' || director.source !== 'manual')
-        throw new Error(`later-world C ${director.rendered}/${director.source}`);
-
-      restoration.group.visible = true; director.clearManual();
-      if (director.availableManualShots().length)
-        throw new Error('visible BODY 01 restoration tableau accepts manual camera');
-      restoration.complete = false; restoration.group.visible = true;
-      mission.active = false; mission.target = null; mission.group.visible = false;
-      director.setIntro(true);
-      if (director.cycle(3950) || director.desiredShot() !== 'rear')
-        throw new Error('operator input escaped blueprint rear shot');
-      director.setIntro(false);
-      mission.active = true; mission.target = { x: rover.pos.x + 100, z: rover.pos.z };
-      mission.lastDistance = 100; restoration.group.visible = false; director.clearManual();
-      director.setExperience('observer', 3990);
-      if (director.desiredShot() !== 'wide') throw new Error('far BODY 02 observer travel is not ultrawide');
-      director.setExperience('explorer', 3995);
-      if (director.desiredShot() !== 'rear') throw new Error('BODY 02 explorer did not inherit rear follow');
-      director.setExperience('observer', 3998);
-      mission.lastDistance = 6;
-      if (director.desiredShot() !== 'macro') throw new Error('near BODY 02 evidence is not macro');
-      mission.event = { t0: 0 };
-      if (director.cycle(4000)) throw new Error('C overrode a scanning event');
-      voyage.active = true; voyage.phase = 'lift'; mission.event = null;
-      director.update(4100);
-      if (director.rendered !== 'ascent') throw new Error('lift is not ascent shot');
-      director.veil.remove(); director.cue.remove();
-      return 'BODY 01/02/03 → rear · intro/scans/transit retain authored priority';
-    });
-
-    await step('LANDER · bay is dark, empty and supports the full wheelbase', () => {
-      lander.setRestorationLevel(5);
-      lander.setRamp(1);
-      lander.group.visible = true;
-      lander.group.updateMatrixWorld(true);
-      lander.bayFloor.geometry.computeBoundingBox();
-      const floorBox = lander.bayFloor.geometry.boundingBox;
-      const floorBack = floorBox.max.z + lander.bayFloor.position.z;
-      const floorTop = floorBox.max.y + lander.bayFloor.position.y;
-      if (Math.abs(floorBack - lander.dock.backZ) > 1e-5 || lander.dock.backZ < 0.45)
-        throw new Error(`bay floor ends at ${floorBack.toFixed(3)}`);
-      if (Math.abs(floorTop - lander.dock.floorY) > 1e-5)
-        throw new Error(`bay floor top ${floorTop.toFixed(3)}`);
-      lander.ramp.geometry.computeBoundingBox();
-      const rampTop = lander.ramp.geometry.boundingBox.max.y + lander.ramp.position.y;
-      if (Math.abs(rampTop) > 1e-5) throw new Error(`ramp top/contact mismatch ${rampTop}`);
-      if (lander.dockLights.length) throw new Error('locator lights remain inside bay');
-      const ray = new THREE.Raycaster(
-        new THREE.Vector3(0, lander.dock.floorY + 0.30, -6),
-        new THREE.Vector3(0, 0, 1), 0, 20);
-      const early = ray.intersectObject(lander.group, true)
-        .filter(hit => hit.object.visible && hit.point.z < lander.dock.backZ - 0.01);
-      if (early.length) throw new Error(`bay centre ray blocked at z ${early[0].point.z.toFixed(2)}`);
-      /* Regression for the stowed-rover fall: closing the ramp must remove
-         only the exterior ramp surface, never the hangar floor beneath the
-         eight wheel contacts. */
-      lander.setRamp(0);
-      const stowed = lander.dockingPoint(-0.58, 0);
-      const terrain = S.heightCPU(stowed.x, stowed.z);
-      const support = lander.dockingSurface(stowed.x, stowed.z, terrain);
-      const hangar = lander.group.position.y + lander.dock.floorY;
-      if (Math.abs(support - hangar) > 1e-5)
-        throw new Error(`closed bay lost stow support: ${support.toFixed(3)} vs ${hangar.toFixed(3)}`);
-      return `clear to z ${lander.dock.backZ.toFixed(2)} · closed-floor support ${support.toFixed(2)} m`;
-    });
-
-    await step('CHASE camera · 30 s drive while orbiting the probe', () => {
-      rover.reset(BH.start[0], BH.start[1], Math.atan2(BH.start[0], BH.start[1]));
-      rover.chase = true; rover.disabled = false; power.reset();
-      rover.keys.add('KeyW');
-      camera.aspect = 16 / 9; camera.updateProjectionMatrix();
-      const aim = new THREE.Vector3(), ndc = new THREE.Vector3();
-      let minClear = 1e9, minD = 1e9, maxD = 0, off = 0, n = 0;
-      for (let i = 0; i < 30 * 60; i++) {
-        /* sweep every side, every elevation and the whole boom range, and push
-           the setters past their limits on purpose — the clamp lives in
-           placeChase precisely so that this cannot break it */
-        rover.orbitYaw = Math.sin(i / 240) * Math.PI;
-        rover.orbitPitch = -0.9 + 2.4 * (0.5 + 0.5 * Math.sin(i / 130));
-        rover.orbitDist = 0.5 + 40 * (0.5 + 0.5 * Math.sin(i / 310));
-        const v = rover.update(1 / 60);
-        power.update(1 / 60, { ...v, lamps: rover.lamps });
-        camera.updateMatrixWorld(true);
-        minClear = Math.min(minClear, camera.position.y - S.heightCPU(camera.position.x, camera.position.z));
-        aim.setFromMatrixPosition(rover.head.matrixWorld); aim.y = rover.deckY + 0.25;
-        const d = camera.position.distanceTo(aim);
-        minD = Math.min(minD, d); maxD = Math.max(maxD, d);
-        ndc.copy(aim).project(camera);
-        if (Math.abs(ndc.x) > 1 || Math.abs(ndc.y) > 1) off++;
-        n++;
-      }
-      rover.keys.delete('KeyW'); rover.chase = false;
-      return `clearance min ${minClear.toFixed(2)} m · boom ${minD.toFixed(1)}–${maxD.toFixed(1)} m · probe off-frame ${(100 * off / n).toFixed(1)}%`;
-    });
-
-    await step('drive 120 s at the mass (r 95 → the horizon)', () => {
-      const d = drive(0, 95, 0, 120);
-      return `halted at r ${d.v.radius.toFixed(2)} m (rs = ${BH.rs}) · speed ${d.v.speed.toFixed(3)} m/s · lapse ${d.v.lapse.toFixed(4)} · traction min ${(d.minTraction*100).toFixed(0)}%`;
-    });
-
-    await step('drive across the rampart (r 95, heading 90°)', () => {
-      const d = drive(0, 95, Math.PI / 2, 30);
-      return `${d.v.odometer.toFixed(0)} m traversed · r ${d.v.radius.toFixed(1)} m · roll mean ${d.meanRoll.toFixed(1)}° max ${d.maxRoll.toFixed(1)}°`;
-    });
-    await step('ground.syncTo + nearestVertex', () => { ground.syncTo(0, 620); return `vertex ${ground.nearestVertex(0,620).index}`; });
-    await step('heightCPU(0,620)', () => S.heightCPU(0,620).toFixed(4) + ' m');
-    await step('aim the camera at the lit ground', () => {
-      /* Without compute the height buffer is zero, so the ground is a flat
-         plane at y = 0 while the rover sits on the CPU height — 130 m below,
-         at the floor of the well. For a look at the SHADING TERM the lamps are
-         placed by hand above the plane; everything downstream is the real
-         code path. */
-      renderer.setSize(960, 540, false);
-      camera.aspect = 960 / 540; camera.updateProjectionMatrix();
-      /* the clipmap must be under the camera — a previous version left it
-         recentred 620 m away and the frame contained nothing but sky, which
-         read exactly like a headlight that does nothing */
-      ground.syncTo(0, 0);
-      E.uLampA.value.set(-0.42, 1.05, 0.0);
-      E.uLampB.value.set( 0.42, 1.05, 0.0);
-      E.uLampDir.value.set(0, -Math.sin(0.16), -Math.cos(0.16));
-      E.uLampPower.value = 1;
-      camera.position.set(0, 1.9, 2.6);
-      camera.rotation.set(-0.34, 0, 0);
-      camera.updateMatrixWorld(true);
-      return 'lamps 1.05 m above a flat plane, aimed 9° down';
-    });
-    await step('RENDER ONE FRAME (WebGL2 — compiles every material)', async () => {
-      window.__shaderErrors = [];
-      const oe = console.error;
-      console.error = (...a) => { window.__shaderErrors.push(a.map(String).join(' ')); oe(...a); };
-      try { await renderer.renderAsync(scene, camera); }
-      finally { console.error = oe; }
-      return window.__shaderErrors.length ? `${window.__shaderErrors.length} shader error(s)` : 'compiled clean';
-    });
-    await step('read back the generated fragment shader', async () => {
-      const src = await renderer.debug.getShaderAsync(scene, camera, ground.mesh);
-      window.__shader = src;
-      const f = (src.fragmentShader ?? '') + '';
-      const uniforms = [...f.matchAll(/uniform[^;]*;/g)].length;
-      const hasLamp = /lamp|Lamp/.test(f) || /smoothstep\s*\(\s*0\.891/.test(f);
-      const buffers = [...f.matchAll(/(?:buffer|readonly buffer|layout[^;]*?)\s+(\w*Buffer\w*|\w*Storage\w*)/gi)].length;
-      const bindings = [...f.matchAll(/^\s*(?:layout|uniform|buffer|readonly)/gm)].length;
-      window.__fragSrc = f;
-      window.__vertSrc = (src.vertexShader ?? '') + '';
-      return `fragment ${f.length} chars · ${uniforms} uniform · ${bindings} binding lines · lamp ${hasLamp ? 'PRESENT' : 'ABSENT'}`;
-    });
-    await step('stamp two wheel tracks into the wake by hand', () => {
-      /* No compute on this backend, so the trail is written straight into the
-         storage attribute. Everything downstream — the bilinear sampler, the
-         gradient, the normal perturbation — is the real code path. */
-      const G = wake.grid, CELL = wake.cell, arr = wake.buf.value.array;
-      window.__trackFill = on => {
-        for (let row = 0; row < G; row++) for (let col = 0; col < G; col++) {
-          const x = (col - (G - 1) / 2) * CELL, z = (row - (G - 1) / 2) * CELL;
-          let v = 0;
-          if (on && Math.abs(z) < 14) {
-            for (const tx of [-0.72, 0.72]) {
-              const d = (x - tx) / 0.42;
-              v = Math.max(v, Math.exp(-0.5 * d * d));
-            }
+      await step("ATLAS TRANSFER \xB7 archive survives, destination stays blank", async () => {
+        const cv = document.createElement("canvas");
+        cv.width = 308;
+        cv.height = 352;
+        const atlas = new MiniMap(cv, [0, 0], {
+          heightAt: (x, z) => Math.sin(x * 0.02) + Math.cos(z * 0.03),
+          id: "BODY 01",
+          label: "TEST PLAIN"
+        });
+        const now = performance.now() + 1e3;
+        atlas.update({ x: 18, z: -12, ground: 0 }, now, 0.8, true);
+        const memory = atlas.snapshot();
+        let swapped = false, arrived = false, surveyCollapse = 0, targetSeen = false;
+        const noop = () => {
+        };
+        const tx = new E.PlanetTransfer({
+          minimap: atlas,
+          survey: { collapse: (v) => {
+            surveyCollapse = v;
+          } },
+          effect: { beginDeparture: noop, depart: noop, blackout: noop, beginArrival: noop, arrive: noop, finish: noop },
+          ambient: { transferCue: noop },
+          onBlackout: (_reason, snapshot, destination) => {
+            targetSeen = destination.key === "desert";
+            atlas.reset([600, 500], {
+              id: "BODY 02",
+              label: "TEST DUNE",
+              archives: [snapshot.atlas]
+            });
+            swapped = true;
+          },
+          onArrived: () => {
+            arrived = true;
           }
-          arr[row * G + col] = v;
+        });
+        tx.request("manual", { completion: 0.5, atlas: memory }, {
+          key: "desert",
+          id: "BODY 02",
+          arrivalKo: "\uC2DC\uD5D8 \uD589\uC131 \uC5F0\uACB0",
+          arrivalEn: "TEST BODY 02"
+        });
+        await tx.update(tx.t0 + 5500);
+        if (surveyCollapse <= 0 || tx.phase !== "blackout") throw new Error("atlas did not collapse into transfer");
+        await tx.update(tx.t0 + 3100);
+        if (!swapped || !targetSeen || atlas.id !== "BODY 02" || atlas.stats.detail !== 0 || atlas.archives[0]?.id !== "BODY 01")
+          throw new Error("archive/live frame separation failed during blackout");
+        await tx.update(tx.t0 + 8300);
+        if (tx.active || !arrived) throw new Error("atlas transfer did not finish");
+        tx.layer.remove();
+        tx.trigger.remove();
+        return `${memory.cells.length} cells collapsed \xB7 BODY 01 memory / BODY 02 live blank`;
+      });
+      await step("VACUUM \xB7 persistent distance fog is absent", () => {
+        if (C.atmosphere.fogDensity !== 0) throw new Error(`fog density ${C.atmosphere.fogDensity}`);
+        return "fog density 0 \xB7 ballistic emitters only";
+      });
+      const wake = await step("new Wake      (3 passes, two-track stamp)", () => new E.Wake());
+      const ground = await step("new Clipmap   (grid, 2 passes, wake relief)", () => new E.Clipmap({ height: S.heightGPU, shade: S.shadeGround(C.color), albedo: S.albedoGround(C.color), wake }));
+      const field = await step("new Field     (curl grid + sampler)", () => new E.Field(ground, { potential: S.potential }));
+      const scat = await step("new Scatter   (3 rings, scatter + ribbons)", () => new E.Scatter(ground, field, wake, { shade: S.shadeBlade(C.color) }));
+      const sky = await step("buildSky", () => E.buildSky(S.shadeSky));
+      const rover = await step("new Rover     (8 wheels, sprung, hinged lid)", () => new E.Rover(camera, document.getElementById("gl"), S.heightCPU));
+      const lander = await step("new Lander    (clear bay + six load paths)", () => new E.Lander(S.heightCPU));
+      await step("BODY 01 SCAN \xB7 real contact, full stop, 3.6 s integration", () => {
+        const recovery = new E.Restoration(lander, S.heightCPU, TERRA_SAMPLE_SITES);
+        const site = TERRA_SAMPLE_SITES[0], t0 = performance.now() + 1e3;
+        const probe = (distance, speed) => ({
+          x: site.x + distance,
+          z: site.z,
+          speed,
+          heading: 0,
+          ground: S.heightCPU(site.x + distance, site.z)
+        });
+        recovery.update(probe(2.1, 0), t0, true);
+        if (recovery.event || recovery.shouldHold(probe(2.1, 0)))
+          throw new Error("scan or hold begins outside the 2 m contact envelope");
+        recovery.update(probe(1.8, 0.2), t0 + 100, true);
+        if (recovery.event) throw new Error("moving rover began a contact scan");
+        recovery.update(probe(1.8, 0.11), t0 + 200, true);
+        if (!recovery.scanning || !recovery.shouldHold(probe(1.8, 0.11)))
+          throw new Error("stopped rover did not lock the physical specimen");
+        recovery.update(probe(1.8, 0), t0 + 3690, true);
+        if (recovery.count !== 0) throw new Error("sample committed before 3.6 s integration");
+        recovery.update(probe(1.8, 0), t0 + 3810, true);
+        if (recovery.count !== 1 || !recovery.event?.committed)
+          throw new Error("full integration did not restore the measured module");
+        recovery.reset(0);
+        return "d\u22642.0 m \xB7 |v|\u22640.12 m/s \xB7 continuous 3.6 s";
+      });
+      await step("scene.add all", () => {
+        scene.add(sky, ground.mesh, ...scat.meshes, rover.group, lander.group);
+        return scene.children.length + " children";
+      });
+      await step("BODY 03 MEMORY \xB7 persistent fields + GPU storage compute", () => {
+        const memory = new E.MissionMemory({ storage: {
+          getItem: () => null,
+          setItem: () => {
+          },
+          removeItem: () => {
+          }
+        }, key: "harness:memory" });
+        memory.recordSamples({
+          count: 8,
+          items: E.RESTORATION_ITEMS,
+          sites: TERRA_SAMPLE_SITES
+        });
+        memory.recordWater({ complete: true, site: BODY02_WATER_SITE });
+        const model = memory.composeBody03({ start: [120, 460] });
+        const geological = new E.GeologicalMemory({ renderer, heightAt: S.heightCPU });
+        if (!geological.activate(model, performance.now())) throw new Error("BODY 03 mission did not activate");
+        const state = geological.snapshot();
+        if (!memory.ready || state.total !== 3 || !state.gpu.enabled || state.gpu.backend !== "webgpu-storage-compute" || state.gpu.particles < 300 || geological.fieldData?.value?.array?.length !== state.gpu.particles * 4)
+          throw new Error(`geological compute buffers incomplete: ${JSON.stringify(state.gpu)}`);
+        scene.add(geological.group);
+        window.__geologicalMemory = geological;
+        return `5 structure + 3 reserves + H\u2082O \u2192 ${state.total} nodes \xB7 ${state.gpu.particles} GPU particles`;
+      });
+      await step("new Hud / Captions / Kiosk / Ambient", () => {
+        new E.Hud([["A", [["x", "X"]]]]);
+        new E.Captions([]);
+        new E.Kiosk(9e4);
+        new E.Ambient();
+      });
+      await step("new Lens      (pass + dof + bloom)", () => new E.Lens(renderer, scene, camera));
+      const power = await step("new Power     (array, shadow probe, budget)", () => new E.Power(S.heightCPU));
+      await step("POWER \xB7 blueshift gain shares the renderer ceiling", () => {
+        const r = BH.rs * 1.000001;
+        const raw = Math.pow(E.nuRatioCPU(1e7, r), 4);
+        const capped = E.blueshiftGainCPU(1e7, r);
+        power.reset();
+        const pw = power.update(0, {
+          pitch: 0,
+          roll: 0,
+          heading: 0,
+          x: 0,
+          z: r,
+          ground: S.heightCPU(0, r),
+          radius: r,
+          speed: 0,
+          traction: 1,
+          lamps: false,
+          lidTilt: 0
+        });
+        if (capped !== E.BLUESHIFT_GAIN_MAX || pw.blueshiftGain !== E.BLUESHIFT_GAIN_MAX)
+          throw new Error(`renderer/power ceiling mismatch: ${capped} / ${pw.blueshiftGain}`);
+        return `raw q\u2074 ${raw.toExponential(2)} \u2192 ${pw.blueshiftGain.toFixed(1)}\xD7`;
+      });
+      const drive = (x, z, heading, seconds, lamps = true, lid = 0) => {
+        rover.reset(x, z, heading);
+        rover.lamps = lamps;
+        rover.lidTilt = lid;
+        rover.disabled = false;
+        power.reset();
+        rover.keys.add("KeyW");
+        let mp = 0, mr = 0, mt = 1, sp = 0, sr = 0, n = 0, v;
+        let shadow = 0, diedAt = -1, pw = null;
+        for (let i = 0; i < seconds * 60; i++) {
+          v = rover.update(1 / 60);
+          pw = power.update(1 / 60, { ...v, lamps: rover.lamps, lidTilt: rover.lidTilt });
+          rover.disabled = pw.dead;
+          if (!pw.sunlit) shadow++;
+          if (pw.dead && diedAt < 0) diedAt = i / 60;
+          mp = Math.max(mp, Math.abs(v.pitch));
+          mr = Math.max(mr, Math.abs(v.roll));
+          mt = Math.min(mt, v.traction);
+          sp += Math.abs(v.pitch);
+          sr += Math.abs(v.roll);
+          n++;
         }
-        wake.buf.value.needsUpdate = true;
+        rover.keys.delete("KeyW");
+        return {
+          v,
+          pw,
+          meanPitch: sp / n * 57.3,
+          meanRoll: sr / n * 57.3,
+          maxPitch: mp * 57.3,
+          maxRoll: mr * 57.3,
+          minTraction: mt,
+          shadowPct: (100 * shadow / n).toFixed(0),
+          diedAt
+        };
       };
-      window.__trackFill(true);
-      return `${G}² grid, two gaussian tracks at ±0.72 m`;
-    });
-    await step('lamp A/B by reading the framebuffer directly', async () => {
-      /* Screenshotting a WebGL canvas without preserveDrawingBuffer returns a
-         stale composite — the first attempt at this test reported a zero
-         difference for that reason alone, which would have been read as
-         "the feature does nothing". readPixels in the same task does not lie. */
-      const cv = document.getElementById('gl');
-      const gl = cv.getContext('webgl2');
-      const W = cv.width, H = cv.height;
-      const sample = async on => {
-        E.uLampPower.value = on ? 1 : 0;
-        await renderer.renderAsync(scene, camera);
-        const px = new Uint8Array(W * H * 4);
-        gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, px);
-        return px;
-      };
-      const off = await sample(false), on = await sample(true);
-      /* second isolation: the trail's own contribution, lamps held on */
-      window.__trailAB = async () => {
+      await step("drive 40 s from the start (r 620 \u2192 inward)", () => {
+        const d = drive(BH.start[0], BH.start[1], Math.atan2(BH.start[0], BH.start[1]), 40);
+        return `${d.v.odometer.toFixed(0)} m \xB7 r ${d.v.radius.toFixed(0)} m \xB7 pitch mean ${d.meanPitch.toFixed(1)}\xB0 max ${d.maxPitch.toFixed(1)}\xB0 \xB7 traction min ${(d.minTraction * 100).toFixed(0)}%`;
+      });
+      await step("ROVER model \xB7 geometry and mass budget", () => {
+        let meshes = 0, tris = 0;
+        rover.group.traverse((o) => {
+          if (o.isMesh) {
+            meshes++;
+            const g = o.geometry;
+            tris += (g.index ? g.index.count : g.attributes.position.count) / 3;
+          }
+        });
+        const wheels = rover.wheels.length;
+        if (tris < 52e3 || tris > 62e3)
+          throw new Error(`rover triangle budget ${Math.round(tris).toLocaleString()} is outside 52\u201362k`);
+        if (meshes > 160) throw new Error(`rover draw-call budget exceeded: ${meshes} meshes`);
+        return `${meshes} meshes \xB7 ${Math.round(tris).toLocaleString()} triangles \xB7 ${wheels} wheels \xB7 lid ${rover.lid ? "hinged" : "MISSING"}`;
+      });
+      await step("ROVER design \xB7 expedition systems remain present", () => {
+        const roles = new Map();
+        rover.group.traverse((o) => {
+          const role = o.userData.designRole;
+          if (role) roles.set(role, (roles.get(role) ?? 0) + 1);
+        });
+        for (const role of ["armoured-hull", "service-panels", "suspension-pivots", "front-service-array", "camera-mast-structure", "solar-gimbal", "solar-array", "solar-backplane", "solar-cell-matrix", "avionics-pod", "sample-arm", "lidar-cluster"])
+          if (roles.get(role) !== 1) throw new Error(`${role}: expected 1, got ${roles.get(role) ?? 0}`);
+        if (roles.get("suspension-coil") !== 8)
+          throw new Error(`suspension-coil: expected 8, got ${roles.get("suspension-coil") ?? 0}`);
+        const wheelLayers = rover.wheels[0]?.children.filter((o) => o.isMesh) ?? [];
+        if (wheelLayers.length !== 2 || wheelLayers[0].material === wheelLayers[1].material)
+          throw new Error("wheel rubber and metal layers are not materially separated");
+        let front = null;
+        rover.group.traverse((o) => {
+          if (o.userData.designRole === "front-service-array") front = o;
+        });
+        if (!front || front.children.filter((o) => o.isMesh).length < 4)
+          throw new Error("front fascia is not a layered four-stage assembly");
+        let mast = null;
+        rover.group.traverse((o) => {
+          if (o.userData.designRole === "camera-mast-structure") mast = o;
+        });
+        if (!mast || mast.children.filter((o) => o.isMesh).length < 7)
+          throw new Error("camera mast lacks base/yoke/brace/duct load path");
+        return "layered armour \xB7 closed nose \xB7 grounded twin camera mast \xB7 6\xD712 cell matrix \xB7 rubber/metal wheels";
+      });
+      await step("ROVER \xB7 autonomous survey hold is a true stop", () => {
+        rover.reset(BH.start[0], BH.start[1], Math.atan2(BH.start[0], BH.start[1]));
+        rover.auto = true;
+        rover.missionHold = true;
+        for (let i = 0; i < 240; i++) rover.update(1 / 60);
+        if (rover.odometer > 1e-5 || Math.abs(rover.speed) > 1e-5)
+          throw new Error("autonomous survey hold still drives the rover");
+        rover.missionHold = false;
+        for (let i = 0; i < 120; i++) rover.update(1 / 60);
+        if (rover.odometer < 1) throw new Error("autonomous route does not resume after survey hold");
+        return "14 s mission pauses can remain mechanically still";
+      });
+      await step("TRANSFER \xB7 ordered parts, material points, exact restore", () => {
+        const fx = new E.ResolutionTransferFX(rover.group);
+        scene.add(fx.group);
+        rover.reset(BH.start[0], BH.start[1], Math.atan2(BH.start[0], BH.start[1]));
+        rover.chase = true;
+        rover.update(0);
+        const before = new Map();
+        const beforePos = new Map();
+        rover.group.traverse((o) => {
+          if (o.isMesh) before.set(o, o.visible);
+        });
+        rover.group.traverse((o) => {
+          if (o.userData.transferRig || o.userData.transferChassis) beforePos.set(o, o.position.clone());
+        });
+        const palette = { signal:  new Set(), panel:  new Set(), wheel:  new Set(), body:  new Set() };
+        rover.group.traverse((mesh) => {
+          if (!mesh.isMesh) return;
+          let node = mesh, part = "body";
+          while (node && node !== rover.group) {
+            if (node.userData.transferPart) {
+              part = node.userData.transferPart;
+              break;
+            }
+            node = node.parent;
+          }
+          if (mesh.userData.transferColor != null) palette[part].add(mesh.userData.transferColor);
+        });
+        if (palette.panel.size < 3) throw new Error("panel frame/cell/rail colours collapsed");
+        if (palette.signal.size < 4) throw new Error("signal hardware materials or instrument tag missing");
+        if (!palette.body.has(12588330) || !palette.body.has(14210498))
+          throw new Error("body identity or lamp colour missing");
+        fx.beginDeparture("manual");
+        fx.depart(0.12);
+        if (!fx.clouds.signal.points.visible || fx.clouds.panel.points.visible)
+          throw new Error("departure does not begin with signal hardware");
+        fx.depart(0.55);
+        if (!fx.clouds.wheel.points.visible || fx.clouds.body.points.visible)
+          throw new Error("running gear is not ahead of the body");
+        if (fx.chassis.position.y - fx.chassisBaseY < 0.035)
+          throw new Error("chassis does not rise as mass leaves");
+        fx.depart(0.9);
+        fx.blackout(0);
+        if (Math.abs(fx.chassis.position.y - fx.chassisBaseY) > 1e-6)
+          throw new Error("departure pose leaked through blackout");
+        if (!fx.axis.visible || fx.axis.material.opacity <= 0)
+          throw new Error("transmission cylinder does not persist after departure");
+        fx.blackout(2e3);
+        if (!fx.axis.visible) throw new Error("transmission cylinder fades before two seconds");
+        fx.blackout(2700);
+        if (fx.axis.visible) throw new Error("transmission cylinder does not clear after its residue");
+        fx.beginArrival("manual");
+        fx.arrive(0);
+        if (!fx.axis.visible || fx.meshes.some((mesh) => mesh.visible))
+          throw new Error("arrival does not establish an empty transmission cylinder first");
+        fx.arrive(0.12);
+        if (!fx.clouds.body.points.visible || fx.clouds.wheel.points.visible)
+          throw new Error("arrival does not begin with the body");
+        if (fx.chassis.position.y - fx.chassisBaseY < 0.08)
+          throw new Error("arrival chassis does not begin above its settled pose");
+        fx.arrive(0.45);
+        if (!fx.clouds.wheel.points.visible || fx.clouds.panel.points.visible)
+          throw new Error("arrival running gear order is wrong");
+        const fallingWheel = fx.rigNodes.find((o) => o.userData.transferPart === "wheel");
+        if (!fallingWheel || fallingWheel.position.y <= fx.rigBase.get(fallingWheel).y)
+          throw new Error("arrival running gear does not drop from above");
+        fx.arrive(0.88);
+        if (!fx.clouds.signal.points.visible)
+          throw new Error("signal hardware is not the final arrival stage");
+        fx.finish();
+        for (const [mesh, visible] of before)
+          if (mesh.visible !== visible) throw new Error("mesh visibility was not restored");
+        for (const [node, position] of beforePos)
+          if (node.position.distanceTo(position) > 1e-6) throw new Error("mechanical pose was not restored");
+        scene.remove(fx.group);
+        rover.chase = false;
+        return "signal \u2192 panel \u2192 wheel \u2192 body / exact reverse \xB7 4 material-colour clouds";
+      });
+      await step("SUSPENSION \xB7 contact retention against a rigid chassis", () => {
+        const run = (secs, boost) => {
+          rover.reset(BH.start[0], BH.start[1], Math.atan2(BH.start[0], BH.start[1]));
+          rover.keys.add("KeyW");
+          if (boost) rover.keys.add("ShiftLeft");
+          let sa = 0, ma = 0, stops = 0, n = 0, lost = 0, gap = 0;
+          for (let i = 0; i < secs * 60; i++) {
+            const v = rover.update(1 / 60);
+            sa += v.artic;
+            ma = Math.max(ma, v.artic);
+            if (v.artic >= v.travel - 1e-6) stops++;
+            for (const e of v.stroke) {
+              if (Math.abs(e) > 0.02) lost++;
+              gap += e * e;
+            }
+            n++;
+          }
+          rover.keys.delete("KeyW");
+          rover.keys.delete("ShiftLeft");
+          return {
+            artic: sa / n,
+            maxArtic: ma,
+            stops: 100 * stops / n,
+            lost: lost / n,
+            rms: Math.sqrt(gap / (n * 8))
+          };
+        };
+        const a = run(30, false), b = run(30, true);
+        return `cruise \u2014 a rigid chassis loses ${a.lost.toFixed(1)} of 8 wheels (rms gap ${(a.rms * 100).toFixed(1)} cm); the stroke keeps all 8 down at ${(a.artic * 100).toFixed(0)} cm mean, ${(a.maxArtic * 100).toFixed(0)} max \xB7 stops ${a.stops.toFixed(0)}%   ||   6 m/s \u2014 stops ${b.stops.toFixed(0)}%`;
+      });
+      await step("ROVER \xB7 8-wheel contact cost", () => {
+        rover.reset(BH.start[0], BH.start[1], Math.atan2(BH.start[0], BH.start[1]));
+        rover.keys.add("KeyW");
+        const t0 = performance.now();
+        for (let i = 0; i < 600; i++) rover.update(1 / 60);
+        rover.keys.delete("KeyW");
+        const per = (performance.now() - t0) / 600;
+        return `${per.toFixed(3)} ms/frame  (${(per * 60).toFixed(1)} ms/s of a 16.7 ms budget)`;
+      });
+      await step("SLAM \xB7 does speed cost anything?", () => {
+        const at = (boost) => {
+          rover.reset(BH.start[0], BH.start[1], Math.atan2(BH.start[0], BH.start[1]));
+          rover.keys.add("KeyW");
+          if (boost) rover.keys.add("ShiftLeft");
+          power.reset();
+          let sl = 0, tr = 0, ld = 0, sp = 0, n = 0;
+          for (let i = 0; i < 25 * 60; i++) {
+            const v = rover.update(1 / 60);
+            const pw = power.update(1 / 60, { ...v, lamps: true });
+            sl += v.slam;
+            tr += v.traction;
+            ld += pw.load;
+            sp += v.speed;
+            n++;
+          }
+          rover.keys.delete("KeyW");
+          rover.keys.delete("ShiftLeft");
+          return { slam: sl / n, trac: tr / n, load: ld / n, speed: sp / n };
+        };
+        const a = at(false), b = at(true);
+        return `cruise ${a.speed.toFixed(1)} m/s \u2014 stops ${(a.slam * 100).toFixed(0)}%, grip ${(a.trac * 100).toFixed(0)}%, draw ${a.load.toFixed(2)}  ||  fast ${b.speed.toFixed(1)} m/s \u2014 stops ${(b.slam * 100).toFixed(0)}%, grip ${(b.trac * 100).toFixed(0)}%, draw ${b.load.toFixed(2)} %/s`;
+      });
+      await step("LAMP BUS \xB7 does a jolt actually reach the light?", () => {
+        const at = (boost) => {
+          rover.reset(BH.start[0], BH.start[1], Math.atan2(BH.start[0], BH.start[1]));
+          rover.keys.add("KeyW");
+          if (boost) rover.keys.add("ShiftLeft");
+          rover.lamps = true;
+          power.reset();
+          let sum = 0, min = 1, dark = 0, n = 0;
+          for (let i = 0; i < 25 * 60; i++) {
+            const v = rover.update(1 / 60);
+            const pw = power.update(1 / 60, { ...v, lamps: true });
+            sum += pw.bus;
+            min = Math.min(min, pw.bus);
+            if (pw.bus < 0.6) dark++;
+            n++;
+          }
+          rover.keys.delete("KeyW");
+          rover.keys.delete("ShiftLeft");
+          return { mean: sum / n, min, dark: 100 * dark / n };
+        };
+        const a = at(false), b = at(true);
+        return `cruise \u2014 bus ${(a.mean * 100).toFixed(0)}% mean, ${(a.min * 100).toFixed(0)}% min, dark ${a.dark.toFixed(0)}%   ||   fast \u2014 ${(b.mean * 100).toFixed(0)}% mean, ${(b.min * 100).toFixed(0)}% min, dark ${b.dark.toFixed(0)}%`;
+      });
+      await step("LAMP BUS \xB7 brownout as the cell empties", () => {
+        power.reset();
+        const out = [];
+        for (const c of [1, 0.2, 0.12, 0.06, 0]) {
+          power.charge = c;
+          power.bus = 1;
+          for (let i = 0; i < 120; i++) power.busLevel(1 / 60, 0);
+          out.push(`${(c * 100).toFixed(0)}% \u2192 ${(power.bus * 100).toFixed(0)}%`);
+        }
+        return out.join(" \xB7 ");
+      });
+      await step("LID \xB7 array output against hinge angle", () => {
+        let spot = null;
+        for (let i = 0; i < 400 && !spot; i++) {
+          const a = i / 400 * Math.PI * 2, r = 500 + i % 7 * 40;
+          const x = Math.cos(a) * r, z = Math.sin(a) * r;
+          if (power.lit(x, z, S.heightCPU(x, z) + C.power.deckHeight)) spot = [x, z];
+        }
+        if (!spot) throw new Error("no sunlit ground found in 400 probes");
+        const g = S.heightCPU(spot[0], spot[1]);
+        const out = [];
+        for (const deg of [0, 20, 40, 55, 69]) {
+          power.reset();
+          const pw = power.update(1 / 60, {
+            pitch: 0,
+            roll: 0,
+            heading: 0,
+            x: spot[0],
+            z: spot[1],
+            ground: g,
+            radius: Math.hypot(...spot),
+            speed: 0,
+            traction: 1,
+            lamps: false,
+            lidTilt: deg * Math.PI / 180
+          });
+          out.push(`${deg}\xB0 \u2192 ${pw.solar.toFixed(2)}`);
+        }
+        return out.join(" \xB7 ") + " %/s   (load with lamps \u22480.64)";
+      });
+      await step("LID \xB7 autonomous sun tracking survives reset and mode changes", () => {
+        const heading = Math.atan2(BH.start[0], BH.start[1]);
+        rover.reset(BH.start[0], BH.start[1], heading);
+        rover.auto = false;
+        rover.lidTilt = 0;
+        for (let i = 0; i < 300; i++) rover.update(1 / 60);
+        const toward = rover.lidTilt;
+        rover.heading += Math.PI;
+        for (let i = 0; i < 300; i++) rover.update(1 / 60);
+        const away = rover.lidTilt;
+        rover.setMobileMode(true);
+        rover.setMobileMode(false);
+        if (!rover.arrayAuto) throw new Error("desktop/mobile transition disabled sun tracking");
+        if (toward < 0.3 || toward - away < 0.2)
+          throw new Error(`array did not follow solar azimuth: ${toward.toFixed(2)} \u2192 ${away.toFixed(2)} rad`);
+        rover.reset(BH.start[0], BH.start[1], heading);
+        if (!rover.arrayAuto) throw new Error("reset disabled sun tracking");
+        return `${(toward * 180 / Math.PI).toFixed(0)}\xB0 toward sun \u2192 ${(away * 180 / Math.PI).toFixed(0)}\xB0 away \xB7 AUTO retained`;
+      });
+      await step("POWER \xB7 6 min on the open plain, lamps ON", () => {
+        const d = drive(BH.start[0], BH.start[1], Math.atan2(BH.start[0], BH.start[1]), 360);
+        return `cell ${(d.pw.charge * 100).toFixed(0)}% \xB7 shadowed ${d.shadowPct}% of the time \xB7 ${d.diedAt < 0 ? "survived" : "DIED at " + d.diedAt.toFixed(0) + " s"}`;
+      });
+      await step("POWER \xB7 descend from r 95, lamps ON", () => {
+        const d = drive(0, 95, 0, 420);
+        return `${d.diedAt < 0 ? "cell " + (d.pw.charge * 100).toFixed(0) + "% \xB7 survived" : "DIED at " + Math.floor(d.diedAt / 60) + "m " + Math.round(d.diedAt % 60) + "s \xB7 r " + d.v.radius.toFixed(1) + " m"} \xB7 shadowed ${d.shadowPct}%`;
+      });
+      await step("POWER \xB7 descend from r 95, lamps ON, LID FULL", () => {
+        const d = drive(0, 95, 0, 420, true, 0.55);
+        return `${d.diedAt < 0 ? "cell " + (d.pw.charge * 100).toFixed(0) + "% \xB7 survived" : "DIED at " + Math.floor(d.diedAt / 60) + "m " + Math.round(d.diedAt % 60) + "s \xB7 r " + d.v.radius.toFixed(1) + " m"} \xB7 shadowed ${d.shadowPct}%`;
+      });
+      await step("POWER \xB7 descend from r 95, lamps OFF", () => {
+        const d = drive(0, 95, 0, 420, false);
+        return `${d.diedAt < 0 ? "cell " + (d.pw.charge * 100).toFixed(0) + "% \xB7 survived" : "DIED at " + Math.floor(d.diedAt / 60) + "m " + Math.round(d.diedAt % 60) + "s \xB7 r " + d.v.radius.toFixed(1) + " m"} \xB7 shadowed ${d.shadowPct}%`;
+      });
+      await step("ROVER \xB7 legacy mast/rear/front API remains internally sound", () => {
+        rover.reset(BH.start[0], BH.start[1], Math.atan2(BH.start[0], BH.start[1]));
+        rover.auto = false;
+        rover.setViewMode("mast");
+        let v = rover.update(0);
+        if (v.viewMode !== "mast" || rover.group.visible)
+          throw new Error("mast view does not hide the rover body");
+        rover.cycleViewMode();
+        for (let i = 0; i < 90; i++) v = rover.update(1 / 60);
+        const fx = -Math.sin(rover.heading), fz = -Math.cos(rover.heading);
+        let relX = camera.position.x - rover.pos.x, relZ = camera.position.z - rover.pos.z;
+        const rearDot = relX * fx + relZ * fz;
+        if (v.viewMode !== "rear" || !rover.group.visible || rearDot >= 0)
+          throw new Error("rear chase is not behind the rover");
+        rover.cycleViewMode();
+        for (let i = 0; i < 120; i++) v = rover.update(1 / 60);
+        relX = camera.position.x - rover.pos.x;
+        relZ = camera.position.z - rover.pos.z;
+        const frontDot = relX * fx + relZ * fz;
+        if (v.viewMode !== "front" || frontDot <= 0 || v.chaseDist > 8)
+          throw new Error("front inspection is not close to the rover nose");
+        rover.cycleViewMode();
+        v = rover.update(0);
+        if (v.viewMode !== "mast") throw new Error("front does not cycle back to mast");
+        return `rear dot ${rearDot.toFixed(1)} m \xB7 front dot ${frontDot.toFixed(1)} m \xB7 front boom ${v.chaseDist.toFixed(1)} m`;
+      });
+      await step("CAMERA \xB7 C adds rear + 8 mm rover POV without escaping authored shots", () => {
+        lander.group.visible = true;
+        const restoration = {
+          event: null,
+          scanning: false,
+          complete: false,
+          target: { x: rover.pos.x + 2, z: rover.pos.z - 2 },
+          scanFocus: null,
+          group: { visible: true }
+        };
+        const mission = {
+          event: null,
+          active: false,
+          complete: false,
+          target: null,
+          scanFocus: null,
+          lastDistance: Infinity,
+          group: { visible: false }
+        };
+        const docking = { started: false };
+        const voyage = { active: false, phase: "idle" };
+        const director = new E.ShotDirector({
+          camera,
+          rover,
+          lander,
+          restoration,
+          mission,
+          docking,
+          voyage,
+          heightAt: S.heightCPU
+        });
+        director.update(1e3);
+        if (director.rendered !== "wide") throw new Error(`initial observer ${director.rendered}`);
+        if (!director.cycle(1100)) throw new Error("C rejected on survey surface");
+        director.update(1100);
+        if (director.rendered !== "rear" || director.source !== "manual")
+          throw new Error(`first C ${director.rendered}/${director.source}`);
+        const rearForward = new THREE.Vector3(-Math.sin(rover.heading), 0, -Math.cos(rover.heading));
+        const rearOffset = camera.position.clone().sub(rover.pos);
+        if (rearOffset.dot(rearForward) > -4.5)
+          throw new Error(`rear eye is not behind rover: ${rearOffset.dot(rearForward).toFixed(2)}m`);
+        director.cycle(1200);
+        director.update(1200);
+        if (director.rendered !== "mast" || camera.fov !== 112 || rover.group.visible)
+          throw new Error(`second C did not enter 8 mm mast POV: ${director.rendered}/${camera.fov}/${rover.group.visible}`);
+        director.cycle(1300);
+        director.update(1300);
+        if (director.rendered !== "macro") throw new Error(`third C ${director.rendered}`);
+        director.cycle(1400);
+        director.update(1400);
+        director.update(3901);
+        if (director.rendered !== "tele") throw new Error(`fourth C ${director.rendered}`);
+        director.cycle(4e3);
+        director.update(4e3);
+        director.update(6601);
+        if (director.rendered !== "wide") throw new Error(`fifth C ${director.rendered}`);
+        director.reset();
+        restoration.complete = true;
+        restoration.group.visible = false;
+        mission.active = true;
+        mission.target = { x: rover.pos.x + 80, z: rover.pos.z };
+        mission.lastDistance = 80;
+        mission.group.visible = true;
+        const laterWorldShots = director.availableManualShots();
+        if (!laterWorldShots.includes("rear") || !director.cycle(4e3))
+          throw new Error(`later-world C locked by hidden restoration: ${laterWorldShots.join(",")}`);
+        director.update(4e3);
+        if (director.rendered !== "rear" || director.source !== "manual")
+          throw new Error(`later-world C ${director.rendered}/${director.source}`);
+        restoration.group.visible = true;
+        director.clearManual();
+        if (director.availableManualShots().length)
+          throw new Error("visible BODY 01 restoration tableau accepts manual camera");
+        restoration.complete = false;
+        restoration.group.visible = true;
+        mission.active = false;
+        mission.target = null;
+        mission.group.visible = false;
+        director.setIntro(true);
+        if (director.cycle(3950) || director.desiredShot() !== "rear")
+          throw new Error("operator input escaped blueprint rear shot");
+        director.setIntro(false);
+        mission.active = true;
+        mission.target = { x: rover.pos.x + 100, z: rover.pos.z };
+        mission.lastDistance = 100;
+        restoration.group.visible = false;
+        director.clearManual();
+        director.setExperience("observer", 3990);
+        if (director.desiredShot() !== "wide") throw new Error("far BODY 02 observer travel is not ultrawide");
+        director.setExperience("explorer", 3995);
+        if (director.desiredShot() !== "rear") throw new Error("BODY 02 explorer did not inherit rear follow");
+        director.setExperience("observer", 3998);
+        mission.lastDistance = 6;
+        if (director.desiredShot() !== "macro") throw new Error("near BODY 02 evidence is not macro");
+        mission.event = { t0: 0 };
+        if (director.cycle(4e3)) throw new Error("C overrode a scanning event");
+        voyage.active = true;
+        voyage.phase = "lift";
+        mission.event = null;
+        director.update(4100);
+        if (director.rendered !== "ascent") throw new Error("lift is not ascent shot");
+        director.veil.remove();
+        director.cue.remove();
+        return "BODY 01/02/03 \u2192 rear \xB7 intro/scans/transit retain authored priority";
+      });
+      await step("LANDER \xB7 bay is dark, empty and supports the full wheelbase", () => {
+        lander.setRestorationLevel(5);
+        lander.setRamp(1);
+        lander.group.visible = true;
+        lander.group.updateMatrixWorld(true);
+        lander.bayFloor.geometry.computeBoundingBox();
+        const floorBox = lander.bayFloor.geometry.boundingBox;
+        const floorBack = floorBox.max.z + lander.bayFloor.position.z;
+        const floorTop = floorBox.max.y + lander.bayFloor.position.y;
+        if (Math.abs(floorBack - lander.dock.backZ) > 1e-5 || lander.dock.backZ < 0.45)
+          throw new Error(`bay floor ends at ${floorBack.toFixed(3)}`);
+        if (Math.abs(floorTop - lander.dock.floorY) > 1e-5)
+          throw new Error(`bay floor top ${floorTop.toFixed(3)}`);
+        lander.ramp.geometry.computeBoundingBox();
+        const rampTop = lander.ramp.geometry.boundingBox.max.y + lander.ramp.position.y;
+        if (Math.abs(rampTop) > 1e-5) throw new Error(`ramp top/contact mismatch ${rampTop}`);
+        if (lander.dockLights.length) throw new Error("locator lights remain inside bay");
+        const ray = new THREE.Raycaster(
+          new THREE.Vector3(0, lander.dock.floorY + 0.3, -6),
+          new THREE.Vector3(0, 0, 1),
+          0,
+          20
+        );
+        const early = ray.intersectObject(lander.group, true).filter((hit) => hit.object.visible && hit.point.z < lander.dock.backZ - 0.01);
+        if (early.length) throw new Error(`bay centre ray blocked at z ${early[0].point.z.toFixed(2)}`);
+        lander.setRamp(0);
+        const stowed = lander.dockingPoint(-0.58, 0);
+        const terrain = S.heightCPU(stowed.x, stowed.z);
+        const support = lander.dockingSurface(stowed.x, stowed.z, terrain);
+        const hangar = lander.group.position.y + lander.dock.floorY;
+        if (Math.abs(support - hangar) > 1e-5)
+          throw new Error(`closed bay lost stow support: ${support.toFixed(3)} vs ${hangar.toFixed(3)}`);
+        return `clear to z ${lander.dock.backZ.toFixed(2)} \xB7 closed-floor support ${support.toFixed(2)} m`;
+      });
+      await step("CHASE camera \xB7 30 s drive while orbiting the probe", () => {
+        rover.reset(BH.start[0], BH.start[1], Math.atan2(BH.start[0], BH.start[1]));
+        rover.chase = true;
+        rover.disabled = false;
+        power.reset();
+        rover.keys.add("KeyW");
+        camera.aspect = 16 / 9;
+        camera.updateProjectionMatrix();
+        const aim = new THREE.Vector3(), ndc = new THREE.Vector3();
+        let minClear = 1e9, minD = 1e9, maxD = 0, off = 0, n = 0;
+        for (let i = 0; i < 30 * 60; i++) {
+          rover.orbitYaw = Math.sin(i / 240) * Math.PI;
+          rover.orbitPitch = -0.9 + 2.4 * (0.5 + 0.5 * Math.sin(i / 130));
+          rover.orbitDist = 0.5 + 40 * (0.5 + 0.5 * Math.sin(i / 310));
+          const v = rover.update(1 / 60);
+          power.update(1 / 60, { ...v, lamps: rover.lamps });
+          camera.updateMatrixWorld(true);
+          minClear = Math.min(minClear, camera.position.y - S.heightCPU(camera.position.x, camera.position.z));
+          aim.setFromMatrixPosition(rover.head.matrixWorld);
+          aim.y = rover.deckY + 0.25;
+          const d = camera.position.distanceTo(aim);
+          minD = Math.min(minD, d);
+          maxD = Math.max(maxD, d);
+          ndc.copy(aim).project(camera);
+          if (Math.abs(ndc.x) > 1 || Math.abs(ndc.y) > 1) off++;
+          n++;
+        }
+        rover.keys.delete("KeyW");
+        rover.chase = false;
+        return `clearance min ${minClear.toFixed(2)} m \xB7 boom ${minD.toFixed(1)}\u2013${maxD.toFixed(1)} m \xB7 probe off-frame ${(100 * off / n).toFixed(1)}%`;
+      });
+      await step("drive 120 s at the mass (r 95 \u2192 the horizon)", () => {
+        const d = drive(0, 95, 0, 120);
+        return `halted at r ${d.v.radius.toFixed(2)} m (rs = ${BH.rs}) \xB7 speed ${d.v.speed.toFixed(3)} m/s \xB7 lapse ${d.v.lapse.toFixed(4)} \xB7 traction min ${(d.minTraction * 100).toFixed(0)}%`;
+      });
+      await step("drive across the rampart (r 95, heading 90\xB0)", () => {
+        const d = drive(0, 95, Math.PI / 2, 30);
+        return `${d.v.odometer.toFixed(0)} m traversed \xB7 r ${d.v.radius.toFixed(1)} m \xB7 roll mean ${d.meanRoll.toFixed(1)}\xB0 max ${d.maxRoll.toFixed(1)}\xB0`;
+      });
+      await step("ground.syncTo + nearestVertex", () => {
+        ground.syncTo(0, 620);
+        return `vertex ${ground.nearestVertex(0, 620).index}`;
+      });
+      await step("heightCPU(0,620)", () => S.heightCPU(0, 620).toFixed(4) + " m");
+      await step("aim the camera at the lit ground", () => {
+        renderer.setSize(960, 540, false);
+        camera.aspect = 960 / 540;
+        camera.updateProjectionMatrix();
+        ground.syncTo(0, 0);
+        E.uLampA.value.set(-0.42, 1.05, 0);
+        E.uLampB.value.set(0.42, 1.05, 0);
+        E.uLampDir.value.set(0, -Math.sin(0.16), -Math.cos(0.16));
         E.uLampPower.value = 1;
-        window.__trackFill(false); await renderer.renderAsync(scene, camera);
-        const a = new Uint8Array(W * H * 4); gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, a);
-        window.__trackFill(true); await renderer.renderAsync(scene, camera);
-        const b = new Uint8Array(W * H * 4); gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, b);
-        let peak = 0, hit = 0, total = 0; const map = [];
-        for (let y = H - 1; y >= 0; y -= Math.max(1, (H / 26) | 0)) {
+        camera.position.set(0, 1.9, 2.6);
+        camera.rotation.set(-0.34, 0, 0);
+        camera.updateMatrixWorld(true);
+        return "lamps 1.05 m above a flat plane, aimed 9\xB0 down";
+      });
+      await step("RENDER ONE FRAME (WebGL2 \u2014 compiles every material)", async () => {
+        window.__shaderErrors = [];
+        const oe = console.error;
+        console.error = (...a) => {
+          window.__shaderErrors.push(a.map(String).join(" "));
+          oe(...a);
+        };
+        try {
+          await renderer.renderAsync(scene, camera);
+        } finally {
+          console.error = oe;
+        }
+        return window.__shaderErrors.length ? `${window.__shaderErrors.length} shader error(s)` : "compiled clean";
+      });
+      await step("read back the generated fragment shader", async () => {
+        const src = await renderer.debug.getShaderAsync(scene, camera, ground.mesh);
+        window.__shader = src;
+        const f = (src.fragmentShader ?? "") + "";
+        const uniforms = [...f.matchAll(/uniform[^;]*;/g)].length;
+        const hasLamp = /lamp|Lamp/.test(f) || /smoothstep\s*\(\s*0\.891/.test(f);
+        const buffers = [...f.matchAll(/(?:buffer|readonly buffer|layout[^;]*?)\s+(\w*Buffer\w*|\w*Storage\w*)/gi)].length;
+        const bindings = [...f.matchAll(/^\s*(?:layout|uniform|buffer|readonly)/gm)].length;
+        window.__fragSrc = f;
+        window.__vertSrc = (src.vertexShader ?? "") + "";
+        return `fragment ${f.length} chars \xB7 ${uniforms} uniform \xB7 ${bindings} binding lines \xB7 lamp ${hasLamp ? "PRESENT" : "ABSENT"}`;
+      });
+      await step("stamp two wheel tracks into the wake by hand", () => {
+        const G = wake.grid, CELL = wake.cell, arr = wake.buf.value.array;
+        window.__trackFill = (on) => {
+          for (let row = 0; row < G; row++) for (let col = 0; col < G; col++) {
+            const x = (col - (G - 1) / 2) * CELL, z = (row - (G - 1) / 2) * CELL;
+            let v = 0;
+            if (on && Math.abs(z) < 14) {
+              for (const tx of [-0.72, 0.72]) {
+                const d = (x - tx) / 0.42;
+                v = Math.max(v, Math.exp(-0.5 * d * d));
+              }
+            }
+            arr[row * G + col] = v;
+          }
+          wake.buf.value.needsUpdate = true;
+        };
+        window.__trackFill(true);
+        return `${G}\xB2 grid, two gaussian tracks at \xB10.72 m`;
+      });
+      await step("lamp A/B by reading the framebuffer directly", async () => {
+        const cv = document.getElementById("gl");
+        const gl = cv.getContext("webgl2");
+        const W = cv.width, H = cv.height;
+        const sample = async (on2) => {
+          E.uLampPower.value = on2 ? 1 : 0;
+          await renderer.renderAsync(scene, camera);
+          const px = new Uint8Array(W * H * 4);
+          gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, px);
+          return px;
+        };
+        const off = await sample(false), on = await sample(true);
+        window.__trailAB = async () => {
+          E.uLampPower.value = 1;
+          window.__trackFill(false);
+          await renderer.renderAsync(scene, camera);
+          const a = new Uint8Array(W * H * 4);
+          gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, a);
+          window.__trackFill(true);
+          await renderer.renderAsync(scene, camera);
+          const b = new Uint8Array(W * H * 4);
+          gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, b);
+          let peak2 = 0, hit = 0, total2 = 0;
+          const map2 = [];
+          for (let y = H - 1; y >= 0; y -= Math.max(1, H / 26 | 0)) {
+            const row = [];
+            for (let x = 0; x < W; x += Math.max(1, W / 100 | 0)) {
+              const i = (y * W + x) * 4;
+              const d = Math.abs(b[i] - a[i]) + Math.abs(b[i + 1] - a[i + 1]) + Math.abs(b[i + 2] - a[i + 2]);
+              row.push(d);
+              peak2 = Math.max(peak2, d);
+              if (d > 3) hit++;
+              total2++;
+            }
+            map2.push(row);
+          }
+          return { map: map2, peak: peak2, pct: (100 * hit / total2).toFixed(1) };
+        };
+        let peak = 0, lit = 0, total = 0;
+        const map = [];
+        for (let y = H - 1; y >= 0; y -= Math.max(1, H / 26 | 0)) {
           const row = [];
-          for (let x = 0; x < W; x += Math.max(1, (W / 100) | 0)) {
+          for (let x = 0; x < W; x += Math.max(1, W / 100 | 0)) {
             const i = (y * W + x) * 4;
-            const d = Math.abs(b[i] - a[i]) + Math.abs(b[i+1] - a[i+1]) + Math.abs(b[i+2] - a[i+2]);
-            row.push(d); peak = Math.max(peak, d); if (d > 3) hit++; total++;
+            const d = Math.max(0, on[i] - off[i], on[i + 1] - off[i + 1], on[i + 2] - off[i + 2]);
+            row.push(d);
+            peak = Math.max(peak, d);
+            if (d > 2) lit++;
+            total++;
           }
           map.push(row);
         }
-        return { map, peak, pct: (100 * hit / total).toFixed(1) };
-      };
-      let peak = 0, lit = 0, total = 0;
-      const map = [];
-      for (let y = H - 1; y >= 0; y -= Math.max(1, (H / 26) | 0)) {
-        const row = [];
-        for (let x = 0; x < W; x += Math.max(1, (W / 100) | 0)) {
-          const i = (y * W + x) * 4;
-          const d = Math.max(0, on[i] - off[i], on[i+1] - off[i+1], on[i+2] - off[i+2]);
-          row.push(d); peak = Math.max(peak, d); if (d > 2) lit++; total++;
-        }
-        map.push(row);
-      }
-      window.__lampMap = { map, peak, pct: (100 * lit / total).toFixed(1) };
-      return `peak +${peak}/255 · ${(100 * lit / total).toFixed(1)}% of pixels brighter`;
-    });
-    await step('budget', () => `${C.scatter.count.toLocaleString()} inst / ${(C.scatter.vertices/1e6).toFixed(2)}M verts / ground ${C.clipmap.count.toLocaleString()}`);
-  } else {
-    /* A SECOND, MINIMAL WORK — no metric, one ring, a different surface.
-       This is the actual proof that the engine is a library and not a
-       rearrangement of one work's files. */
-    const { Fn, float, vec3, sin, cos } = await import('three/tsl');
-    await step('configure(minimal work, no metric)', () => {
-      const c = E.configure({
-        lattice: { seed: 7 },
-        clipmap: { grid: 256, span: 200 },
-        field: { grid: 128, span: 200 },
-        scatter: { rings: [{ r0: 0, r1: 40, seg: 3, cell: 0.5 }],
-                   fadeBand: 3, clumpCell: 2, minPixels: 1.3, length: .4, width: .02, bend: .5,
-                   breath: .1, breathRate: .2, slopeGate: [.1,.4] },
+        window.__lampMap = { map, peak, pct: (100 * lit / total).toFixed(1) };
+        return `peak +${peak}/255 \xB7 ${(100 * lit / total).toFixed(1)}% of pixels brighter`;
       });
-      return `metric ${c.metric === null ? 'none' : 'set'} · ${c.scatter.count.toLocaleString()} instances`;
-    });
-    const dunes = Fn(([p]) => sin(p.x.mul(0.05)).mul(cos(p.y.mul(0.04))).mul(6.0));
-    const ground = await step('new Clipmap   (a different surface)', () => new E.Clipmap({
-      height: dunes, shade: ({ normal }) => vec3(0.05, 0.05, 0.06).mul(normal.y) }));
-    const field = await step('new Field     (a different potential)', () => new E.Field(ground, { potential: p => E.fbm(p.mul(0.01), 3) }));
-    const wake = await step('new Wake', () => new E.Wake());
-    await step('new Scatter   (one ring)', () => new E.Scatter(ground, field, wake, {}));
-    await step('buildSky      (engine default)', () => E.buildSky());
-    await step('redshift is identity without a metric', () => {
-      const q = E.nuRatioCPU(10, 100);
-      if (q !== 1) throw new Error('nuRatioCPU should be 1 with no metric, got ' + q);
-      if (E.lapseAt(10) !== 1) throw new Error('lapseAt should be 1 with no metric');
-      return 'ν ratio 1, lapse 1 — no branches, no cost';
-    });
+      await step("budget", () => `${C.scatter.count.toLocaleString()} inst / ${(C.scatter.vertices / 1e6).toFixed(2)}M verts / ground ${C.clipmap.count.toLocaleString()}`);
+    } else {
+      const { Fn, float, vec3, sin, cos } = await import("three/tsl");
+      await step("configure(minimal work, no metric)", () => {
+        const c = E.configure({
+          lattice: { seed: 7 },
+          clipmap: { grid: 256, span: 200 },
+          field: { grid: 128, span: 200 },
+          scatter: {
+            rings: [{ r0: 0, r1: 40, seg: 3, cell: 0.5 }],
+            fadeBand: 3,
+            clumpCell: 2,
+            minPixels: 1.3,
+            length: 0.4,
+            width: 0.02,
+            bend: 0.5,
+            breath: 0.1,
+            breathRate: 0.2,
+            slopeGate: [0.1, 0.4]
+          }
+        });
+        return `metric ${c.metric === null ? "none" : "set"} \xB7 ${c.scatter.count.toLocaleString()} instances`;
+      });
+      const dunes = Fn(([p]) => sin(p.x.mul(0.05)).mul(cos(p.y.mul(0.04))).mul(6));
+      const ground = await step("new Clipmap   (a different surface)", () => new E.Clipmap({
+        height: dunes,
+        shade: ({ normal }) => vec3(0.05, 0.05, 0.06).mul(normal.y)
+      }));
+      const field = await step("new Field     (a different potential)", () => new E.Field(ground, { potential: (p) => E.fbm(p.mul(0.01), 3) }));
+      const wake = await step("new Wake", () => new E.Wake());
+      await step("new Scatter   (one ring)", () => new E.Scatter(ground, field, wake, {}));
+      await step("buildSky      (engine default)", () => E.buildSky());
+      await step("redshift is identity without a metric", () => {
+        const q = E.nuRatioCPU(10, 100);
+        if (q !== 1) throw new Error("nuRatioCPU should be 1 with no metric, got " + q);
+        if (E.lapseAt(10) !== 1) throw new Error("lapseAt should be 1 with no metric");
+        return "\u03BD ratio 1, lapse 1 \u2014 no branches, no cost";
+      });
+    }
+  } catch (e) {
   }
-} catch (e) { /* recorded */ }
-window.RESULT.done = true;
+  window.RESULT.done = true;
 </script></body>

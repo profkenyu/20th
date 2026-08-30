@@ -1,129 +1,124 @@
-import * as THREE from 'three';
-import { vec3, vec4 } from 'three/tsl';
-import { drawDotMatrix, drawSevenSegment } from './dot-matrix.js';
-
-const REDUCED_MOTION = typeof matchMedia !== 'undefined'
-  && matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-/* The atlas is a single-band instrument rather than a miniature game map.
-   Values are separated by luminance, as they would be on a green phosphor
-   display: black glass, stored trace, live trace, then a clipped hot core. */
+import * as THREE from "three";
+import { vec3, vec4 } from "three/tsl";
+import { drawDotMatrix, drawSevenSegment } from "./dot-matrix.js";
+const REDUCED_MOTION = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 const PHOSPHOR = Object.freeze({
-  black: '1,8,4',
-  glass: '2,15,8',
-  deep: '8,34,17',
-  dim: '49,126,70',
-  mid: '76,218,115',
-  bright: '139,255,169',
-  hot: '211,255,220',
+  black: "1,8,4",
+  glass: "2,15,8",
+  deep: "8,34,17",
+  dim: "49,126,70",
+  mid: "76,218,115",
+  bright: "139,255,169",
+  hot: "211,255,220"
 });
 const phosphor = (tone, alpha) => `rgba(${PHOSPHOR[tone]},${alpha})`;
-
-/* A local instrument, not an omniscient world map. Cells enter only when the
-   rover's scan footprint touches them; unknown terrain remains literally
-   absent. Absolute world coordinates keep the record stable while the render
-   clipmap recentres underneath it. */
 export class MiniMap {
   constructor(canvas, start, options = {}) {
     this.canvas = canvas;
-    this.ctx = canvas.getContext('2d');
+    this.ctx = canvas.getContext("2d");
     this.heightAt = options.heightAt ?? (() => 0);
-    this.cell = options.cell ?? 8;              // measured detail, metres
-    this.coarseCell = options.coarseCell ?? 32; // compressed old detail
-    this.span = options.span ?? 1024;           // local frame, never a globe
+    this.cell = options.cell ?? 8;
+    this.coarseCell = options.coarseCell ?? 32;
+    this.span = options.span ?? 1024;
     this.detailLimit = options.detailLimit ?? 3072;
     this.coarseLimit = options.coarseLimit ?? 1024;
     this.trailLimit = options.trailLimit ?? 512;
-    /* Survey memory continues to record for transfer and archival logic, but
-       the visible instrument can be reassigned to the lander's material state. */
     this.restoration = options.restoration ?? null;
     this.reset(start, {
-      id: options.id ?? 'PLANET 01', label: options.label ?? 'TERRA', archives: [],
+      id: options.id ?? "PLANET 01",
+      label: options.label ?? "TERRA",
+      archives: []
     });
   }
-
   get stats() {
     return {
-      id: this.id, detail: this.cells.size, coarse: this.coarse.size,
-      trail: this.trail.length, archives: this.archives.length,
-      area: this.cells.size * this.cell ** 2 + this.coarse.size * this.coarseCell ** 2,
+      id: this.id,
+      detail: this.cells.size,
+      coarse: this.coarse.size,
+      trail: this.trail.length,
+      archives: this.archives.length,
+      area: this.cells.size * this.cell ** 2 + this.coarse.size * this.coarseCell ** 2
     };
   }
-
-  collapse(amount) { this.transfer = Math.max(0, Math.min(1, amount)); }
-
+  collapse(amount) {
+    this.transfer = Math.max(0, Math.min(1, amount));
+  }
   reset(start, options = {}) {
-    /* Compatibility with the former reset(start, trail) signature: treat the
-       old path as one archival memory, never as knowledge of the new body. */
     if (Array.isArray(options)) {
       options = options.length ? {
-        archives: [{ id: 'PLANET 01', label: 'LEGACY PATH', cell: 24, cells: [], trail: options }],
+        archives: [{ id: "PLANET 01", label: "LEGACY PATH", cell: 24, cells: [], trail: options }]
       } : {};
     }
-    this.id = options.id ?? 'PLANET 01';
-    this.label = options.label ?? 'LOCAL FRAME';
-    this.archives = (options.archives ?? []).slice(-2).map(a => ({
+    this.id = options.id ?? "PLANET 01";
+    this.label = options.label ?? "LOCAL FRAME";
+    this.archives = (options.archives ?? []).slice(-2).map((a) => ({
       ...a,
-      cells: (a.cells ?? []).map(p => ({ ...p })),
-      trail: (a.trail ?? []).map(p => ({ ...p })),
-      bounds: a.bounds ? { ...a.bounds } : null,
+      cells: (a.cells ?? []).map((p) => ({ ...p })),
+      trail: (a.trail ?? []).map((p) => ({ ...p })),
+      bounds: a.bounds ? { ...a.bounds } : null
     }));
     this.start = { x: start[0], z: start[1] };
     this.trail = [{ ...this.start }];
     this.cells = new Map();
     this.coarse = new Map();
     this.lastTrail = performance.now();
-    this.lastScan = this.lastTrail - 1000;
+    this.lastScan = this.lastTrail - 1e3;
     this.transfer = 0;
     const memory = options.memory;
     if (memory) {
-      this.start = { ...(memory.start ?? this.start) };
-      this.trail = (memory.trail ?? []).map(p => ({ ...p }));
+      this.start = { ...memory.start ?? this.start };
+      this.trail = (memory.trail ?? []).map((p) => ({ ...p }));
       if (!this.trail.length) this.trail = [{ ...this.start }];
-      this.cells = new Map((memory.cells ?? []).map(p => [this.cellKey(p.ix, p.iz), { ...p }]));
-      this.coarse = new Map((memory.coarse ?? []).map(p => [this.cellKey(p.ix, p.iz), { ...p }]));
+      this.cells = new Map((memory.cells ?? []).map((p) => [this.cellKey(p.ix, p.iz), { ...p }]));
+      this.coarse = new Map((memory.coarse ?? []).map((p) => [this.cellKey(p.ix, p.iz), { ...p }]));
       this.enforceBudget();
     }
   }
-
-  cellKey(ix, iz) { return `${ix},${iz}`; }
-
+  cellKey(ix, iz) {
+    return `${ix},${iz}`;
+  }
   writeCell(ix, iz, now, confidence = 1) {
     const key = this.cellKey(ix, iz);
     const x = (ix + 0.5) * this.cell, z = (iz + 0.5) * this.cell;
     const h = this.heightAt(x, z);
     const old = this.cells.get(key);
     const sample = old ? {
-      ix, iz, x, z,
+      ix,
+      iz,
+      x,
+      z,
       h: old.h + (h - old.h) / Math.min(12, old.n + 1),
-      n: Math.min(12, old.n + 1), confidence: Math.max(old.confidence, confidence), last: now,
+      n: Math.min(12, old.n + 1),
+      confidence: Math.max(old.confidence, confidence),
+      last: now
     } : { ix, iz, x, z, h, n: 1, confidence, last: now };
-    /* Refresh insertion order: eviction is least-recently measured, not the
-       arbitrary coordinate that happened to be inserted first. */
     if (old) this.cells.delete(key);
     this.cells.set(key, sample);
   }
-
   compress(cell) {
     const ix = Math.floor(cell.x / this.coarseCell), iz = Math.floor(cell.z / this.coarseCell);
     const key = this.cellKey(ix, iz), old = this.coarse.get(key);
     const x = (ix + 0.5) * this.coarseCell, z = (iz + 0.5) * this.coarseCell;
     const sample = old ? {
-      ix, iz, x, z, h: old.h + (cell.h - old.h) / Math.min(24, old.n + 1),
-      n: Math.min(24, old.n + 1), confidence: Math.max(old.confidence, cell.confidence),
+      ix,
+      iz,
+      x,
+      z,
+      h: old.h + (cell.h - old.h) / Math.min(24, old.n + 1),
+      n: Math.min(24, old.n + 1),
+      confidence: Math.max(old.confidence, cell.confidence)
     } : { ix, iz, x, z, h: cell.h, n: 1, confidence: cell.confidence };
     if (old) this.coarse.delete(key);
     this.coarse.set(key, sample);
     while (this.coarse.size > this.coarseLimit) this.coarse.delete(this.coarse.keys().next().value);
   }
-
   enforceBudget() {
     while (this.cells.size > this.detailLimit) {
       const key = this.cells.keys().next().value, cell = this.cells.get(key);
-      this.cells.delete(key); this.compress(cell);
+      this.cells.delete(key);
+      this.compress(cell);
     }
   }
-
   scan(v, now, charge) {
     const range = 5 + 9 * Math.max(0, Math.min(1, charge));
     const x0 = Math.floor((v.x - range) / this.cell), x1 = Math.floor((v.x + range) / this.cell);
@@ -133,12 +128,12 @@ export class MiniMap {
       const x = (ix + 0.5) * this.cell, z = (iz + 0.5) * this.cell;
       const d = Math.hypot(x - v.x, z - v.z);
       if (d > range) continue;
-      this.writeCell(ix, iz, now, 0.28 + 0.72 * (1 - d / range)); wrote = true;
+      this.writeCell(ix, iz, now, 0.28 + 0.72 * (1 - d / range));
+      wrote = true;
     }
     if (!wrote) this.writeCell(Math.floor(v.x / this.cell), Math.floor(v.z / this.cell), now, 1);
     this.enforceBudget();
   }
-
   record(v, now, charge) {
     if (now - this.lastTrail > 280) {
       const p = { x: v.x, z: v.z }, last = this.trail.at(-1);
@@ -148,93 +143,106 @@ export class MiniMap {
       }
       this.lastTrail = now;
     }
-    if (now - this.lastScan > 430) { this.scan(v, now, charge); this.lastScan = now; }
+    if (now - this.lastScan > 430) {
+      this.scan(v, now, charge);
+      this.lastScan = now;
+    }
   }
-
   decimate(points, limit) {
-    if (points.length <= limit) return points.map(p => ({ x: p.x, z: p.z }));
+    if (points.length <= limit) return points.map((p) => ({ x: p.x, z: p.z }));
     const out = [], stride = (points.length - 1) / (limit - 1);
     for (let i = 0; i < limit; i++) {
-      const p = points[Math.round(i * stride)]; out.push({ x: p.x, z: p.z });
+      const p = points[Math.round(i * stride)];
+      out.push({ x: p.x, z: p.z });
     }
     return out;
   }
-
   snapshot() {
-    /* Archive at 24 m: enough to retain the travelled shape in a thumbnail,
-       finite enough that a chain of planets cannot grow without bound. */
     const archiveCell = 24, cells = new Map();
-    const add = p => {
+    const add = (p) => {
       const ix = Math.floor(p.x / archiveCell), iz = Math.floor(p.z / archiveCell);
       const key = this.cellKey(ix, iz), old = cells.get(key);
-      if (old) { old.h += (p.h - old.h) / ++old.n; old.confidence = Math.max(old.confidence, p.confidence); }
-      else cells.set(key, {
-        x: (ix + 0.5) * archiveCell, z: (iz + 0.5) * archiveCell,
-        h: p.h, n: 1, confidence: p.confidence,
+      if (old) {
+        old.h += (p.h - old.h) / ++old.n;
+        old.confidence = Math.max(old.confidence, p.confidence);
+      } else cells.set(key, {
+        x: (ix + 0.5) * archiveCell,
+        z: (iz + 0.5) * archiveCell,
+        h: p.h,
+        n: 1,
+        confidence: p.confidence
       });
     };
-    this.coarse.forEach(add); this.cells.forEach(add);
+    this.coarse.forEach(add);
+    this.cells.forEach(add);
     const packed = [...cells.values()].slice(-1024).map(({ x, z, h, confidence }) => ({ x, z, h, confidence }));
     const trail = this.decimate(this.trail, 192);
     const pts = [...packed, ...trail];
-    const xs = pts.map(p => p.x), zs = pts.map(p => p.z);
+    const xs = pts.map((p) => p.x), zs = pts.map((p) => p.z);
     const bounds = pts.length ? {
-      minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs),
+      minX: Math.min(...xs),
+      maxX: Math.max(...xs),
+      minZ: Math.min(...zs),
+      maxZ: Math.max(...zs)
     } : { minX: this.start.x, maxX: this.start.x, minZ: this.start.z, maxZ: this.start.z };
     return {
-      id: this.id, label: this.label, cell: archiveCell, cells: packed, trail, bounds,
+      id: this.id,
+      label: this.label,
+      cell: archiveCell,
+      cells: packed,
+      trail,
+      bounds,
       measuredCells: this.cells.size + this.coarse.size,
-      coverageSqM: this.stats.area,
+      coverageSqM: this.stats.area
     };
   }
-
-  /** Full finite live state for revisiting a body. `snapshot()` remains the
-   compressed off-world thumbnail; this restores the active atlas itself. */
   state() {
     return {
-      id: this.id, label: this.label, start: { ...this.start },
-      trail: this.trail.map(p => ({ ...p })),
-      cells: [...this.cells.values()].map(p => ({ ...p })),
-      coarse: [...this.coarse.values()].map(p => ({ ...p })),
+      id: this.id,
+      label: this.label,
+      start: { ...this.start },
+      trail: this.trail.map((p) => ({ ...p })),
+      cells: [...this.cells.values()].map((p) => ({ ...p })),
+      coarse: [...this.coarse.values()].map((p) => ({ ...p }))
     };
   }
-
   drawArchive(c, memory, x, y, w, h) {
-    c.fillStyle = phosphor('glass', .88); c.fillRect(x, y, w, h);
-    c.strokeStyle = phosphor('mid', .09); c.strokeRect(x + .5, y + .5, w - 1, h - 1);
-    c.font = '11px DM Mono, monospace'; c.fillStyle = phosphor('bright', .3);
-    c.fillText(memory.id ?? 'MEMORY', x + 7, y + 13);
+    c.fillStyle = phosphor("glass", 0.88);
+    c.fillRect(x, y, w, h);
+    c.strokeStyle = phosphor("mid", 0.09);
+    c.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+    c.font = "11px DM Mono, monospace";
+    c.fillStyle = phosphor("bright", 0.3);
+    c.fillText(memory.id ?? "MEMORY", x + 7, y + 13);
     const b = memory.bounds, cells = memory.cells ?? [];
     if (b && cells.length) {
       const bw = Math.max(1, b.maxX - b.minX), bh = Math.max(1, b.maxZ - b.minZ);
       const k = Math.min((w - 14) / bw, (h - 22) / bh);
-      const ox = x + w / 2 - (b.minX + b.maxX) * .5 * k;
-      const oy = y + 17 + (h - 20) / 2 - (b.minZ + b.maxZ) * .5 * k;
-      c.fillStyle = phosphor('mid', .24);
+      const ox = x + w / 2 - (b.minX + b.maxX) * 0.5 * k;
+      const oy = y + 17 + (h - 20) / 2 - (b.minZ + b.maxZ) * 0.5 * k;
+      c.fillStyle = phosphor("mid", 0.24);
       for (const p of cells) c.fillRect(ox + p.x * k, oy + p.z * k, 1.4, 1.4);
     } else {
-      c.font = '9px DM Mono, monospace'; c.fillStyle = phosphor('mid', .1);
-      c.fillText('NO DATA', x + 7, y + h - 7);
+      c.font = "9px DM Mono, monospace";
+      c.fillStyle = phosphor("mid", 0.1);
+      c.fillText("NO DATA", x + 7, y + h - 7);
     }
   }
-
   drawPhosphorOverlay(now) {
     const c = this.ctx, W = this.canvas.width, H = this.canvas.height;
     c.save();
-    c.globalCompositeOperation = 'screen';
-    /* Sparse scanlines retain detail while making the display feel emitted,
-       not printed. The rolling refresh band is frozen for reduced motion. */
-    c.fillStyle = phosphor('bright', .012);
+    c.globalCompositeOperation = "screen";
+    c.fillStyle = phosphor("bright", 0.012);
     for (let y = 1; y < H; y += 4) c.fillRect(0, y, W, 1);
-    const sweep = REDUCED_MOTION ? H * .38 : (now * .024) % (H + 64) - 32;
+    const sweep = REDUCED_MOTION ? H * 0.38 : now * 0.024 % (H + 64) - 32;
     const refresh = c.createLinearGradient(0, sweep - 24, 0, sweep + 24);
-    refresh.addColorStop(0, phosphor('mid', 0));
-    refresh.addColorStop(.5, phosphor('bright', REDUCED_MOTION ? .012 : .026));
-    refresh.addColorStop(1, phosphor('mid', 0));
-    c.fillStyle = refresh; c.fillRect(0, sweep - 24, W, 48);
+    refresh.addColorStop(0, phosphor("mid", 0));
+    refresh.addColorStop(0.5, phosphor("bright", REDUCED_MOTION ? 0.012 : 0.026));
+    refresh.addColorStop(1, phosphor("mid", 0));
+    c.fillStyle = refresh;
+    c.fillRect(0, sweep - 24, W, 48);
     c.restore();
   }
-
   drawRestoration(now) {
     const c = this.ctx, W = this.canvas.width, H = this.canvas.height;
     const source = this.restoration, count = source?.count ?? 0;
@@ -242,320 +250,525 @@ export class MiniMap {
     const active = source?.event?.index ?? -1;
     const activeStructure = active >= 0 && active < 5 ? active : -1;
     const gauges = source?.gauges ?? [];
-    const reducedPulse = REDUCED_MOTION ? 0.62 : 0.50 + Math.sin(now * 0.0052) * 0.18;
-    const scale = 1 - this.transfer * 0.84, alpha = 1 - this.transfer * 0.90;
+    const reducedPulse = REDUCED_MOTION ? 0.62 : 0.5 + Math.sin(now * 52e-4) * 0.18;
+    const scale = 1 - this.transfer * 0.84, alpha = 1 - this.transfer * 0.9;
     const cx = W * 0.5, cy = 174;
-
     c.clearRect(0, 0, W, H);
-    c.fillStyle = phosphor('glass', .9); c.fillRect(0, 0, W, H);
-    c.strokeStyle = phosphor('mid', .14); c.strokeRect(.5, .5, W - 1, H - 1);
-    drawDotMatrix(c, 'LOADOUT', 12, 9, {
-      dot: 1.45, gap: .85, characterGap: 2.3,
-      on: phosphor('hot', .72), off: phosphor('mid', .075),
+    c.fillStyle = phosphor("glass", 0.9);
+    c.fillRect(0, 0, W, H);
+    c.strokeStyle = phosphor("mid", 0.14);
+    c.strokeRect(0.5, 0.5, W - 1, H - 1);
+    drawDotMatrix(c, "LOADOUT", 12, 9, {
+      dot: 1.45,
+      gap: 0.85,
+      characterGap: 2.3,
+      on: phosphor("hot", 0.72),
+      off: phosphor("mid", 0.075)
     });
-    c.font = '10px DM Mono, monospace'; c.fillStyle = phosphor('mid', .34);
-    c.fillText('ARK–01 · 5 STRUCTURES / 3 RESERVES', 12, 39);
+    c.font = "10px DM Mono, monospace";
+    c.fillStyle = phosphor("mid", 0.34);
+    c.fillText("ARK\u201301 \xB7 5 STRUCTURES / 3 RESERVES", 12, 39);
     drawSevenSegment(c, `${count}/8`, W - 74, 8, {
-      width: 17, height: 30, thickness: 3, spacing: 4,
-      on: phosphor('hot', .91), off: phosphor('mid', .075),
+      width: 17,
+      height: 30,
+      thickness: 3,
+      spacing: 4,
+      on: phosphor("hot", 0.91),
+      off: phosphor("mid", 0.075)
     });
-
     c.save();
-    c.translate(cx, cy); c.scale(scale, scale); c.translate(-cx, -cy);
+    c.translate(cx, cy);
+    c.scale(scale, scale);
+    c.translate(-cx, -cy);
     c.globalAlpha = alpha;
-
     const modules = [
-      { // 0 · foundation
-        fill: phosphor('deep', .94), paths: [[[103,225],[205,225],[193,258],[115,258]]],
+      {
+        fill: phosphor("deep", 0.94),
+        paths: [[[103, 225], [205, 225], [193, 258], [115, 258]]]
       },
-      { // 1 · four load paths and pads
-        fill: phosphor('dim', .7), paths: [
-          [[111,213],[122,219],[72,281],[57,277]], [[197,213],[186,219],[236,281],[251,277]],
-          [[128,218],[137,222],[104,291],[89,290]], [[180,218],[171,222],[204,291],[219,290]],
-          [[49,276],[78,276],[82,286],[45,286]], [[230,276],[259,276],[263,286],[226,286]],
-          [[84,287],[111,287],[115,297],[80,297]], [[197,287],[224,287],[228,297],[193,297]],
-        ],
+      {
+        fill: phosphor("dim", 0.7),
+        paths: [
+          [[111, 213], [122, 219], [72, 281], [57, 277]],
+          [[197, 213], [186, 219], [236, 281], [251, 277]],
+          [[128, 218], [137, 222], [104, 291], [89, 290]],
+          [[180, 218], [171, 222], [204, 291], [219, 290]],
+          [[49, 276], [78, 276], [82, 286], [45, 286]],
+          [[230, 276], [259, 276], [263, 286], [226, 286]],
+          [[84, 287], [111, 287], [115, 297], [80, 297]],
+          [[197, 287], [224, 287], [228, 297], [193, 297]]
+        ]
       },
-      { // 2 · service cells
-        fill: phosphor('mid', .42), paths: [
-          [[111,196],[151,196],[148,220],[108,220]], [[157,196],[197,196],[200,220],[160,220]],
-        ],
+      {
+        fill: phosphor("mid", 0.42),
+        paths: [
+          [[111, 196], [151, 196], [148, 220], [108, 220]],
+          [[157, 196], [197, 196], [200, 220], [160, 220]]
+        ]
       },
-      { // 3 · faceted pressure hull
-        fill: phosphor('dim', .82), paths: [
-          [[88,132],[104,102],[132,82],[176,82],[204,102],[220,132],[210,195],[98,195]],
-        ],
+      {
+        fill: phosphor("dim", 0.82),
+        paths: [
+          [[88, 132], [104, 102], [132, 82], [176, 82], [204, 102], [220, 132], [210, 195], [98, 195]]
+        ]
       },
-      { // 4 · sensor visor
-        fill: phosphor('deep', .98), paths: [
-          [[99,129],[112,109],[137,96],[171,96],[196,109],[209,129],[198,143],[110,143]],
-        ],
+      {
+        fill: phosphor("deep", 0.98),
+        paths: [
+          [[99, 129], [112, 109], [137, 96], [171, 96], [196, 109], [209, 129], [198, 143], [110, 143]]
+        ]
       },
-      { // 5 · transfer bridge / ramp
-        fill: phosphor('deep', .9), paths: [
-          [[132,188],[176,188],[188,239],[120,239]], [[122,239],[186,239],[202,266],[106,266]],
-        ],
+      {
+        fill: phosphor("deep", 0.9),
+        paths: [
+          [[132, 188], [176, 188], [188, 239], [120, 239]],
+          [[122, 239], [186, 239], [202, 266], [106, 266]]
+        ]
       },
-      { // 6 · planar sensor crown
-        fill: phosphor('dim', .88), paths: [
-          [[129,80],[179,80],[173,65],[135,65]], [[112,55],[196,55],[196,66],[112,66]],
-          [[139,42],[146,42],[146,61],[139,61]], [[162,42],[169,42],[169,61],[162,61]],
-        ],
+      {
+        fill: phosphor("dim", 0.88),
+        paths: [
+          [[129, 80], [179, 80], [173, 65], [135, 65]],
+          [[112, 55], [196, 55], [196, 66], [112, 66]],
+          [[139, 42], [146, 42], [146, 61], [139, 61]],
+          [[162, 42], [169, 42], [169, 61], [162, 61]]
+        ]
       },
-      { // 7 · final signal core
-        fill: phosphor('bright', .84), paths: [
-          [[137,67],[171,67],[168,82],[140,82]], [[149,39],[159,39],[162,49],[154,55],[146,49]],
-        ],
-      },
+      {
+        fill: phosphor("bright", 0.84),
+        paths: [
+          [[137, 67], [171, 67], [168, 82], [140, 82]],
+          [[149, 39], [159, 39], [162, 49], [154, 55], [146, 49]]
+        ]
+      }
     ];
-
     const assemblyByModule = [0, 1, 2, 2, 3, 3, 4, 4];
     const drawPolygon = (points, moduleIndex, fill) => {
       const assembly = assemblyByModule[moduleIndex];
       const restored = assembly < structural;
       const materialising = assembly === activeStructure;
-      c.beginPath(); c.moveTo(points[0][0], points[0][1]);
+      c.beginPath();
+      c.moveTo(points[0][0], points[0][1]);
       for (let i = 1; i < points.length; i++) c.lineTo(points[i][0], points[i][1]);
       c.closePath();
-      c.fillStyle = restored ? fill : phosphor('black', .76); c.fill();
+      c.fillStyle = restored ? fill : phosphor("black", 0.76);
+      c.fill();
       c.lineWidth = materialising ? 2.3 : restored ? 1.25 : 1.05;
-      c.strokeStyle = materialising
-        ? phosphor('hot', .62 + reducedPulse * .34)
-        : restored ? phosphor('bright', .46) : phosphor('dim', .42);
+      c.strokeStyle = materialising ? phosphor("hot", 0.62 + reducedPulse * 0.34) : restored ? phosphor("bright", 0.46) : phosphor("dim", 0.42);
       c.stroke();
       if (!restored || materialising) {
         let mx = 0, my = 0;
-        for (const point of points) { mx += point[0]; my += point[1]; }
-        mx /= points.length; my /= points.length;
-        c.lineWidth = .65;
-        c.strokeStyle = materialising
-          ? phosphor('bright', .28 + reducedPulse * .20) : phosphor('dim', .2);
+        for (const point of points) {
+          mx += point[0];
+          my += point[1];
+        }
+        mx /= points.length;
+        my /= points.length;
+        c.lineWidth = 0.65;
+        c.strokeStyle = materialising ? phosphor("bright", 0.28 + reducedPulse * 0.2) : phosphor("dim", 0.2);
         for (let i = 0; i < points.length; i += Math.max(1, Math.floor(points.length / 4))) {
-          c.beginPath(); c.moveTo(mx, my); c.lineTo(points[i][0], points[i][1]); c.stroke();
+          c.beginPath();
+          c.moveTo(mx, my);
+          c.lineTo(points[i][0], points[i][1]);
+          c.stroke();
         }
       }
     };
-
-    /* Legs first, then the suspended mass: the diagram preserves the same
-       load hierarchy as the actual three-dimensional lander. */
     for (const index of [1, 0, 5, 2, 3, 4, 6, 7])
       for (const path of modules[index].paths) drawPolygon(path, index, modules[index].fill);
-
-    c.restore(); c.globalAlpha = 1;
-
+    c.restore();
+    c.globalAlpha = 1;
     const next = source?.items?.[Math.min(count, 7)];
-    const status = source?.complete ? 'LANDER FIXED · RESERVES CHARGED'
-      : source?.event ? `ACQUIRED · ${source.event.item.sample}`
-      : `NEXT · ${next?.sample ?? 'RECOVERY KEY'}`;
-    c.font = '10px DM Mono, monospace'; c.fillStyle = phosphor('mid', .48);
+    const status = source?.complete ? "LANDER FIXED \xB7 RESERVES CHARGED" : source?.event ? `ACQUIRED \xB7 ${source.event.item.sample}` : `NEXT \xB7 ${next?.sample ?? "RECOVERY KEY"}`;
+    c.font = "10px DM Mono, monospace";
+    c.fillStyle = phosphor("mid", 0.48);
     c.fillText(status, 12, 315);
-
-    /* Five discrete construction states occupy the left register. The three
-       consumables use metered bars plus numeric meta-gauges; recovering a
-       reserve raises both readings instead of pretending to add geometry. */
     const structureX = 12, structureGap = 3, slotW = 18;
     for (let i = 0; i < 5; i++) {
       const x = structureX + i * (slotW + structureGap);
       const done = i < structural, current = i === activeStructure;
-      c.fillStyle = phosphor('black', .92); c.fillRect(x, 324, slotW, 20);
+      c.fillStyle = phosphor("black", 0.92);
+      c.fillRect(x, 324, slotW, 20);
       const dot = 3, dotGap = 2;
       const matrixW = dot * 4 + dotGap * 3, matrixH = dot * 2 + dotGap;
-      const dx = x + (slotW - matrixW) * .5, dy = 324 + (20 - matrixH) * .5;
+      const dx = x + (slotW - matrixW) * 0.5, dy = 324 + (20 - matrixH) * 0.5;
       for (let row = 0; row < 2; row++) for (let column = 0; column < 4; column++) {
-        c.fillStyle = done
-          ? phosphor('bright', current ? .72 + reducedPulse * .22 : .64)
-          : phosphor('mid', .095);
+        c.fillStyle = done ? phosphor("bright", current ? 0.72 + reducedPulse * 0.22 : 0.64) : phosphor("mid", 0.095);
         c.fillRect(dx + column * (dot + dotGap), dy + row * (dot + dotGap), dot, dot);
       }
-      c.strokeStyle = current ? phosphor('hot', .46 + reducedPulse * .3)
-        : done ? phosphor('bright', .26) : phosphor('dim', .12);
-      c.strokeRect(x + .5, 324.5, slotW - 1, 19);
+      c.strokeStyle = current ? phosphor("hot", 0.46 + reducedPulse * 0.3) : done ? phosphor("bright", 0.26) : phosphor("dim", 0.12);
+      c.strokeRect(x + 0.5, 324.5, slotW - 1, 19);
     }
     const gaugeX = 122, gaugeGap = 4, gaugeW = (W - gaugeX - 12 - gaugeGap * 2) / 3;
     for (let i = 0; i < 3; i++) {
-      const gauge = gauges[i] ?? { code: ['N₂', 'H₂O', 'EtOH'][i], value: 0 };
+      const gauge = gauges[i] ?? { code: ["N\u2082", "H\u2082O", "EtOH"][i], value: 0 };
       const x = gaugeX + i * (gaugeW + gaugeGap);
       const value = Math.max(0, Math.min(1, Number(gauge.value) || 0));
-      const current = source?.event?.item?.kind === 'reserve'
-        && source.event.item.reserve === i;
-      c.fillStyle = phosphor('black', .92); c.fillRect(x, 324, gaugeW, 20);
-      c.font = '7px DM Mono, monospace';
-      c.fillStyle = current ? phosphor('hot', .78) : phosphor('mid', .5);
+      const current = source?.event?.item?.kind === "reserve" && source.event.item.reserve === i;
+      c.fillStyle = phosphor("black", 0.92);
+      c.fillRect(x, 324, gaugeW, 20);
+      c.font = "7px DM Mono, monospace";
+      c.fillStyle = current ? phosphor("hot", 0.78) : phosphor("mid", 0.5);
       c.fillText(gauge.code, x + 3, 332);
-      c.textAlign = 'right';
-      c.fillText(`${String(Math.round(value * 100)).padStart(3, '0')}%`, x + gaugeW - 3, 332);
-      c.textAlign = 'left';
-      c.fillStyle = phosphor('mid', .09); c.fillRect(x + 3, 336, gaugeW - 6, 5);
-      c.fillStyle = current ? phosphor('hot', .82) : phosphor('bright', .62);
+      c.textAlign = "right";
+      c.fillText(`${String(Math.round(value * 100)).padStart(3, "0")}%`, x + gaugeW - 3, 332);
+      c.textAlign = "left";
+      c.fillStyle = phosphor("mid", 0.09);
+      c.fillRect(x + 3, 336, gaugeW - 6, 5);
+      c.fillStyle = current ? phosphor("hot", 0.82) : phosphor("bright", 0.62);
       c.fillRect(x + 3, 336, (gaugeW - 6) * value, 5);
-      c.strokeStyle = current ? phosphor('hot', .5) : phosphor('dim', .14);
-      c.strokeRect(x + .5, 324.5, gaugeW - 1, 19);
+      c.strokeStyle = current ? phosphor("hot", 0.5) : phosphor("dim", 0.14);
+      c.strokeRect(x + 0.5, 324.5, gaugeW - 1, 19);
     }
     this.drawPhosphorOverlay(now);
   }
-
   draw(v, now) {
-    if (this.restoration) { this.drawRestoration(now); return; }
+    if (this.restoration) {
+      this.drawRestoration(now);
+      return;
+    }
     const c = this.ctx, W = this.canvas.width, H = this.canvas.height;
     const mx = 12, my = 50, mw = W - 24, mh = H - 124;
     const cx = mx + mw / 2, cy = my + mh / 2, k = mw / this.span;
-    const to = p => [cx + (p.x - v.x) * k, cy + (p.z - v.z) * k];
+    const to = (p) => [cx + (p.x - v.x) * k, cy + (p.z - v.z) * k];
     c.clearRect(0, 0, W, H);
-    c.fillStyle = phosphor('glass', .88); c.fillRect(0, 0, W, H);
-    c.strokeStyle = phosphor('mid', .12); c.strokeRect(.5, .5, W - 1, H - 1);
-    c.font = '15px DM Mono, monospace'; c.fillStyle = phosphor('bright', .44);
-    c.fillText('LOCAL SURVEY ATLAS', 12, 19);
-    c.font = '10px DM Mono, monospace'; c.fillStyle = phosphor('mid', .24);
-    c.fillText(`${this.id} · ${this.label} · ${this.cell} M CELL`, 12, 38);
-
-    c.fillStyle = phosphor('black', .97); c.fillRect(mx, my, mw, mh);
-    c.strokeStyle = phosphor('mid', .1); c.strokeRect(mx + .5, my + .5, mw - 1, mh - 1);
-    c.save(); c.beginPath(); c.rect(mx, my, mw, mh); c.clip();
-    const scale = 1 - this.transfer * .84, alpha = 1 - this.transfer * .88;
-    c.translate(cx, cy); c.scale(scale, scale); c.translate(-cx, -cy); c.globalAlpha = alpha;
-
-    /* 128 m reference grid. It states scale without pretending to know land. */
-    c.lineWidth = .6; c.strokeStyle = phosphor('mid', .045);
-    const grid = 128, gx = ((v.x % grid) + grid) % grid, gz = ((v.z % grid) + grid) % grid;
+    c.fillStyle = phosphor("glass", 0.88);
+    c.fillRect(0, 0, W, H);
+    c.strokeStyle = phosphor("mid", 0.12);
+    c.strokeRect(0.5, 0.5, W - 1, H - 1);
+    c.font = "15px DM Mono, monospace";
+    c.fillStyle = phosphor("bright", 0.44);
+    c.fillText("LOCAL SURVEY ATLAS", 12, 19);
+    c.font = "10px DM Mono, monospace";
+    c.fillStyle = phosphor("mid", 0.24);
+    c.fillText(`${this.id} \xB7 ${this.label} \xB7 ${this.cell} M CELL`, 12, 38);
+    c.fillStyle = phosphor("black", 0.97);
+    c.fillRect(mx, my, mw, mh);
+    c.strokeStyle = phosphor("mid", 0.1);
+    c.strokeRect(mx + 0.5, my + 0.5, mw - 1, mh - 1);
+    c.save();
+    c.beginPath();
+    c.rect(mx, my, mw, mh);
+    c.clip();
+    const scale = 1 - this.transfer * 0.84, alpha = 1 - this.transfer * 0.88;
+    c.translate(cx, cy);
+    c.scale(scale, scale);
+    c.translate(-cx, -cy);
+    c.globalAlpha = alpha;
+    c.lineWidth = 0.6;
+    c.strokeStyle = phosphor("mid", 0.045);
+    const grid = 128, gx = (v.x % grid + grid) % grid, gz = (v.z % grid + grid) % grid;
     const step = grid * k;
-    let gridX = cx - gx * k; while (gridX > mx) gridX -= step;
-    let gridY = cy - gz * k; while (gridY > my) gridY -= step;
-    for (let x = gridX; x < mx + mw; x += step) { c.beginPath(); c.moveTo(x, my); c.lineTo(x, my + mh); c.stroke(); }
-    for (let y = gridY; y < my + mh; y += step) { c.beginPath(); c.moveTo(mx, y); c.lineTo(mx + mw, y); c.stroke(); }
-
+    let gridX = cx - gx * k;
+    while (gridX > mx) gridX -= step;
+    let gridY = cy - gz * k;
+    while (gridY > my) gridY -= step;
+    for (let x = gridX; x < mx + mw; x += step) {
+      c.beginPath();
+      c.moveTo(x, my);
+      c.lineTo(x, my + mh);
+      c.stroke();
+    }
+    for (let y = gridY; y < my + mh; y += step) {
+      c.beginPath();
+      c.moveTo(mx, y);
+      c.lineTo(mx + mw, y);
+      c.stroke();
+    }
     const paintCell = (p, size, base) => {
-      const [x, y] = to(p); if (x < mx - size || x > mx + mw || y < my - size || y > my + mh) return;
+      const [x, y] = to(p);
+      if (x < mx - size || x > mx + mw || y < my - size || y > my + mh) return;
       const relief = Math.max(-1, Math.min(1, (p.h - v.ground) / 14));
-      const a = base * (0.55 + 0.45 * (p.confidence ?? 1)) * (0.72 + Math.abs(relief) * .28);
-      c.fillStyle = relief >= 0 ? phosphor('bright', a) : phosphor('dim', a);
+      const a = base * (0.55 + 0.45 * (p.confidence ?? 1)) * (0.72 + Math.abs(relief) * 0.28);
+      c.fillStyle = relief >= 0 ? phosphor("bright", a) : phosphor("dim", a);
       c.fillRect(x - size / 2, y - size / 2, size, size);
     };
-    this.coarse.forEach(p => paintCell(p, Math.max(1.2, this.coarseCell * k), .055));
-    this.cells.forEach(p => paintCell(p, Math.max(1.1, this.cell * k), .16));
-
-    /* Quantised contour boundaries only where both neighbouring cells were
-       measured. No line crosses the unknown region. */
-    c.lineWidth = .55; c.strokeStyle = phosphor('bright', .13);
+    this.coarse.forEach((p) => paintCell(p, Math.max(1.2, this.coarseCell * k), 0.055));
+    this.cells.forEach((p) => paintCell(p, Math.max(1.1, this.cell * k), 0.16));
+    c.lineWidth = 0.55;
+    c.strokeStyle = phosphor("bright", 0.13);
     for (const p of this.cells.values()) {
       const band = Math.floor(p.h / 2.5), right = this.cells.get(this.cellKey(p.ix + 1, p.iz));
       const down = this.cells.get(this.cellKey(p.ix, p.iz + 1));
-      const [x, y] = to(p), d = this.cell * k * .5;
-      if (right && Math.floor(right.h / 2.5) !== band) { c.beginPath(); c.moveTo(x + d, y - d); c.lineTo(x + d, y + d); c.stroke(); }
-      if (down && Math.floor(down.h / 2.5) !== band) { c.beginPath(); c.moveTo(x - d, y + d); c.lineTo(x + d, y + d); c.stroke(); }
+      const [x, y] = to(p), d = this.cell * k * 0.5;
+      if (right && Math.floor(right.h / 2.5) !== band) {
+        c.beginPath();
+        c.moveTo(x + d, y - d);
+        c.lineTo(x + d, y + d);
+        c.stroke();
+      }
+      if (down && Math.floor(down.h / 2.5) !== band) {
+        c.beginPath();
+        c.moveTo(x - d, y + d);
+        c.lineTo(x + d, y + d);
+        c.stroke();
+      }
     }
-
     const visibleTrail = this.trail.slice(Math.floor(this.trail.length * this.transfer));
     if (visibleTrail.length > 1) {
       c.lineWidth = 1.05;
       for (let i = 1; i < visibleTrail.length; i++) {
         const a = to(visibleTrail[i - 1]), b = to(visibleTrail[i]), age = i / (visibleTrail.length - 1);
-        c.beginPath(); c.moveTo(...a); c.lineTo(...b);
-        c.strokeStyle = phosphor('mid', .035 + age * .2); c.stroke();
+        c.beginPath();
+        c.moveTo(...a);
+        c.lineTo(...b);
+        c.strokeStyle = phosphor("mid", 0.035 + age * 0.2);
+        c.stroke();
       }
     }
-    /* The atlas is rover-centred. A hot-phosphor directional glyph makes that
-       convention explicit: its tip is the machine's physical forward axis,
-       not the chase camera bearing. */
-    const pulse = REDUCED_MOTION ? .5 : .5 + .5 * Math.sin(now / 620);
-    const glow = 1 - this.transfer * .72;
+    const pulse = REDUCED_MOTION ? 0.5 : 0.5 + 0.5 * Math.sin(now / 620);
+    const glow = 1 - this.transfer * 0.72;
     const heading = Number.isFinite(v.heading) ? v.heading : 0;
     const fx = -Math.sin(heading), fy = -Math.cos(heading);
     const sideX = -fy, sideY = fx;
-    /* A dark isolation disc keeps the locator readable over dense measured
-       cells. Dimensions are backing pixels; the canvas is displayed at half
-       size and reduced again on mobile, so the glyph must be intentionally
-       large here. */
-    c.beginPath(); c.arc(cx, cy, 20, 0, Math.PI * 2);
-    c.fillStyle = phosphor('black', .9 * glow); c.fill();
+    c.beginPath();
+    c.arc(cx, cy, 20, 0, Math.PI * 2);
+    c.fillStyle = phosphor("black", 0.9 * glow);
+    c.fill();
     c.lineWidth = 3;
-    c.strokeStyle = phosphor('bright', .28 * glow);
+    c.strokeStyle = phosphor("bright", 0.28 * glow);
     for (const [ax, ay, bx, by] of [
-      [cx - 29, cy, cx - 23, cy], [cx + 23, cy, cx + 29, cy],
-      [cx, cy - 29, cx, cy - 23], [cx, cy + 23, cx, cy + 29],
-    ]) { c.beginPath(); c.moveTo(ax, ay); c.lineTo(bx, by); c.stroke(); }
-    c.beginPath(); c.arc(cx, cy, 17 + 2 * pulse, 0, Math.PI * 2);
-    c.strokeStyle = phosphor('mid', (.52 + .34 * pulse) * glow); c.stroke();
-
+      [cx - 29, cy, cx - 23, cy],
+      [cx + 23, cy, cx + 29, cy],
+      [cx, cy - 29, cx, cy - 23],
+      [cx, cy + 23, cx, cy + 29]
+    ]) {
+      c.beginPath();
+      c.moveTo(ax, ay);
+      c.lineTo(bx, by);
+      c.stroke();
+    }
+    c.beginPath();
+    c.arc(cx, cy, 17 + 2 * pulse, 0, Math.PI * 2);
+    c.strokeStyle = phosphor("mid", (0.52 + 0.34 * pulse) * glow);
+    c.stroke();
     c.beginPath();
     c.moveTo(cx + fx * 17, cy + fy * 17);
     c.lineTo(cx - fx * 8.5 + sideX * 7, cy - fy * 8.5 + sideY * 7);
     c.lineTo(cx - fx * 3.5, cy - fy * 3.5);
     c.lineTo(cx - fx * 8.5 - sideX * 7, cy - fy * 8.5 - sideY * 7);
     c.closePath();
-    c.fillStyle = phosphor('bright', .98 * glow); c.fill();
+    c.fillStyle = phosphor("bright", 0.98 * glow);
+    c.fill();
     c.lineWidth = 5;
-    c.strokeStyle = phosphor('black', .98 * glow); c.stroke();
+    c.strokeStyle = phosphor("black", 0.98 * glow);
+    c.stroke();
     c.lineWidth = 2.4;
-    c.strokeStyle = phosphor('hot', .98 * glow); c.stroke();
-    c.beginPath(); c.moveTo(cx + fx * 22, cy + fy * 22); c.lineTo(cx + fx * 27, cy + fy * 27);
-    c.strokeStyle = phosphor('hot', .92 * glow); c.stroke();
-    c.beginPath(); c.arc(cx, cy, 7.2, 0, Math.PI * 2);
-    c.fillStyle = phosphor('mid', glow); c.fill();
+    c.strokeStyle = phosphor("hot", 0.98 * glow);
+    c.stroke();
+    c.beginPath();
+    c.moveTo(cx + fx * 22, cy + fy * 22);
+    c.lineTo(cx + fx * 27, cy + fy * 27);
+    c.strokeStyle = phosphor("hot", 0.92 * glow);
+    c.stroke();
+    c.beginPath();
+    c.arc(cx, cy, 7.2, 0, Math.PI * 2);
+    c.fillStyle = phosphor("mid", glow);
+    c.fill();
     c.lineWidth = 2.4;
-    c.strokeStyle = phosphor('hot', glow); c.stroke();
-    c.beginPath(); c.arc(cx, cy, 2.5, 0, Math.PI * 2);
-    c.fillStyle = phosphor('hot', glow); c.fill();
-
-    /* A direct textual anchor remains legible even when the chevron happens
-       to align with the trail or a dense patch of measured terrain. */
-    const roverTag = 'ROVER · LIVE';
-    c.font = 'bold 18px DM Mono, monospace';
+    c.strokeStyle = phosphor("hot", glow);
+    c.stroke();
+    c.beginPath();
+    c.arc(cx, cy, 2.5, 0, Math.PI * 2);
+    c.fillStyle = phosphor("hot", glow);
+    c.fill();
+    const roverTag = "ROVER \xB7 LIVE";
+    c.font = "bold 18px DM Mono, monospace";
     const tagW = c.measureText(roverTag).width + 18;
     const tagX = cx - tagW * 0.5, tagY = cy + 34;
-    c.fillStyle = phosphor('black', .94 * glow); c.fillRect(tagX, tagY, tagW, 24);
-    c.fillStyle = phosphor('mid', glow); c.fillRect(tagX, tagY, 5, 24);
-    c.fillStyle = phosphor('hot', glow); c.fillText(roverTag, tagX + 10, tagY + 18);
-
-    const coordinate = `RVR ${v.x >= 0 ? '+' : ''}${v.x.toFixed(0)} / ${v.z >= 0 ? '+' : ''}${v.z.toFixed(0)}`;
-    const degrees = String(Math.round((heading * 180 / Math.PI + 360) % 360)).padStart(3, '0');
+    c.fillStyle = phosphor("black", 0.94 * glow);
+    c.fillRect(tagX, tagY, tagW, 24);
+    c.fillStyle = phosphor("mid", glow);
+    c.fillRect(tagX, tagY, 5, 24);
+    c.fillStyle = phosphor("hot", glow);
+    c.fillText(roverTag, tagX + 10, tagY + 18);
+    const coordinate = `RVR ${v.x >= 0 ? "+" : ""}${v.x.toFixed(0)} / ${v.z >= 0 ? "+" : ""}${v.z.toFixed(0)}`;
+    const degrees = String(Math.round((heading * 180 / Math.PI + 360) % 360)).padStart(3, "0");
     const labelX = mx + 7, labelY = my + 7;
-    c.fillStyle = phosphor('black', .93 * glow); c.fillRect(labelX, labelY, 206, 44);
-    c.fillStyle = phosphor('mid', .98 * glow); c.fillRect(labelX, labelY, 5, 44);
-    c.font = 'bold 16px DM Mono, monospace';
-    c.fillStyle = phosphor('hot', .98 * glow); c.fillText(coordinate, labelX + 12, labelY + 18);
-    c.font = '13px DM Mono, monospace';
-    c.fillStyle = phosphor('bright', .78 * glow);
+    c.fillStyle = phosphor("black", 0.93 * glow);
+    c.fillRect(labelX, labelY, 206, 44);
+    c.fillStyle = phosphor("mid", 0.98 * glow);
+    c.fillRect(labelX, labelY, 5, 44);
+    c.font = "bold 16px DM Mono, monospace";
+    c.fillStyle = phosphor("hot", 0.98 * glow);
+    c.fillText(coordinate, labelX + 12, labelY + 18);
+    c.font = "13px DM Mono, monospace";
+    c.fillStyle = phosphor("bright", 0.78 * glow);
     const speed = Number.isFinite(v.speed) ? v.speed : 0;
-    c.fillText(`LIVE · HDG ${degrees}° · ${speed.toFixed(1)} M/S`, labelX + 12, labelY + 36);
-    c.restore(); c.globalAlpha = 1;
-
+    c.fillText(`LIVE \xB7 HDG ${degrees}\xB0 \xB7 ${speed.toFixed(1)} M/S`, labelX + 12, labelY + 36);
+    c.restore();
+    c.globalAlpha = 1;
     const st = this.stats;
-    c.font = '10px DM Mono, monospace'; c.fillStyle = phosphor('bright', .24);
-    c.fillText(`MEASURED ${st.detail + st.coarse} CELLS · ${(st.area / 1000).toFixed(1)}K M²`, 12, H - 61);
+    c.font = "10px DM Mono, monospace";
+    c.fillStyle = phosphor("bright", 0.24);
+    c.fillText(`MEASURED ${st.detail + st.coarse} CELLS \xB7 ${(st.area / 1e3).toFixed(1)}K M\xB2`, 12, H - 61);
     const slots = 2, gap = 6, sw = (W - 24 - gap) / slots, sy = H - 52, sh = 42;
     const memories = this.archives.slice(-slots);
     for (let i = 0; i < slots; i++) {
       const memory = memories[i];
       if (memory) this.drawArchive(c, memory, 12 + i * (sw + gap), sy, sw, sh);
       else {
-        c.strokeStyle = phosphor('mid', .055); c.strokeRect(12.5 + i * (sw + gap), sy + .5, sw - 1, sh - 1);
-        c.font = '9px DM Mono, monospace'; c.fillStyle = phosphor('mid', .08);
-        c.fillText(`MEM ${String(i + 1).padStart(2, '0')} · EMPTY`, 19 + i * (sw + gap), sy + 24);
+        c.strokeStyle = phosphor("mid", 0.055);
+        c.strokeRect(12.5 + i * (sw + gap), sy + 0.5, sw - 1, sh - 1);
+        c.font = "9px DM Mono, monospace";
+        c.fillStyle = phosphor("mid", 0.08);
+        c.fillText(`MEM ${String(i + 1).padStart(2, "0")} \xB7 EMPTY`, 19 + i * (sw + gap), sy + 24);
       }
     }
     this.drawPhosphorOverlay(now);
   }
-
   update(v, now, charge = 1, record = true) {
     if (record) this.record(v, now, charge);
     this.draw(v, now);
   }
 }
-
-export class Optics { update(now,v){const g=1-Math.min(1,v.lapse??1); document.body.classList.toggle('sensor-stutter',g>.52&&Math.sin(now*.021)>.975);} }
-
+export class Optics {
+  update(now, v) {
+    const g = 1 - Math.min(1, v.lapse ?? 1);
+    document.body.classList.toggle("sensor-stutter", g > 0.52 && Math.sin(now * 0.021) > 0.975);
+  }
+}
 export class Survey {
-  constructor(heightAt, objectives = []) { this.heightAt=heightAt; this.group=new THREE.Group(); this.rings=[]; for(let k=0;k<3;k++){const n=72,g=new THREE.BufferGeometry(),p=new Float32Array(n*6),i=new Uint16Array(n*6); for(let q=0;q<n;q++){const a=q*2,b=(q+1)%n,c=a+2,d=(b+2)%(n*2),o=q*6;i.set([a,c,b,b,c,d],o)} g.setAttribute('position',new THREE.BufferAttribute(p,3));g.setIndex(new THREE.BufferAttribute(i,1));const m=new THREE.MeshBasicNodeMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending});m.colorNode=vec4(vec3(.46,.68,.54),.18);const mesh=new THREE.Mesh(g,m);mesh.visible=false;this.group.add(mesh);this.rings.push({mesh,m,p,n});} this.log=document.getElementById('survey-log'); this.reset(objectives); }
-  get complete(){return this.objectives.length>0&&this.seen.size>=this.objectives.length&&this.queue.length===0}
-  get completion(){return this.objectives.length?Math.min(1,this.logged/this.objectives.length):0}
-  snapshot(){return{completion:this.completion,records:[...this.records],total:this.objectives.length,complete:this.complete,seen:[...this.seen],queue:[...this.queue],logged:this.logged}}
-  restore(snapshot){if(!snapshot)return;this.records=[...(snapshot.records??[])];this.seen=new Set(snapshot.seen??[]);this.queue=[...(snapshot.queue??[])];this.logged=Math.min(this.objectives.length,snapshot.logged??this.records.length);this.completedAt=snapshot.complete?performance.now():0;if(!this.log)return;for(const msg of this.records.slice(-2).reverse()){const row=document.createElement('div');row.textContent=msg;this.log.appendChild(row)}}
-  inherit(snapshot){this.inherited={records:[...(snapshot.records??[])],trail:[...(snapshot.trail??[])]};if(!this.log)return;const row=document.createElement('div');const atlas=snapshot.atlas;row.textContent=`${atlas?.id??'MEMORY 01'} ARCHIVE · ${this.inherited.records.length}/${snapshot.total??0} RECORDS · ${atlas?.cells?.length??0} LOCAL CELLS`;this.log.prepend(row)}
-  collapse(amount){this.transfer=Math.max(0,Math.min(1,amount))}
-  /* A material scan is still the same local instrument, but its footprint is
-     centred on the grounded anomaly rather than drawn as a marker above it. */
-  setFocus(point){this.focus=point?{x:point.x,z:point.z}:null}
-  reset(objectives=this.objectives??[]){this.objectives=objectives.map(o=>Array.isArray(o)?{r:o[0],msg:o[1]}:o);this.phase=-1;this.last=performance.now();this.lastRecord=performance.now();this.seen=new Set;this.queue=[];this.records=[];this.logged=0;this.completedAt=0;this.transfer=0;this.inherited=null;this.rings?.forEach(r=>r.mesh.visible=false);if(this.log)this.log.replaceChildren()}
-  record(v,now,charge){for(const {r,msg} of this.objectives)if(v.radius<=r&&!this.seen.has(r)){this.seen.add(r);this.queue.push(msg)} const interval=2400+Math.round((1-charge)*6500);if(this.queue.length&&now-this.lastRecord>interval){const msg=this.queue.shift(),row=document.createElement('div');row.textContent=msg;this.log.prepend(row);if(this.log.children.length>2)this.log.lastElementChild.remove();this.lastRecord=now;this.records.push(msg);this.logged++;if(this.complete)this.completedAt=now;} }
-  update(v,now,charge){this.record(v,now,charge);const period=11000+(1-charge)*25000;if(this.focus&&this.phase<0){this.phase=0;this.t0=now;this.cx=this.focus.x;this.cz=this.focus.z}else if(this.focus&&this.phase>=0){this.cx=this.focus.x;this.cz=this.focus.z}else if(this.phase<0&&v.speed<.035&&now-this.last>period){this.phase=0;this.t0=now;this.last=now;this.cx=v.x;this.cz=v.z}if(this.phase<0)return;const duration=this.focus?3000:6400,t=(now-this.t0)/duration;if(t>=1){if(this.focus){this.t0=now}else{this.phase=-1;this.rings.forEach(r=>r.mesh.visible=false);return}}const cycle=this.focus?t%1:t,range=this.focus?4.6:5+9*charge;this.rings.forEach((it,j)=>{const u=cycle-j*.24;if(u<0){it.mesh.visible=false;return}const r=.8+u*range,w=.012;for(let q=0;q<it.n;q++){const a=q/it.n*Math.PI*2;for(let side=0;side<2;side++){const rr=r+(side?.5:-.5)*w,x=this.cx+Math.cos(a)*rr,z=this.cz+Math.sin(a)*rr,o=(q*2+side)*3;it.p[o]=x;it.p[o+1]=this.heightAt(x,z)+.024;it.p[o+2]=z}}it.mesh.geometry.attributes.position.needsUpdate=true;it.mesh.visible=true;it.m.opacity=(this.focus?.055:.024-j*.005)*(1-u)*(1-u)*(1-this.transfer)}) }
+  constructor(heightAt, objectives = []) {
+    this.heightAt = heightAt;
+    this.group = new THREE.Group();
+    this.rings = [];
+    for (let k = 0; k < 3; k++) {
+      const n = 72, g = new THREE.BufferGeometry(), p = new Float32Array(n * 6), i = new Uint16Array(n * 6);
+      for (let q = 0; q < n; q++) {
+        const a = q * 2, b = (q + 1) % n, c = a + 2, d = (b + 2) % (n * 2), o = q * 6;
+        i.set([a, c, b, b, c, d], o);
+      }
+      g.setAttribute("position", new THREE.BufferAttribute(p, 3));
+      g.setIndex(new THREE.BufferAttribute(i, 1));
+      const m = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+      m.colorNode = vec4(vec3(0.46, 0.68, 0.54), 0.18);
+      const mesh = new THREE.Mesh(g, m);
+      mesh.visible = false;
+      this.group.add(mesh);
+      this.rings.push({ mesh, m, p, n });
+    }
+    this.log = document.getElementById("survey-log");
+    this.reset(objectives);
+  }
+  get complete() {
+    return this.objectives.length > 0 && this.seen.size >= this.objectives.length && this.queue.length === 0;
+  }
+  get completion() {
+    return this.objectives.length ? Math.min(1, this.logged / this.objectives.length) : 0;
+  }
+  snapshot() {
+    return { completion: this.completion, records: [...this.records], total: this.objectives.length, complete: this.complete, seen: [...this.seen], queue: [...this.queue], logged: this.logged };
+  }
+  restore(snapshot) {
+    if (!snapshot) return;
+    this.records = [...snapshot.records ?? []];
+    this.seen = new Set(snapshot.seen ?? []);
+    this.queue = [...snapshot.queue ?? []];
+    this.logged = Math.min(this.objectives.length, snapshot.logged ?? this.records.length);
+    this.completedAt = snapshot.complete ? performance.now() : 0;
+    if (!this.log) return;
+    for (const msg of this.records.slice(-2).reverse()) {
+      const row = document.createElement("div");
+      row.textContent = msg;
+      this.log.appendChild(row);
+    }
+  }
+  inherit(snapshot) {
+    this.inherited = { records: [...snapshot.records ?? []], trail: [...snapshot.trail ?? []] };
+    if (!this.log) return;
+    const row = document.createElement("div");
+    const atlas = snapshot.atlas;
+    row.textContent = `${atlas?.id ?? "MEMORY 01"} ARCHIVE \xB7 ${this.inherited.records.length}/${snapshot.total ?? 0} RECORDS \xB7 ${atlas?.cells?.length ?? 0} LOCAL CELLS`;
+    this.log.prepend(row);
+  }
+  collapse(amount) {
+    this.transfer = Math.max(0, Math.min(1, amount));
+  }
+  setFocus(point) {
+    this.focus = point ? { x: point.x, z: point.z } : null;
+  }
+  reset(objectives = this.objectives ?? []) {
+    this.objectives = objectives.map((o) => Array.isArray(o) ? { r: o[0], msg: o[1] } : o);
+    this.phase = -1;
+    this.last = performance.now();
+    this.lastRecord = performance.now();
+    this.seen = new Set();
+    this.queue = [];
+    this.records = [];
+    this.logged = 0;
+    this.completedAt = 0;
+    this.transfer = 0;
+    this.inherited = null;
+    this.rings?.forEach((r) => r.mesh.visible = false);
+    if (this.log) this.log.replaceChildren();
+  }
+  record(v, now, charge) {
+    for (const { r, msg } of this.objectives) if (v.radius <= r && !this.seen.has(r)) {
+      this.seen.add(r);
+      this.queue.push(msg);
+    }
+    const interval = 2400 + Math.round((1 - charge) * 6500);
+    if (this.queue.length && now - this.lastRecord > interval) {
+      const msg = this.queue.shift(), row = document.createElement("div");
+      row.textContent = msg;
+      this.log.prepend(row);
+      if (this.log.children.length > 2) this.log.lastElementChild.remove();
+      this.lastRecord = now;
+      this.records.push(msg);
+      this.logged++;
+      if (this.complete) this.completedAt = now;
+    }
+  }
+  update(v, now, charge) {
+    this.record(v, now, charge);
+    const period = 11e3 + (1 - charge) * 25e3;
+    if (this.focus && this.phase < 0) {
+      this.phase = 0;
+      this.t0 = now;
+      this.cx = this.focus.x;
+      this.cz = this.focus.z;
+    } else if (this.focus && this.phase >= 0) {
+      this.cx = this.focus.x;
+      this.cz = this.focus.z;
+    } else if (this.phase < 0 && v.speed < 0.035 && now - this.last > period) {
+      this.phase = 0;
+      this.t0 = now;
+      this.last = now;
+      this.cx = v.x;
+      this.cz = v.z;
+    }
+    if (this.phase < 0) return;
+    const duration = this.focus ? 3e3 : 6400, t = (now - this.t0) / duration;
+    if (t >= 1) {
+      if (this.focus) {
+        this.t0 = now;
+      } else {
+        this.phase = -1;
+        this.rings.forEach((r) => r.mesh.visible = false);
+        return;
+      }
+    }
+    const cycle = this.focus ? t % 1 : t, range = this.focus ? 4.6 : 5 + 9 * charge;
+    this.rings.forEach((it, j) => {
+      const u = cycle - j * 0.24;
+      if (u < 0) {
+        it.mesh.visible = false;
+        return;
+      }
+      const r = 0.8 + u * range, w = 0.012;
+      for (let q = 0; q < it.n; q++) {
+        const a = q / it.n * Math.PI * 2;
+        for (let side = 0; side < 2; side++) {
+          const rr = r + (side ? 0.5 : -0.5) * w, x = this.cx + Math.cos(a) * rr, z = this.cz + Math.sin(a) * rr, o = (q * 2 + side) * 3;
+          it.p[o] = x;
+          it.p[o + 1] = this.heightAt(x, z) + 0.024;
+          it.p[o + 2] = z;
+        }
+      }
+      it.mesh.geometry.attributes.position.needsUpdate = true;
+      it.mesh.visible = true;
+      it.m.opacity = (this.focus ? 0.055 : 0.024 - j * 5e-3) * (1 - u) * (1 - u) * (1 - this.transfer);
+    });
+  }
 }

@@ -5,88 +5,344 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover">
 <meta http-equiv="refresh" content="0; url=./works/terra_incognita/dev.html">
 <title>Terra Incognita</title>
-<!-- DEV ENTRY. Requires a server (file:// blocks module fetches).
-     `npm run build` turns this into the root index.html, which does not. -->
+
 <meta name="description" content="Terra Incognita · 20th solo exhibition · Kim Gunwoo">
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="../../engine/fonts.css">
 <style>
-  :root{ --bar:9vh }
-  *{margin:0;padding:0;box-sizing:border-box}
-  html,body{height:100%;background:#050506;overflow:hidden;overscroll-behavior:none}
-  body{cursor:crosshair;-webkit-font-smoothing:antialiased;touch-action:none}
-  #gl{position:fixed;inset:0;display:block}
-  .bar{position:fixed;left:0;right:0;height:var(--bar);background:#000;z-index:20;pointer-events:none}
-  .bar.t{top:0;border-bottom:1px solid rgba(192,21,42,.16)}
-  .bar.b{bottom:0;border-top:1px solid rgba(192,21,42,.16)}
-
-  /* shared across the practice: the universe label sits bottom-right */
-  #universe-id{
-    position:fixed;z-index:30;right:24px;bottom:calc(var(--bar) + 24px);
-    font-family:'Space Mono',ui-monospace,monospace;font-size:9px;
-    letter-spacing:.26em;color:#3a3e45;pointer-events:none;
+  :root {
+    --bar:9vh ;
   }
-  #ti-minimap{position:fixed;z-index:31;top:calc(var(--bar) + 18px);right:20px;width:176px;height:201px;pointer-events:none}
-  #ti-sensor{position:fixed;inset:0;z-index:19;pointer-events:none;opacity:.034;mix-blend-mode:screen;background:radial-gradient(ellipse at center,transparent 54%,rgba(2,5,4,.3) 100%),repeating-linear-gradient(0deg,rgba(190,255,215,.045) 0 1px,transparent 1px 4px);animation:sensor-breathe 8s ease-in-out infinite}
-  body.sensor-stutter #ti-sensor{opacity:.07}@keyframes sensor-breathe{50%{opacity:.048}}
-  body.ti-desert #ti-sensor{opacity:.032;background:radial-gradient(ellipse at center,transparent 42%,rgba(73,32,13,.28) 100%),linear-gradient(90deg,transparent 0 36%,rgba(205,132,67,.018) 56%,transparent 78%),repeating-linear-gradient(0deg,rgba(255,190,128,.018) 0 1px,transparent 1px 5px)}
-  #survey-log{position:fixed;z-index:31;left:24px;top:calc(var(--bar) + 22px);width:min(360px,52vw);pointer-events:none;font-family:'DM Mono',ui-monospace,monospace;font-size:9px;line-height:1.7;letter-spacing:.1em;color:rgba(177,230,197,.38);text-transform:uppercase}
-  #survey-log div{margin:0 0 4px;animation:survey-record 13s linear forwards}@keyframes survey-record{0%{opacity:0;transform:translateY(4px)}8%,68%{opacity:1;transform:none}100%{opacity:0}}
-
-  /* arrival / departure, matching the other works */
-  #arrive,#depart{position:fixed;inset:0;z-index:45;background:#050506;pointer-events:none}
-  #arrive{opacity:1;transition:opacity 1.4s ease}
-  #depart{opacity:0;transition:opacity .6s ease}
-  body.embed #arrive,body.embed #depart,body.embed #universe-id{display:none}
-
-  /* The first frame is a mission transmission, not a loading screen. */
-  /* The prologue is bilingual, and the two languages are NOT equals on the
-     page. Korean is the reading language of the room, set in a clear gothic at
-     full size; English is the transmission it was translated from, set
-     smaller and dimmer beneath. Printing both at the same weight would make
-     the visitor choose, and a visitor who is choosing is not reading. */
-  #ti-prologue{position:fixed;inset:0;z-index:44;display:grid;place-items:center;
-    padding:calc(var(--bar) + clamp(14px,3vh,36px)) 9vw;background:#050506;
-    pointer-events:none;
-    transition:opacity 2.6s cubic-bezier(.4,0,.2,1),visibility 0s linear 2.6s}
-  #ti-prologue .inner{width:min(640px,86vw);text-align:center;
-    max-height:100%;overflow:auto;scrollbar-width:none}
-  #ti-prologue .inner::-webkit-scrollbar{display:none}
-  #ti-prologue h1{font-family:'Space Mono',ui-monospace,monospace;font-size:clamp(13px,1.5vw,20px);
-    font-weight:700;letter-spacing:.28em;color:#c0152a;text-transform:uppercase}
-  #ti-prologue .rule{width:44px;height:1px;background:#c0152a;
-    margin:clamp(14px,2.6vh,24px) auto;opacity:.8}
-  #ti-prologue .ko{font-family:'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',Arial,sans-serif;
-    font-size:clamp(14px,1.45vw,19px);font-weight:400;line-height:2.0;
-    letter-spacing:.01em;color:#d9dde2;word-break:keep-all}
-  #ti-prologue .en{margin-top:clamp(14px,2.4vh,22px);
-    font-family:'Cormorant Garamond','Times New Roman',serif;
-    font-size:clamp(13px,1.25vw,17px);font-weight:300;line-height:1.7;
-    letter-spacing:.015em;color:#767c85}
-  #ti-prologue .mission{display:block;margin-top:clamp(14px,2.6vh,26px);
-    font-family:'DM Mono',ui-monospace,monospace;
-    font-size:9px;letter-spacing:.25em;color:#50555d;text-transform:uppercase}
-  #ti-prologue .controls{position:absolute;left:50%;bottom:calc(var(--bar) + 28px);transform:translateX(-50%);width:max-content;max-width:88vw;text-align:center;font-family:'DM Mono',ui-monospace,monospace;font-size:9px;line-height:1.9;letter-spacing:.16em;color:#737982;text-transform:uppercase}
-  #ti-prologue kbd{display:inline-block;margin:0 3px;padding:1px 5px;border:1px solid rgba(217,221,226,.22);border-radius:2px;font:inherit;color:#d9dde2}
-  /* the way out, stated quietly and only once the visitor could act on it */
-  #ti-prologue .skip{display:block;margin-top:clamp(10px,1.8vh,18px);
-    font-family:'DM Mono',ui-monospace,monospace;font-size:9px;letter-spacing:.22em;
-    color:#33373d;text-transform:uppercase;opacity:0;transition:opacity 1.4s ease}
-  #ti-prologue.armed .skip{opacity:1}
-  body.ti-prologue-out #ti-prologue{opacity:0;visibility:hidden}
-  body.embed #ti-prologue{display:none}
-
-  #fh-watchdog{
-    position:fixed;inset:0;z-index:60;display:none;background:#050506;
-    flex-direction:column;justify-content:center;padding:0 12vw;gap:14px;
-    font-family:'DM Mono','Noto Sans KR',ui-monospace,monospace;color:#8a9099;
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
   }
-  #fh-watchdog.on{display:flex}
-  #fh-watchdog h1{font-family:'Space Mono',monospace;font-size:13px;letter-spacing:.24em;color:#c0152a}
-  #fh-watchdog p{font-size:11px;line-height:1.9;max-width:46ch}
-  #fh-watchdog .r{width:56px;height:1px;background:#c0152a}
-
-  @media (max-width:760px){ #universe-id{right:14px;bottom:calc(var(--bar) + 14px)} }
+  html,
+  body {
+    height: 100%;
+    background: #050506;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  body {
+    cursor: crosshair;
+    -webkit-font-smoothing: antialiased;
+    touch-action: none;
+  }
+  #gl {
+    position: fixed;
+    inset: 0;
+    display: block;
+  }
+  .bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    height: var(--bar);
+    background: #000;
+    z-index: 20;
+    pointer-events: none;
+  }
+  .bar.t {
+    top: 0;
+    border-bottom: 1px solid rgba(192, 21, 42, .16);
+  }
+  .bar.b {
+    bottom: 0;
+    border-top: 1px solid rgba(192, 21, 42, .16);
+  }
+  #universe-id {
+    position: fixed;
+    z-index: 30;
+    right: 24px;
+    bottom: calc(var(--bar) + 24px);
+    font-family:
+      "Space Mono",
+      ui-monospace,
+      monospace;
+    font-size: 9px;
+    letter-spacing: .26em;
+    color: #3a3e45;
+    pointer-events: none;
+  }
+  #ti-minimap {
+    position: fixed;
+    z-index: 31;
+    top: calc(var(--bar) + 18px);
+    right: 20px;
+    width: 176px;
+    height: 201px;
+    pointer-events: none;
+  }
+  #ti-sensor {
+    position: fixed;
+    inset: 0;
+    z-index: 19;
+    pointer-events: none;
+    opacity: .034;
+    mix-blend-mode: screen;
+    background:
+      radial-gradient(
+        ellipse at center,
+        transparent 54%,
+        rgba(2, 5, 4, .3) 100%),
+      repeating-linear-gradient(
+        0deg,
+        rgba(190, 255, 215, .045) 0 1px,
+        transparent 1px 4px);
+    animation: sensor-breathe 8s ease-in-out infinite;
+  }
+  body.sensor-stutter #ti-sensor {
+    opacity: .07;
+  }
+  @keyframes sensor-breathe {
+    50% {
+      opacity: .048;
+    }
+  }
+  body.ti-desert #ti-sensor {
+    opacity: .032;
+    background:
+      radial-gradient(
+        ellipse at center,
+        transparent 42%,
+        rgba(73, 32, 13, .28) 100%),
+      linear-gradient(
+        90deg,
+        transparent 0 36%,
+        rgba(205, 132, 67, .018) 56%,
+        transparent 78%),
+      repeating-linear-gradient(
+        0deg,
+        rgba(255, 190, 128, .018) 0 1px,
+        transparent 1px 5px);
+  }
+  #survey-log {
+    position: fixed;
+    z-index: 31;
+    left: 24px;
+    top: calc(var(--bar) + 22px);
+    width: min(360px, 52vw);
+    pointer-events: none;
+    font-family:
+      "DM Mono",
+      ui-monospace,
+      monospace;
+    font-size: 9px;
+    line-height: 1.7;
+    letter-spacing: .1em;
+    color: rgba(177, 230, 197, .38);
+    text-transform: uppercase;
+  }
+  #survey-log div {
+    margin: 0 0 4px;
+    animation: survey-record 13s linear forwards;
+  }
+  @keyframes survey-record {
+    0% {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    8%, 68% {
+      opacity: 1;
+      transform: none;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+  #arrive,
+  #depart {
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    background: #050506;
+    pointer-events: none;
+  }
+  #arrive {
+    opacity: 1;
+    transition: opacity 1.4s ease;
+  }
+  #depart {
+    opacity: 0;
+    transition: opacity .6s ease;
+  }
+  body.embed #arrive,
+  body.embed #depart,
+  body.embed #universe-id {
+    display: none;
+  }
+  #ti-prologue {
+    position: fixed;
+    inset: 0;
+    z-index: 44;
+    display: grid;
+    place-items: center;
+    padding: calc(var(--bar) + clamp(14px, 3vh, 36px)) 9vw;
+    background: #050506;
+    pointer-events: none;
+    transition: opacity 2.6s cubic-bezier(.4, 0, .2, 1), visibility 0s linear 2.6s;
+  }
+  #ti-prologue .inner {
+    width: min(640px, 86vw);
+    text-align: center;
+    max-height: 100%;
+    overflow: auto;
+    scrollbar-width: none;
+  }
+  #ti-prologue .inner::-webkit-scrollbar {
+    display: none;
+  }
+  #ti-prologue h1 {
+    font-family:
+      "Space Mono",
+      ui-monospace,
+      monospace;
+    font-size: clamp(13px, 1.5vw, 20px);
+    font-weight: 700;
+    letter-spacing: .28em;
+    color: #c0152a;
+    text-transform: uppercase;
+  }
+  #ti-prologue .rule {
+    width: 44px;
+    height: 1px;
+    background: #c0152a;
+    margin: clamp(14px, 2.6vh, 24px) auto;
+    opacity: .8;
+  }
+  #ti-prologue .ko {
+    font-family:
+      "Noto Sans KR",
+      "Apple SD Gothic Neo",
+      "Malgun Gothic",
+      Arial,
+      sans-serif;
+    font-size: clamp(14px, 1.45vw, 19px);
+    font-weight: 400;
+    line-height: 2.0;
+    letter-spacing: .01em;
+    color: #d9dde2;
+    word-break: keep-all;
+  }
+  #ti-prologue .en {
+    margin-top: clamp(14px, 2.4vh, 22px);
+    font-family:
+      "Cormorant Garamond",
+      "Times New Roman",
+      serif;
+    font-size: clamp(13px, 1.25vw, 17px);
+    font-weight: 300;
+    line-height: 1.7;
+    letter-spacing: .015em;
+    color: #767c85;
+  }
+  #ti-prologue .mission {
+    display: block;
+    margin-top: clamp(14px, 2.6vh, 26px);
+    font-family:
+      "DM Mono",
+      ui-monospace,
+      monospace;
+    font-size: 9px;
+    letter-spacing: .25em;
+    color: #50555d;
+    text-transform: uppercase;
+  }
+  #ti-prologue .controls {
+    position: absolute;
+    left: 50%;
+    bottom: calc(var(--bar) + 28px);
+    transform: translateX(-50%);
+    width: max-content;
+    max-width: 88vw;
+    text-align: center;
+    font-family:
+      "DM Mono",
+      ui-monospace,
+      monospace;
+    font-size: 9px;
+    line-height: 1.9;
+    letter-spacing: .16em;
+    color: #737982;
+    text-transform: uppercase;
+  }
+  #ti-prologue kbd {
+    display: inline-block;
+    margin: 0 3px;
+    padding: 1px 5px;
+    border: 1px solid rgba(217, 221, 226, .22);
+    border-radius: 2px;
+    font: inherit;
+    color: #d9dde2;
+  }
+  #ti-prologue .skip {
+    display: block;
+    margin-top: clamp(10px, 1.8vh, 18px);
+    font-family:
+      "DM Mono",
+      ui-monospace,
+      monospace;
+    font-size: 9px;
+    letter-spacing: .22em;
+    color: #33373d;
+    text-transform: uppercase;
+    opacity: 0;
+    transition: opacity 1.4s ease;
+  }
+  #ti-prologue.armed .skip {
+    opacity: 1;
+  }
+  body.ti-prologue-out #ti-prologue {
+    opacity: 0;
+    visibility: hidden;
+  }
+  body.embed #ti-prologue {
+    display: none;
+  }
+  #fh-watchdog {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: none;
+    background: #050506;
+    flex-direction: column;
+    justify-content: center;
+    padding: 0 12vw;
+    gap: 14px;
+    font-family:
+      "DM Mono",
+      "Noto Sans KR",
+      ui-monospace,
+      monospace;
+    color: #8a9099;
+  }
+  #fh-watchdog.on {
+    display: flex;
+  }
+  #fh-watchdog h1 {
+    font-family: "Space Mono", monospace;
+    font-size: 13px;
+    letter-spacing: .24em;
+    color: #c0152a;
+  }
+  #fh-watchdog p {
+    font-size: 11px;
+    line-height: 1.9;
+    max-width: 46ch;
+  }
+  #fh-watchdog .r {
+    width: 56px;
+    height: 1px;
+    background: #c0152a;
+  }
+  @media (max-width: 760px) {
+    #universe-id {
+      right: 14px;
+      bottom: calc(var(--bar) + 14px);
+    }
+  }
 </style>
 </head>
 <body>
@@ -127,45 +383,64 @@
 </section>
 
 <script>
-/* UNIVERSE SEED — must run BEFORE the module, which reads window.UNIVERSE_SEED
-   at import time. Verbatim convention from the other works in the practice. */
-(function(){
-  var s=sessionStorage.getItem('universe_seed');
-  if(!s){s=Math.floor(Math.random()*16777216).toString(16).padStart(6,'0').toUpperCase();sessionStorage.setItem('universe_seed',s);}
-  window.UNIVERSE_SEED=s;
-  var lbl=document.getElementById('universe-label');
-  if(lbl){lbl.textContent='#'+s;return;}
-  var el=document.getElementById('universe-id');
-  if(!el){el=document.createElement('div');el.id='universe-id';document.body.appendChild(el);}
-  el.textContent='UNIVERSE #'+s;
-})();
-
-/* arrival / departure fades and ?embed, matching the other works */
-(function(){
-  if(location.search.indexOf('embed')>-1){document.body.classList.add('embed');return;}
-  var a=document.getElementById('arrive'), d=document.getElementById('depart');
-  function go(){requestAnimationFrame(function(){requestAnimationFrame(function(){a.style.opacity='0';});});}
-  if(document.readyState!=='loading')go();else document.addEventListener('DOMContentLoaded',go);
-  window.addEventListener('pageshow',function(e){if(e.persisted){a.style.opacity='0';d.style.opacity='0';}});
-  document.addEventListener('click',function(e){
-    var el=e.target.closest?e.target.closest('a[href]'):null;
-    if(!el)return;
-    var href=el.getAttribute('href');
-    if(!href||href.indexOf('http')===0||href.charAt(0)==='#'||el.hasAttribute('onclick'))return;
-    e.preventDefault();
-    d.style.opacity='1';
-    setTimeout(function(){location.href=href;},650);
-  },true);
-})();
-
-/* watchdog — main.js sets window.TI_READY once the first frame is queued */
-setTimeout(function(){
-  if(window.TI_READY) return;
-  /* unsupported() rewrites document.body, so the node may be gone. It is not
-     an error state then — the module ran and reported a missing adapter. */
-  var el=document.getElementById('fh-watchdog');
-  if(el) el.classList.add('on');
-}, 9000);
+  (function() {
+    var s = sessionStorage.getItem("universe_seed");
+    if (!s) {
+      s = Math.floor(Math.random() * 16777216).toString(16).padStart(6, "0").toUpperCase();
+      sessionStorage.setItem("universe_seed", s);
+    }
+    window.UNIVERSE_SEED = s;
+    var lbl = document.getElementById("universe-label");
+    if (lbl) {
+      lbl.textContent = "#" + s;
+      return;
+    }
+    var el = document.getElementById("universe-id");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "universe-id";
+      document.body.appendChild(el);
+    }
+    el.textContent = "UNIVERSE #" + s;
+  })();
+  (function() {
+    if (location.search.indexOf("embed") > -1) {
+      document.body.classList.add("embed");
+      return;
+    }
+    var a = document.getElementById("arrive"), d = document.getElementById("depart");
+    function go() {
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+          a.style.opacity = "0";
+        });
+      });
+    }
+    if (document.readyState !== "loading") go();
+    else document.addEventListener("DOMContentLoaded", go);
+    window.addEventListener("pageshow", function(e) {
+      if (e.persisted) {
+        a.style.opacity = "0";
+        d.style.opacity = "0";
+      }
+    });
+    document.addEventListener("click", function(e) {
+      var el = e.target.closest ? e.target.closest("a[href]") : null;
+      if (!el) return;
+      var href = el.getAttribute("href");
+      if (!href || href.indexOf("http") === 0 || href.charAt(0) === "#" || el.hasAttribute("onclick")) return;
+      e.preventDefault();
+      d.style.opacity = "1";
+      setTimeout(function() {
+        location.href = href;
+      }, 650);
+    }, true);
+  })();
+  setTimeout(function() {
+    if (window.TI_READY) return;
+    var el = document.getElementById("fh-watchdog");
+    if (el) el.classList.add("on");
+  }, 9e3);
 </script>
 
 <script type="importmap">

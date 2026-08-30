@@ -1,14 +1,10 @@
-import * as THREE from 'three';
-
-const clamp01 = value => Math.max(0, Math.min(1, value));
-const smooth = value => { const p = clamp01(value); return p * p * (3 - 2 * p); };
-const wrap = angle => Math.atan2(Math.sin(angle), Math.cos(angle));
-
-/* RETURN / STOW
-   This controller supplies intent, not motion. The rover's own eight contact
-   points, suspension, traction and wheel rotation carry it over the lowered
-   ramp. Coordinate compression is restricted to the remote 10 m staging
-   point; the visible final distance is never a spline. */
+import * as THREE from "three";
+const clamp01 = (value) => Math.max(0, Math.min(1, value));
+const smooth = (value) => {
+  const p = clamp01(value);
+  return p * p * (3 - 2 * p);
+};
+const wrap = (angle) => Math.atan2(Math.sin(angle), Math.cos(angle));
 export class DockingSequence {
   constructor({ rover, lander, effect, camera, onCue = null }) {
     this.rover = rover;
@@ -16,7 +12,7 @@ export class DockingSequence {
     this.effect = effect;
     this.camera = camera;
     this.onCue = onCue;
-    this.phase = 'idle';
+    this.phase = "idle";
     this.t0 = 0;
     this.started = false;
     this.docked = false;
@@ -25,32 +21,30 @@ export class DockingSequence {
     this._aim = new THREE.Vector3();
     this._surface = (x, z, terrain) => this.lander.dockingSurface(x, z, terrain);
   }
-
-  get active() { return this.phase !== 'idle' && this.phase !== 'docked'; }
-
+  get active() {
+    return this.phase !== "idle" && this.phase !== "docked";
+  }
   start(now = performance.now()) {
     if (this.started || !this.lander.restorationComplete) return false;
     this.started = true;
     this.docked = false;
-    this.phase = 'compress-out';
+    this.phase = "compress-out";
     this.t0 = now;
     this.rover.auto = false;
     this.rover.missionHold = true;
     this.rover.operatorHold = false;
     this.rover.scriptedDrive = { throttle: 0, steer: 0 };
     this.rover.surfaceOverride = null;
-    this.rover.setViewMode('cinematic', { yaw: 0, pitch: 0.18, dist: 12 });
-    this.effect.beginDeparture('recall');
-    this.onCue?.('recall', now);
+    this.rover.setViewMode("cinematic", { yaw: 0, pitch: 0.18, dist: 12 });
+    this.effect.beginDeparture("recall");
+    this.onCue?.("recall", now);
     return true;
   }
-
   beforeRover(now, dt) {
     if (!this.active) return;
     const elapsed = now - this.t0;
     this.rover.missionHold = true;
-
-    if (this.phase === 'compress-out') {
+    if (this.phase === "compress-out") {
       const p = clamp01(elapsed / 760);
       this.effect.depart(p);
       if (p >= 1) {
@@ -60,44 +54,38 @@ export class DockingSequence {
         const heading = Math.atan2(-(target.x - stage.x), -(target.z - stage.z));
         this.rover.teleport(stage.x, stage.z, heading);
         this.rover.scriptedDrive = { throttle: 0, steer: 0 };
-        /* Resolve the new eight-wheel pose before the arrival cloud samples
-           geometry. This removes the otherwise visible one-frame full-mesh
-           flash between the old coordinate and the compressed coordinate. */
         this.rover.update(0);
-        this.effect.beginArrival('recall');
+        this.effect.beginArrival("recall");
         this.effect.arrive(0);
-        this.phase = 'compress-in';
+        this.phase = "compress-in";
         this.t0 = now;
       }
       return;
     }
-
-    if (this.phase === 'compress-in') {
+    if (this.phase === "compress-in") {
       const p = clamp01(elapsed / 920);
       this.effect.arrive(p);
       if (p >= 1) {
         this.effect.finish();
-        this.phase = 'lowering';
+        this.phase = "lowering";
         this.t0 = now;
-        this.onCue?.('ramp', now);
+        this.onCue?.("ramp", now);
       }
       return;
     }
-
-    if (this.phase === 'lowering') {
+    if (this.phase === "lowering") {
       this.lander.setRamp(smooth(elapsed / 2400));
       this.lander.setDockLights(1);
       if (elapsed >= 2400) {
         this.lander.setRamp(1);
         this.rover.surfaceOverride = this._surface;
-        this.phase = 'approach';
+        this.phase = "approach";
         this.t0 = now;
-        this.onCue?.('approach', now);
+        this.onCue?.("approach", now);
       }
       return;
     }
-
-    if (this.phase === 'approach') {
+    if (this.phase === "approach") {
       const local = this.lander.dockingLocal(this.rover.pos.x, this.rover.pos.z);
       this._target.copy(this.lander.dockingPoint(-0.58, 0));
       const dx = this._target.x - this.rover.pos.x;
@@ -108,51 +96,44 @@ export class DockingSequence {
       const nearBay = local.z > this.lander.dock.hatchZ - 1.2;
       const throttle = nearBay ? 0.24 : 0.47;
       this.rover.scriptedDrive = { throttle, steer };
-      if (local.z >= -0.72 || elapsed > 30000) {
+      if (local.z >= -0.72 || elapsed > 3e4) {
         this.rover.scriptedDrive = { throttle: 0, steer: 0 };
-        this.phase = 'secure';
+        this.phase = "secure";
         this.t0 = now;
-        this.onCue?.('secure', now);
+        this.onCue?.("secure", now);
       }
       return;
     }
-
-    if (this.phase === 'secure') {
+    if (this.phase === "secure") {
       this.rover.scriptedDrive = { throttle: 0, steer: 0 };
       this.lander.setDockLights(1 - smooth(elapsed / 2500));
       if (elapsed >= 2700) {
         this.lander.setDockLights(0);
-        this.phase = 'closing';
+        this.phase = "closing";
         this.t0 = now;
       }
       return;
     }
-
-    if (this.phase === 'closing') {
+    if (this.phase === "closing") {
       this.lander.setRamp(1 - smooth(elapsed / 2600));
       if (elapsed >= 2600) {
         this.lander.setRamp(0);
         this.rover.scriptedDrive = null;
-        /* Keep the closed bay floor registered until the voyage controller
-           explicitly redeploys or resets the rover. Clearing it here made the
-           sprung deck solve against terrain beneath the lander. */
         this.rover.surfaceOverride = this._surface;
         this.rover.speed = 0;
-        this.phase = 'docked';
+        this.phase = "docked";
         this.docked = true;
-        this.onCue?.('docked', now);
+        this.onCue?.("docked", now);
       }
     }
   }
-
   afterRover() {
-    if (!this.started || this.phase === 'compress-out') return;
-    if (this.phase === 'closing' || this.phase === 'docked') this.rover.group.visible = false;
+    if (!this.started || this.phase === "compress-out") return;
+    if (this.phase === "closing" || this.phase === "docked") this.rover.group.visible = false;
   }
-
   reset() {
     this.effect.finish();
-    this.phase = 'idle';
+    this.phase = "idle";
     this.started = false;
     this.docked = false;
     this.rover.scriptedDrive = null;

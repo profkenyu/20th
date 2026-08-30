@@ -1,70 +1,56 @@
-/**
- * MISSION MEMORY — finite scientific evidence carried between bodies.
- *
- * This module deliberately imports neither Three.js nor the work's surface.
- * The record can therefore be verified in Node, survives a renderer rebuild,
- * and contains observations rather than scene objects. BODY 03 reads two
- * fields from it: five structural and three reserve signatures from BODY 01,
- * plus the confirmed hydration spectrum from BODY 02.
- */
-
 export const MISSION_MEMORY_VERSION = 2;
-export const DEFAULT_MEMORY_KEY = 'terra-incognita:mission-memory:v2';
-
-const clamp01 = value => Math.max(0, Math.min(1, value));
-const fract = value => value - Math.floor(value);
-const textHash = value => {
+export const DEFAULT_MEMORY_KEY = "terra-incognita:mission-memory:v2";
+const clamp01 = (value) => Math.max(0, Math.min(1, value));
+const fract = (value) => value - Math.floor(value);
+const textHash = (value) => {
   let hash = 2166136261;
-  for (const char of String(value ?? '')) {
+  for (const char of String(value ?? "")) {
     hash ^= char.charCodeAt(0);
     hash = Math.imul(hash, 16777619);
   }
   return hash >>> 0;
 };
-const hash01 = value => fract(Math.sin(value * 12.9898 + 78.233) * 43758.5453);
+const hash01 = (value) => fract(Math.sin(value * 12.9898 + 78.233) * 43758.5453);
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
-const copyPoint = source => Array.isArray(source)
-  ? { x: finite(source[0]), z: finite(source[1]) }
-  : { x: finite(source?.x), z: finite(source?.z) };
-
+const copyPoint = (source) => Array.isArray(source) ? { x: finite(source[0]), z: finite(source[1]) } : { x: finite(source?.x), z: finite(source?.z) };
 function storageOrNull(candidate) {
   if (candidate) return candidate;
-  try { return typeof sessionStorage === 'undefined' ? null : sessionStorage; }
-  catch { return null; }
+  try {
+    return typeof sessionStorage === "undefined" ? null : sessionStorage;
+  } catch {
+    return null;
+  }
 }
-
 function cleanSample(source, index) {
   const site = source?.site ?? source?.data ?? source;
   return {
     index,
     sample: String(source?.sample ?? `MATERIAL ${index + 1}`),
-    module: String(source?.module ?? 'UNRESOLVED STRUCTURE'),
-    sign: String(source?.sign ?? 'SPECTRAL RETURN'),
-    color: finite(source?.color, 0x9aa1a8) >>> 0,
+    module: String(source?.module ?? "UNRESOLVED STRUCTURE"),
+    sign: String(source?.sign ?? "SPECTRAL RETURN"),
+    color: finite(source?.color, 10133928) >>> 0,
     x: finite(site?.x),
-    z: finite(site?.z),
+    z: finite(site?.z)
   };
 }
-
 function cleanWater(source) {
   if (!source) return null;
   const site = source.site ?? source;
   const signature = site.signature ?? source.signature ?? {};
   const visual = site.visual ?? source.visual ?? {};
-  const bands = (signature.absorptionBandsMicron ?? source.absorptionBandsMicron ?? [])
-    .map(Number).filter(Number.isFinite).slice(0, 8);
+  const bands = (signature.absorptionBandsMicron ?? source.absorptionBandsMicron ?? []).map(Number).filter(Number.isFinite).slice(0, 8);
   return {
-    id: String(site.id ?? source.id ?? 'BODY02-H2O-01'),
+    id: String(site.id ?? source.id ?? "BODY02-H2O-01"),
     confirmed: source.confirmed !== false && source.complete !== false,
-    x: finite(site.x), z: finite(site.z),
-    phase: String(signature.phase ?? source.phase ?? 'HYDRATED SILICA / PORE ICE'),
+    x: finite(site.x),
+    z: finite(site.z),
+    phase: String(signature.phase ?? source.phase ?? "HYDRATED SILICA / PORE ICE"),
     thermalDeltaK: finite(signature.thermalDeltaK ?? source.thermalDeltaK, -16),
     absorptionBandsMicron: bands.length ? bands : [1.4, 1.9, 2.9],
     particleDensity: clamp01(finite(visual.particleDensity ?? source.particleDensity, 0.28)),
-    spectrumRingMicron: finite(visual.spectrumRingMicron ?? source.spectrumRingMicron, bands[1] ?? 1.9),
+    spectrumRingMicron: finite(visual.spectrumRingMicron ?? source.spectrumRingMicron, bands[1] ?? 1.9)
   };
 }
-
 function fieldFromSamples(samples) {
   return samples.map((sample, index) => {
     const materialHash = textHash(`${sample.sample}|${sample.sign}`);
@@ -73,17 +59,15 @@ function fieldFromSamples(samples) {
       angle: bearing * 0.38 + (hash01(materialHash) - 0.5) * 1.15,
       wavelength: 17 + index * 1.35 + hash01(materialHash + 19) * 5.5,
       phase: hash01(materialHash + 47) * Math.PI * 2,
-      weight: 0.72 + hash01(materialHash + 83) * 0.28,
+      weight: 0.72 + hash01(materialHash + 83) * 0.28
     };
   });
 }
-
 function fieldAt(field, x, z, origin) {
   if (!field.length) return { value: 0, phase: 0 };
   let sum = 0, sx = 0, sy = 0, weights = 0;
   for (const harmonic of field) {
-    const projected = (x - origin.x) * Math.cos(harmonic.angle)
-      + (z - origin.z) * Math.sin(harmonic.angle);
+    const projected = (x - origin.x) * Math.cos(harmonic.angle) + (z - origin.z) * Math.sin(harmonic.angle);
     const phase = projected / harmonic.wavelength * Math.PI * 2 + harmonic.phase;
     sum += Math.cos(phase) * harmonic.weight;
     sx += Math.cos(phase) * harmonic.weight;
@@ -92,33 +76,24 @@ function fieldAt(field, x, z, origin) {
   }
   return {
     value: sum / Math.max(weights, 1e-6),
-    phase: Math.atan2(sy, sx),
+    phase: Math.atan2(sy, sx)
   };
 }
-
 function waterFieldAt(water, x, z, origin) {
   const absorption = water.spectrumRingMicron;
-  /* A spectral wavelength cannot be drawn at micrometre scale on a landscape.
-     This is an explicit spatial encoding: 1.9 µm maps to a 27.4 m contour
-     interval, preserving ratios between bands without pretending scale. */
   const wavelength = 14 + absorption * 7.05;
   const dx = x - origin.x, dz = z - origin.z;
   const radial = Math.hypot(dx, dz);
   const bearing = Math.atan2(dz, dx);
-  const phase = radial / wavelength * Math.PI * 2
-    + bearing * 2 + water.thermalDeltaK * 0.031;
+  const phase = radial / wavelength * Math.PI * 2 + bearing * 2 + water.thermalDeltaK * 0.031;
   return { value: Math.cos(phase), phase, wavelength };
 }
-
-/** Sample both source fields without scene or renderer state. The returned
- * phases are uploaded once as particle attributes; their interference and
- * density evolution are then evaluated by GeologicalMemory's compute pass. */
 export function evaluateMemoryFields(model, x, z) {
   const material = fieldAt(model.materialField ?? [], x, z, model.start);
   const water = waterFieldAt(model.water, x, z, model.start);
   const phaseDelta = Math.atan2(
     Math.sin(material.phase - water.phase),
-    Math.cos(material.phase - water.phase),
+    Math.cos(material.phase - water.phase)
   );
   return {
     material: material.value,
@@ -126,10 +101,9 @@ export function evaluateMemoryFields(model, x, z) {
     materialPhase: material.phase,
     waterPhase: water.phase,
     phaseDelta,
-    coherence: 0.5 + 0.5 * Math.cos(phaseDelta),
+    coherence: 0.5 + 0.5 * Math.cos(phaseDelta)
   };
 }
-
 function candidateSites(model, start) {
   const candidates = [];
   for (let ring = 1; ring <= 6; ring++) {
@@ -142,39 +116,37 @@ function candidateSites(model, start) {
       const fields = evaluateMemoryFields(model, x, z);
       const phaseDelta = fields.phaseDelta;
       const coherence = fields.coherence;
-      const reflectance = clamp01(0.50 + fields.material * 0.34 + coherence * 0.28);
+      const reflectance = clamp01(0.5 + fields.material * 0.34 + coherence * 0.28);
       const density = clamp01(model.water.particleDensity * 0.85 + coherence * 0.62);
       candidates.push({ x, z, coherence, reflectance, density, phaseDelta, radius });
     }
   }
   return candidates.sort((a, b) => b.coherence - a.coherence || b.reflectance - a.reflectance);
 }
-
 function chooseSites(model, start) {
   const selected = [];
   for (const candidate of candidateSites(model, start)) {
-    if (selected.some(site => Math.hypot(site.x - candidate.x, site.z - candidate.z) < 48)) continue;
+    if (selected.some((site) => Math.hypot(site.x - candidate.x, site.z - candidate.z) < 48)) continue;
     selected.push(candidate);
     if (selected.length === 3) break;
   }
   selected.sort((a, b) => a.radius - b.radius);
   const objectives = [
-    ['MATERIAL PHASE', 'ALIGN EIGHT RECOVERED MINERAL HARMONICS'],
-    ['HYDRATION PHASE', 'RESOLVE 1.9 µM ABSORPTION IN GRANITE'],
-    ['CONCORDANCE', 'FIX THE GEOLOGICAL MEMORY INTERSECTION'],
+    ["MATERIAL PHASE", "ALIGN EIGHT RECOVERED MINERAL HARMONICS"],
+    ["HYDRATION PHASE", "RESOLVE 1.9 \xB5M ABSORPTION IN GRANITE"],
+    ["CONCORDANCE", "FIX THE GEOLOGICAL MEMORY INTERSECTION"]
   ];
   return selected.map((site, index) => ({
     ...site,
-    id: `BODY03-MEM-${String(index + 1).padStart(2, '0')}`,
+    id: `BODY03-MEM-${String(index + 1).padStart(2, "0")}`,
     order: index,
     objective: objectives[index][0],
     instruction: objectives[index][1],
     acquireRadius: 4.2,
     scanRadius: 6.4,
-    scanHoldMs: 4200,
+    scanHoldMs: 4200
   }));
 }
-
 export class MissionMemory {
   constructor(options = {}) {
     this.key = options.key ?? DEFAULT_MEMORY_KEY;
@@ -182,73 +154,79 @@ export class MissionMemory {
     this.data = { version: MISSION_MEMORY_VERSION, samples: [], water: null };
     this.load();
   }
-
-  get samplesReady() { return this.data.samples.length === 8; }
-  get waterReady() { return !!this.data.water?.confirmed; }
-  get ready() { return this.samplesReady && this.waterReady; }
-
+  get samplesReady() {
+    return this.data.samples.length === 8;
+  }
+  get waterReady() {
+    return !!this.data.water?.confirmed;
+  }
+  get ready() {
+    return this.samplesReady && this.waterReady;
+  }
   load() {
     if (!this.storage) return this.snapshot();
     try {
-      const parsed = JSON.parse(this.storage.getItem(this.key) ?? 'null');
+      const parsed = JSON.parse(this.storage.getItem(this.key) ?? "null");
       if (parsed?.version !== MISSION_MEMORY_VERSION) return this.snapshot();
       this.data.samples = (parsed.samples ?? []).slice(0, 8).map(cleanSample);
       this.data.water = cleanWater(parsed.water);
-    } catch { /* A corrupt gallery session is treated as an empty instrument. */ }
+    } catch {
+    }
     return this.snapshot();
   }
-
   persist() {
-    try { this.storage?.setItem(this.key, JSON.stringify(this.data)); }
-    catch { /* Storage denial never blocks the live mission. */ }
+    try {
+      this.storage?.setItem(this.key, JSON.stringify(this.data));
+    } catch {
+    }
   }
-
   recordSamples(input) {
     const raw = Array.isArray(input) ? input : input?.items ?? [];
     const sites = Array.isArray(input?.sites) ? input.sites : [];
     const count = Math.min(8, Math.max(0, Math.floor(input?.count ?? raw.length)));
     this.data.samples = raw.slice(0, count).map((sample, index) => cleanSample({
       ...sample,
-      site: sample.site ?? sites[index]?.data ?? sites[index],
+      site: sample.site ?? sites[index]?.data ?? sites[index]
     }, index));
     this.persist();
     return this.snapshot();
   }
-
   recordWater(input) {
     this.data.water = cleanWater(input);
     this.persist();
     return this.snapshot();
   }
-
   composeBody03(options = {}) {
     if (!this.ready) return null;
     const start = copyPoint(options.start ?? { x: 120, z: 460 });
     const model = {
-      id: 'BODY03-GEOLOGICAL-MEMORY',
+      id: "BODY03-GEOLOGICAL-MEMORY",
       source: { samples: this.data.samples.length, water: this.data.water.id },
       materialField: fieldFromSamples(this.data.samples),
       water: { ...this.data.water },
-      start,
+      start
     };
     model.sites = chooseSites(model, start);
     return model;
   }
-
   snapshot() {
     return {
       version: this.data.version,
       ready: this.ready,
       samplesReady: this.samplesReady,
       waterReady: this.waterReady,
-      samples: this.data.samples.map(sample => ({ ...sample })),
-      water: this.data.water ? { ...this.data.water,
-        absorptionBandsMicron: [...this.data.water.absorptionBandsMicron] } : null,
+      samples: this.data.samples.map((sample) => ({ ...sample })),
+      water: this.data.water ? {
+        ...this.data.water,
+        absorptionBandsMicron: [...this.data.water.absorptionBandsMicron]
+      } : null
     };
   }
-
   clear() {
     this.data = { version: MISSION_MEMORY_VERSION, samples: [], water: null };
-    try { this.storage?.removeItem(this.key); } catch { /* optional persistence */ }
+    try {
+      this.storage?.removeItem(this.key);
+    } catch {
+    }
   }
 }

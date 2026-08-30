@@ -17,7 +17,6 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 from pypdf import PdfReader, PdfWriter
 
-
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "output" / "pdf"
 PANELS = OUT / "panels"
@@ -42,10 +41,8 @@ CYAN = HexColor("#28758b")
 FONT_PATH = "/System/Library/Fonts/Supplemental/AppleGothic.ttf"
 pdfmetrics.registerFont(TTFont("KOR", FONT_PATH))
 
-
 def sw(text: str, font: str = "KOR", size: float = 10) -> float:
     return pdfmetrics.stringWidth(str(text), font, size)
-
 
 def wrap(text: str, width: float, font: str = "KOR", size: float = 10) -> list[str]:
     lines: list[str] = []
@@ -62,7 +59,7 @@ def wrap(text: str, width: float, font: str = "KOR", size: float = 10) -> list[s
                 lines.append(current)
                 current = token
             else:
-                # Korean text can arrive without spaces; split by glyph.
+                
                 chunk = ""
                 for glyph in token:
                     if sw(chunk + glyph, font, size) > width and chunk:
@@ -74,7 +71,6 @@ def wrap(text: str, width: float, font: str = "KOR", size: float = 10) -> list[s
         if current:
             lines.append(current)
     return lines
-
 
 def para(c, text, x, y, width, size=10, leading=None, color=MUTED, font="KOR", max_lines=None):
     leading = leading or size * 1.55
@@ -88,7 +84,6 @@ def para(c, text, x, y, width, size=10, leading=None, color=MUTED, font="KOR", m
         y -= leading
     return y
 
-
 def caps(c, text, x, y, size=8, color=MUTED, tracking=1.2):
     c.setFont("Helvetica", size)
     c.setFillColor(color)
@@ -96,7 +91,6 @@ def caps(c, text, x, y, size=8, color=MUTED, tracking=1.2):
     for ch in text.upper():
         c.drawString(cursor, y, ch)
         cursor += sw(ch, "Helvetica", size) + tracking
-
 
 def line(c, x1, y1, x2, y2, color=DIM, width=0.7, dash=None):
     c.saveState()
@@ -106,7 +100,6 @@ def line(c, x1, y1, x2, y2, color=DIM, width=0.7, dash=None):
         c.setDash(dash)
     c.line(x1, y1, x2, y2)
     c.restoreState()
-
 
 def grid(c, x, y, w, h, step=12 * MM):
     c.saveState()
@@ -122,13 +115,11 @@ def grid(c, x, y, w, h, step=12 * MM):
         py += step
     c.restoreState()
 
-
 def arrow(c, x1, y1, x2, y2, color=CRIMSON, width=1.2, head=5):
     line(c, x1, y1, x2, y2, color, width)
     a = math.atan2(y2 - y1, x2 - x1)
     for d in (-0.55, 0.55):
         c.line(x2, y2, x2 - math.cos(a + d) * head, y2 - math.sin(a + d) * head)
-
 
 def dimline(c, x1, y1, x2, y2, label, offset=9, vertical=False):
     c.saveState()
@@ -154,7 +145,6 @@ def dimline(c, x1, y1, x2, y2, label, offset=9, vertical=False):
         c.drawCentredString((x1 + x2) / 2, yy + 3, label)
     c.restoreState()
 
-
 def callout(c, n, label, ax, ay, tx, ty, align="left"):
     c.saveState()
     c.setStrokeColor(CRIMSON)
@@ -174,7 +164,6 @@ def callout(c, n, label, ax, ay, tx, ty, align="left"):
         c.drawRightString(tx - 16, ty + 5, label)
     c.restoreState()
 
-
 def header(c, no, title_ko, title_en, kicker):
     c.setFillColor(BG)
     c.rect(0, 0, W, H, fill=1, stroke=0)
@@ -191,7 +180,6 @@ def header(c, no, title_ko, title_en, kicker):
     para(c, kicker, M, H - M - 72, W - 2 * M, 9, 14, MUTED, max_lines=2)
     line(c, M, H - M - 108, W - M, H - M - 108, DIM, 0.7)
 
-
 def footer(c, no, note="EXHIBITION DIAGRAM DERIVED FROM THE COMPUTATIONAL MODEL / NOT A FABRICATION DRAWING"):
     line(c, M, M - 4, W - M, M - 4, DIM, 0.55)
     caps(c, note, M, M - 20, 6.5, DIM, 0.9)
@@ -199,13 +187,11 @@ def footer(c, no, note="EXHIBITION DIAGRAM DERIVED FROM THE COMPUTATIONAL MODEL 
     c.setFillColor(DIM)
     c.drawRightString(W - M, M - 20, f"TI.A2.{no:02d} / 2026")
 
-
 def section_label(c, text, x, y, width):
     c.setFillColor(CRIMSON)
     c.rect(x, y - 2, 16, 1.2, fill=1, stroke=0)
     caps(c, text, x + 24, y - 5, 7, MUTED, 1.1)
     line(c, x, y - 13, x + width, y - 13, GRID, 0.45)
-
 
 def info_block(c, title, items, x, y, w, accent=CRIMSON):
     c.saveState()
@@ -226,12 +212,11 @@ def info_block(c, title, items, x, y, w, accent=CRIMSON):
         yy -= 14
     c.restoreState()
 
-
 def rover_diagram(c, x, y, w, h):
     grid(c, x, y, w, h, 18 * MM)
     cx, cy = x + w * 0.45, y + h * 0.59
     s = 88
-    # Top view
+    
     c.saveState()
     c.setStrokeColor(INK)
     c.setFillColor(PANEL)
@@ -244,13 +229,13 @@ def rover_diagram(c, x, y, w, h):
     p.lineTo(cx - body_w * 0.42, cy - body_l / 2)
     p.close()
     c.drawPath(p, fill=1, stroke=1)
-    # Solar lid
+    
     c.setStrokeColor(CYAN)
     c.rect(cx - 0.50 * s, cy - 0.13 * s, 1.00 * s, 1.42 * s, fill=0, stroke=1)
     for i in range(1, 5):
         c.line(cx - 0.50 * s + i * 0.20 * s, cy - 0.13 * s,
                cx - 0.50 * s + i * 0.20 * s, cy + 1.29 * s)
-    # Eight wheels, four axles
+    
     for zz in (-0.98, -0.33, 0.33, 0.98):
         for xx in (-0.62, 0.62):
             c.setStrokeColor(INK)
@@ -260,7 +245,7 @@ def rover_diagram(c, x, y, w, h):
             c.setStrokeColor(DIM)
             c.line(cx + xx * s, cy + zz * s - 0.25 * s,
                    cx + xx * s, cy + zz * s + 0.25 * s)
-    # Mast and sensor head
+    
     c.setStrokeColor(CRIMSON)
     c.circle(cx, cy - 0.36 * s, 0.12 * s, fill=0, stroke=1)
     c.line(cx, cy - 0.36 * s, cx + 0.24 * s, cy - 0.53 * s)
@@ -271,7 +256,7 @@ def rover_diagram(c, x, y, w, h):
     callout(c, 1, "8륜 독립 접지", cx - 0.62 * s, cy - 0.33 * s, x + 16, y + h - 32)
     callout(c, 2, "태양 추적 배열", cx + 0.42 * s, cy + 0.82 * s, x + w - 14, y + h - 60, "right")
     callout(c, 3, "센서 크라운", cx + 0.26 * s, cy - 0.54 * s, x + w - 14, y + 46, "right")
-    # Side inset
+    
     bx, by, bw, bh = x + w * 0.08, y + 18, w * 0.70, h * 0.22
     line(c, bx, by, bx + bw, by, DIM, 0.5)
     c.setStrokeColor(INK)
@@ -290,7 +275,6 @@ def rover_diagram(c, x, y, w, h):
     c.rect(bx + bw * 0.55 - 13, by + 105, 30, 13, fill=0, stroke=1)
     caps(c, "SIDE ELEVATION", bx, by + bh - 3, 6, DIM, 0.8)
 
-
 def panel_rover(c):
     header(c, 1, "로버 설계도", "ROVER SYSTEM BLUEPRINT", "지형은 이미지가 아니라 여덟 접촉점에 응답하는 물리적 조건이다.")
     top = H - M - 126
@@ -300,12 +284,11 @@ def panel_rover(c):
     para(c, "바퀴 접지 높이, 경사, 서스펜션 충격과 전력이 하나의 연속된 상태로 연결된다. 로버는 지형 위의 장식이 아니라 지형을 읽는 측정 장치다.", M, 125, W - 2 * M, 9, 14, MUTED)
     footer(c, 1)
 
-
 def lander_diagram(c, x, y, w, h):
     grid(c, x, y, w, h, 18 * MM)
     cx, ground = x + w * 0.50, y + h * 0.20
     s = 42
-    # Front shield body
+    
     c.saveState()
     c.setStrokeColor(INK)
     c.setFillColor(GRAPHITE)
@@ -319,16 +302,16 @@ def lander_diagram(c, x, y, w, h):
     p.lineTo(cx + 3.3 * s, ground + 2.1 * s)
     p.close()
     c.drawPath(p, fill=1, stroke=1)
-    # Pressure hull facets
+    
     for xx in (-2.7, -1.35, 0, 1.35, 2.7):
         line(c, cx, ground + 5.45 * s, cx + xx * s, ground + 2.15 * s, DIM, 0.6)
-    # Service stage
+    
     c.setFillColor(BG)
     c.ellipse(cx - 3.05 * s, ground + 1.55 * s, cx + 3.05 * s, ground + 2.55 * s, fill=1, stroke=1)
     c.setStrokeColor(AMBER)
     for xx in (-2.35, 2.35):
         c.rect(cx + xx * s - 18, ground + 1.80 * s, 36, 28, fill=0, stroke=1)
-    # Six articulated legs visible as front projection
+    
     for i in range(6):
         a = i * math.pi / 3
         fx = cx + math.cos(a) * 5.55 * s
@@ -346,13 +329,13 @@ def lander_diagram(c, x, y, w, h):
         c.line(ex, ey, fx, fy)
         c.setLineWidth(0.8)
         c.ellipse(fx - 0.70 * s, fy - 4, fx + 0.70 * s, fy + 4, fill=0, stroke=1)
-    # Crown and blade
+    
     c.setStrokeColor(INK)
     c.setFillColor(BG)
     c.ellipse(cx - 2.05 * s, ground + 5.45 * s, cx + 2.05 * s, ground + 5.90 * s, fill=1, stroke=1)
     c.rect(cx - 1.33 * s, ground + 6.20 * s, 2.65 * s, 0.18 * s, fill=0, stroke=1)
     c.line(cx, ground + 5.88 * s, cx, ground + 6.95 * s)
-    # Open portal and ramp
+    
     c.setFillColor(BG)
     c.setStrokeColor(CRIMSON)
     c.rect(cx - 1.50 * s, ground + 2.00 * s, 3.00 * s, 2.70 * s, fill=1, stroke=1)
@@ -368,7 +351,6 @@ def lander_diagram(c, x, y, w, h):
     callout(c, 3, "로버 격납 포털", cx, ground + 3.3 * s, x + 10, y + 56)
     callout(c, 4, "센서 크라운", cx, ground + 6.5 * s, x + w - 10, y + 40, "right")
 
-
 def panel_lander(c):
     header(c, 2, "착륙선 설계도", "LANDER RESTORATION BLUEPRINT", "여덟 물질 서명이 FOUNDATION에서 SIGNAL CORE까지 구조를 순차 복원한다.")
     lander_diagram(c, M, 288, W - 2 * M, H - M - 430)
@@ -377,25 +359,23 @@ def panel_lander(c):
     para(c, "FOUNDATION - LOAD PATHS - SERVICE CELLS - PRESSURE HULL - SENSOR VISOR - TRANSFER BRIDGE - SENSOR CROWN - SIGNAL CORE", M, 126, W - 2 * M, 8.2, 13, MUTED)
     footer(c, 2)
 
-
 def potential(r, mass=20.0, ang=88.0):
     rc = max(r, 40.0)
     return -mass / rc + ang * ang / (2 * rc * rc) - mass * ang * ang / (rc ** 3)
-
 
 def panel_planet_01(c):
     header(c, 3, "PLANET 01 · 전단 세계", "SHEAR WORLD / MATERIAL", "Schwarzschild 유효 퍼텐셜이 장벽, 골과 접근 불가능한 중심을 직접 생성한다.")
     x, y, w, h = M, 444, W - 2 * M, 360
     section_label(c, "EFFECTIVE POTENTIAL / RADIAL TOPOLOGY", x, y + h + 18, w)
     grid(c, x, y, w, h, 20 * MM)
-    # Concentric topology map
+    
     cx, cy, scale = x + w * 0.28, y + h * 0.48, 0.42
     for r, col, label in [(312.97, MUTED, "stable trough 312.97 m"), (74.23, CRIMSON, "barrier 74.23 m"), (60, AMBER, "photon sphere 60 m"), (40, INK, "horizon 40 m")]:
         c.setStrokeColor(col)
         c.setLineWidth(1.25 if r in (74.23, 40) else 0.65)
         c.circle(cx, cy, max(8, r * scale), fill=0, stroke=1)
         caps(c, label, cx - r * scale, cy + r * scale + 5, 5.5, col, 0.45)
-    # Plot
+    
     px, py, pw, ph = x + w * 0.56, y + 52, w * 0.40, h - 104
     line(c, px, py + ph * 0.50, px + pw, py + ph * 0.50, DIM, 0.5)
     line(c, px, py, px, py + ph, DIM, 0.5)
@@ -422,13 +402,12 @@ def panel_planet_01(c):
     para(c, "수치 근사: 유효 퍼텐셜을 2D 높이장으로 변환한다. 예술적 해석: 중력 장벽을 행성 지형과 물질 층리로 번역한다. 사건지평선 내부의 외부 관측자 물리는 주장하지 않는다.", M, 260, W - 2 * M, 9, 14, MUTED)
     footer(c, 3, "PLANET 01 / MATHEMATICS GENERATES THE ROUTE")
 
-
 def panel_planet_02(c):
     header(c, 4, "PLANET 02 · 야르당 지대", "YARDANG FIELD / WATER-EQUIVALENT SIGNAL", "바람의 방향성이 지형을 조직하고, 단 하나의 수분 등가 신호가 임무를 결정한다.")
     x, y, w, h = M, 424, W - 2 * M, 380
     section_label(c, "DIRECTIONAL GEOLOGY / SINGLE OBJECTIVE", x, y + h + 18, w)
     grid(c, x, y, w, h, 20 * MM)
-    # Directional yardang map
+    
     mx, my, mw, mh = x + 18, y + 32, w * 0.58, h - 64
     c.saveState()
     c.rect(mx, my, mw, mh, fill=0, stroke=0)
@@ -448,14 +427,14 @@ def panel_planet_02(c):
     c.restoreState()
     arrow(c, mx + 22, my + mh - 20, mx + 132, my + mh - 5, AMBER, 1.4, 7)
     caps(c, "WIND 7.8 DEG EAST OF +X", mx + 18, my + mh - 38, 6, AMBER, 0.7)
-    # Water lens
+    
     sx, sy = mx + mw * 0.67, my + mh * 0.37
     for rr, col in [(15, Color(0.20, 0.35, 0.38, alpha=0.35)), (7.5, CYAN), (3.8, INK)]:
         c.setStrokeColor(col)
         c.setLineWidth(1.0)
         c.circle(sx, sy, rr * 2.1, fill=0, stroke=1)
     callout(c, 1, "수분 등가 신호 렌즈", sx, sy, mx + 8, my + 18)
-    # Spectrum
+    
     px = x + w * 0.66
     caps(c, "ABSORPTION BANDS", px, y + h - 36, 7, CYAN, 0.9)
     base = y + 126
@@ -473,13 +452,12 @@ def panel_planet_02(c):
     para(c, "지형은 풍향을 공유하는 dune, yardang, sintered crust 계열로 생성된다. 수분 임무는 장식적 웅덩이가 아니라 열적 편차와 흡수 대역의 결합으로만 완료된다.", M, 250, W - 2 * M, 9, 14, MUTED)
     footer(c, 4, "PLANET 02 / ONE SIGNAL CHANGES THE MISSION")
 
-
 def panel_planet_03(c):
     header(c, 5, "PLANET 03 · 화강암 기억장", "JOINTED GRANITE / GEOLOGICAL MEMORY", "PLANET 01의 물질 위상과 PLANET 02의 수분 위상이 곱해져 세 개의 기억 결절을 만든다.")
     x, y, w, h = M, 404, W - 2 * M, 400
     section_label(c, "CROSS-PLANET FIELD SYNTHESIS", x, y + h + 18, w)
     grid(c, x, y, w, h, 20 * MM)
-    # Three fields: material x water = memory
+    
     boxes = []
     gap = 18
     bw = (w - gap * 2) / 3
@@ -508,12 +486,12 @@ def panel_planet_03(c):
             c.setLineWidth(0.55)
             c.drawPath(p, fill=0, stroke=1)
         caps(c, ["01 MATERIAL PHASE", "02 WATER PHASE", "03 PRODUCT FIELD"][idx], bx + 8, by + bh - 15, 6, [CRIMSON, CYAN, INK][idx], 0.7)
-    # product operators
+    
     c.setFont("Helvetica-Bold", 22)
     c.setFillColor(MUTED)
     c.drawCentredString(x + bw + gap / 2, y + h * 0.48, "x")
     c.drawCentredString(x + bw * 2 + gap * 1.5, y + h * 0.48, "=")
-    # three memory nodes
+    
     bx, by, bw, bh = boxes[2]
     for nx, ny in [(0.27, 0.31), (0.66, 0.52), (0.42, 0.77)]:
         for rr in (5, 11, 18):
@@ -523,7 +501,6 @@ def panel_planet_03(c):
     info_block(c, "OUTPUT", [("NODES", "3 concordance sites"), ("GEOLOGY", "two joint families"), ("EVENT", "cross-planet alignment")], M + (W - 2 * M + 18) / 2, 272, (W - 2 * M - 18) / 2, GREEN)
     para(c, "과학적으로 정확한 부분은 위상장과 곱의 계산이다. 실시간 GPU 격자는 수치 근사다. 서로 다른 행성의 증거가 지질 기억으로 재출현한다는 서사는 예술적 해석이다.", M, 240, W - 2 * M, 9, 14, MUTED)
     footer(c, 5, "PLANET 03 / THE PRIOR WORLDS BECOME STRUCTURE")
-
 
 def panel_engine(c):
     header(c, 6, "계산·게임 엔진 구조", "COMPUTATIONAL ENGINE / SYSTEM ARCHITECTURE", "입력, 수학, 시뮬레이션과 시각 출력은 분리된 효과가 아니라 하나의 상태 사슬이다.")
@@ -547,7 +524,7 @@ def panel_engine(c):
         para(c, b, bx + 9, y + 37, bw - 18, 7.2, 11, INK, max_lines=2)
         if i < 4:
             arrow(c, bx + bw + 2, y + 38, bx + bw + gap - 2, y + 38, DIM, 0.8, 3)
-    # Architecture layers
+    
     section_label(c, "RUNTIME LAYERS", x, 608, w)
     rows = [
         ("RENDER", "Three.js WebGPURenderer + TSL / WGSL", CRIMSON),
@@ -567,7 +544,7 @@ def panel_engine(c):
         caps(c, label, x + 16, yy + 28, 7, col, 0.9)
         para(c, desc, x + 142, yy + 29, w - 160, 8, 12, INK, max_lines=1)
         yy -= 55
-    # Tiers
+    
     section_label(c, "ADAPTIVE QUALITY / SAME CONCEPT", x, 198, w)
     tier_w = (w - 24) / 3
     tier_data = [
@@ -584,7 +561,6 @@ def panel_engine(c):
         para(c, desc, bx + 12, 132, tier_w - 24, 7.5, 13, INK)
     footer(c, 6, "ENGINE / REDUCE LUXURY BEFORE STRUCTURAL MEANING")
 
-
 def control_key(c, key, label, x, y, w=52):
     c.setFillColor(GRAPHITE)
     c.setStrokeColor(DIM)
@@ -594,11 +570,10 @@ def control_key(c, key, label, x, y, w=52):
     c.drawCentredString(x + w / 2, y + 10, key)
     para(c, label, x + w + 12, y + 10, 150, 8, 11, MUTED, max_lines=1)
 
-
 def panel_guide(c):
     header(c, 7, "관람법·조작 가이드", "VIEWING / INTERACTION GUIDE", "기본 관람은 OBSERVER다. 직접 조작은 시스템을 잠시 교란한 뒤 자율 임무로 되돌아간다.")
     x, w = M, W - 2 * M
-    # Start timeline
+    
     section_label(c, "BEGIN", x, 710, w)
     ty = 665
     line(c, x + 16, ty, x + w - 16, ty, DIM, 1)
@@ -610,7 +585,7 @@ def panel_guide(c):
         c.setFont("Helvetica-Bold", 6.5)
         c.drawCentredString(xx, ty - 18, f"{t:.1f}s")
         caps(c, lab, xx - sw(lab, "Helvetica", 5.5) / 2, ty + 13, 5.5, MUTED, 0.3)
-    # Observer/explorer
+    
     section_label(c, "TWO MODES", x, 604, w)
     half = (w - 16) / 2
     for i, (title, copy, accent) in enumerate([
@@ -623,7 +598,7 @@ def panel_guide(c):
         c.roundRect(bx, 522, half, 68, 3, fill=1, stroke=1)
         caps(c, title, bx + 12, 566, 8, accent, 1.2)
         para(c, copy, bx + 12, 547, half - 24, 8, 12, INK, max_lines=2)
-    # Desktop/mobile
+    
     section_label(c, "DESKTOP", x, 484, half)
     section_label(c, "MOBILE", x + half + 16, 484, half)
     ky = 430
@@ -647,7 +622,7 @@ def panel_guide(c):
     for key, label in mobile:
         control_key(c, key, label, mx, ky, 58)
         ky -= 42
-    # What to watch
+    
     section_label(c, "WHAT TO WATCH", x, 266, w)
     observations = [
         ("01", "PLANET 01", "구조재 5종과 자원 3계통의 순차 회수"),
@@ -663,7 +638,6 @@ def panel_guide(c):
         para(c, copy, x + 48, oy - 13, w - 48, 8, 12, MUTED, max_lines=1)
         oy -= 50
     footer(c, 7, "VIEWING GUIDE / OBSERVE FIRST, PERTURB SECOND")
-
 
 def panel_technical(c):
     header(c, 8, "기술설명서", "TECHNICAL NOTES / SCIENCE - APPROXIMATION - INTERPRETATION", "과학적 모델, 실시간 근사와 예술적 번역을 동일한 주장으로 섞지 않는다.")
@@ -702,7 +676,7 @@ def panel_technical(c):
             c.setFillColor(color)
             c.circle(bx + 14, yy + 2, 1.8, fill=1, stroke=0)
             yy = para(c, item, bx + 25, yy, colw - 36, 7.3, 18, INK, max_lines=2) - 3
-    # Equations
+    
     section_label(c, "STRUCTURAL EQUATIONS", x, 500, w)
     equations = [
         ("TERRAIN", "V(r) = -M/r + L^2/(2r^2) - ML^2/r^3"),
@@ -718,7 +692,7 @@ def panel_technical(c):
         c.drawString(x + 116, ey + 4, eq)
         line(c, x, ey - 10, x + w, ey - 10, GRID, 0.4)
         ey -= 44
-    # Stack and deployment
+    
     section_label(c, "STACK / DEPLOYMENT", x, 296, w)
     tech = [
         ("RENDER", "Three.js 0.185.1 / WebGPURenderer / TSL"),
@@ -738,7 +712,6 @@ def panel_technical(c):
     para(c, "전시 배포본은 외부 네트워크 없이 실행된다. 실제 WebGPU 장치 한계와 storage/compute 기능을 검사하며, 개념이 성립하지 않는 WebGL 자동 폴백은 사용하지 않는다.", x + 12, 103, w - 24, 8, 12, MUTED, max_lines=2)
     footer(c, 8, "TECHNICAL NOTES / PRECISION OVER DECORATION")
 
-
 PAGES = [
     ("01_ROVER_BLUEPRINT.pdf", panel_rover),
     ("02_LANDER_BLUEPRINT.pdf", panel_lander),
@@ -749,7 +722,6 @@ PAGES = [
     ("07_VIEWING_INTERACTION_GUIDE.pdf", panel_guide),
     ("08_TECHNICAL_NOTES.pdf", panel_technical),
 ]
-
 
 def build_master():
     OUT.mkdir(parents=True, exist_ok=True)
@@ -762,7 +734,6 @@ def build_master():
         c.showPage()
     c.save()
 
-
 def split_pages():
     reader = PdfReader(str(MASTER))
     if len(reader.pages) != len(PAGES):
@@ -773,7 +744,6 @@ def split_pages():
         writer.add_metadata({"/Title": filename.replace("_", " ").removesuffix(".pdf")})
         with (PANELS / filename).open("wb") as fh:
             writer.write(fh)
-
 
 if __name__ == "__main__":
     build_master()
