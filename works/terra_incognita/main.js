@@ -278,7 +278,8 @@ window.TI_BOOT?.beat('world');
 let scene, hud, captions, ambient, kiosk, ground, field, wake, dust, graniteField, storm, transferFx, matterPassage, scatter, beam, sky, landmark, rover, lander, restoration, waterMission, missionMemory, geologicalMemory, docking, voyage, shotDirector, power, lens, adaptive, minimap, optics, survey, mobileControl, openingBlueprints, animeRituals;
 let world = 'terra';
 let landerPresent = true;
-let archiveMode = false, greenMonitorManual = false, lastArchiveFrame = 0, archiveCueTimer = 0;
+let archiveMode = false, greenMonitorManual = false, rawMonitorManual = false;
+let lastArchiveFrame = 0, archiveCueTimer = 0;
 let openingShot = null;
 let completionTableau = null;
 let failureResetAt = 0;
@@ -309,8 +310,15 @@ greenControl?.addEventListener('pointerdown', event => event.stopPropagation());
 greenControl?.addEventListener('click', event => {
   event.preventDefault();
   event.stopPropagation();
-  if (archiveMode) return;
-  greenMonitorManual = !greenMonitorManual;
+  const forcedGreen = archiveMode || (mobileControl?.active && released);
+  const active = !rawMonitorManual && (forcedGreen || greenMonitorManual);
+  if (active) {
+    greenMonitorManual = false;
+    rawMonitorManual = forcedGreen;
+  } else {
+    rawMonitorManual = false;
+    greenMonitorManual = !forcedGreen;
+  }
   syncGreenMonitor();
 });
 syncGreenMonitor();
@@ -612,8 +620,9 @@ window.TI_READY = true;
 window.TI_WORLD = world;
 window.TI_RENDER_MODE = () => ({
   archive: archiveMode,
-  green: archiveMode || greenMonitorManual,
+  green: !rawMonitorManual && (archiveMode || greenMonitorManual || (mobileControl?.active && released)),
   greenManual: greenMonitorManual,
+  rawManual: rawMonitorManual,
   dpr: adaptive.dpr,
   lens: !!lens,
 });
@@ -1326,20 +1335,21 @@ function showArchiveCue() {
 }
 
 function syncGreenMonitor() {
-  const active = archiveMode || greenMonitorManual;
+  const forcedGreen = archiveMode || (mobileControl?.active && released);
+  const active = !rawMonitorManual && (forcedGreen || greenMonitorManual);
   document.body.classList.toggle('ti-green-monitor', greenMonitorManual && !archiveMode);
+  document.body.classList.toggle('ti-raw-monitor', rawMonitorManual && forcedGreen);
   if (greenControl) {
     greenControl.dataset.greenState = active ? 'on' : 'off';
     greenControl.setAttribute('aria-pressed', String(active));
-    greenControl.disabled = archiveMode || !released;
+    greenControl.disabled = !released;
     greenControl.setAttribute('aria-disabled', String(greenControl.disabled));
     greenControl.setAttribute('aria-hidden', String(!released && !location.search.includes('embed')));
-    greenControl.setAttribute('aria-label', archiveMode
-      ? '녹색 모니터 활성 · 저사양 보호 모드'
-      : active ? '녹색 모니터 끄기' : '녹색 모니터 켜기');
+    greenControl.textContent = active ? 'RAW' : 'GREEN';
+    greenControl.setAttribute('aria-label', active ? '원래 색상으로 보기' : '녹색 모니터로 보기');
   }
   hud?.set('mode', archiveMode
-    ? 'ARCHIVAL · PHOSPHOR'
+    ? active ? 'ARCHIVAL · PHOSPHOR' : 'ARCHIVAL · RAW COLOUR'
     : active ? 'GREEN MONITOR · MANUAL' : 'CINEMATIC · FULL COLOUR');
 }
 
@@ -1461,6 +1471,7 @@ async function returnToStart() {
   completionTableau = null;
   finalTableau = null;
   greenMonitorManual = false;
+  rawMonitorManual = false;
   syncGreenMonitor();
   pendingArrival = null;
   driveReleaseAt = 0;

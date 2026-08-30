@@ -140,15 +140,15 @@
   /* Desktop archival fallback is terminal-coloured throughout. Hand-held
      surfaces retain the authored opening, then enter this low-resolution
      phosphor image only when the exploration surface is released. */
-  body:is(.ti-terminal,.ti-green-monitor):not(.ti-handheld-crt) #gl,
-  body.ti-handheld-crt.ti-prologue-released #gl{
+  body:is(.ti-terminal,.ti-green-monitor):not(.ti-handheld-crt):not(.ti-raw-monitor) #gl,
+  body.ti-handheld-crt.ti-prologue-released:not(.ti-raw-monitor) #gl{
     filter:grayscale(1) sepia(1) hue-rotate(68deg) saturate(5.8) contrast(1.22) brightness(.80)!important;
     image-rendering:pixelated}
-  body:is(.ti-terminal,.ti-green-monitor) #ti-monitor{filter:saturate(1.12) contrast(1.06) brightness(1.08)}
+  body:is(.ti-terminal,.ti-green-monitor):not(.ti-raw-monitor) #ti-monitor{filter:saturate(1.12) contrast(1.06) brightness(1.08)}
   #ti-terminal-screen{position:fixed;inset:0;z-index:18;display:none;pointer-events:none;
     background:radial-gradient(ellipse at center,transparent 48%,rgba(0,18,7,.34) 100%)}
-  body:is(.ti-terminal,.ti-green-monitor):not(.ti-handheld-crt) #ti-terminal-screen{display:block;animation:terminal-breathe 9s ease-in-out infinite}
-  body.ti-handheld-crt.ti-prologue-released #ti-terminal-screen{display:block;opacity:.72;
+  body:is(.ti-terminal,.ti-green-monitor):not(.ti-handheld-crt):not(.ti-raw-monitor) #ti-terminal-screen{display:block;animation:terminal-breathe 9s ease-in-out infinite}
+  body.ti-handheld-crt.ti-prologue-released:not(.ti-raw-monitor) #ti-terminal-screen{display:block;opacity:.72;
     background:
       repeating-linear-gradient(0deg,rgba(123,255,158,.095) 0 1px,transparent 1px 4px),
       radial-gradient(ellipse at center,transparent 42%,rgba(0,24,8,.48) 100%);
@@ -162,11 +162,11 @@
   #ti-terminal-cue b{display:block;font:700 9px/1.5 'Space Mono',ui-monospace,monospace;letter-spacing:.22em;color:#85f2a8}
   #ti-terminal-cue.on{opacity:1;transform:none}
   #ti-terminal-state{display:none;margin-top:9px;color:#69b47f}
-  body:is(.ti-terminal,.ti-green-monitor):not(.ti-handheld-crt) #ti-terminal-state,
-  body.ti-handheld-crt.ti-prologue-released #ti-terminal-state{display:block}
-  body:is(.ti-terminal,.ti-green-monitor) #fh-hud .eyebrow,
-  body:is(.ti-terminal,.ti-green-monitor) #fh-hud .v.warn{color:#85f2a8}
-  body:is(.ti-terminal,.ti-green-monitor) #fh-pulse.on{background-color:#85f2a8}
+  body:is(.ti-terminal,.ti-green-monitor):not(.ti-handheld-crt):not(.ti-raw-monitor) #ti-terminal-state,
+  body.ti-handheld-crt.ti-prologue-released:not(.ti-raw-monitor) #ti-terminal-state{display:block}
+  body:is(.ti-terminal,.ti-green-monitor):not(.ti-raw-monitor) #fh-hud .eyebrow,
+  body:is(.ti-terminal,.ti-green-monitor):not(.ti-raw-monitor) #fh-hud .v.warn{color:#85f2a8}
+  body:is(.ti-terminal,.ti-green-monitor):not(.ti-raw-monitor) #fh-pulse.on{background-color:#85f2a8}
   /* Survey evidence is already voiced by the timed central caption. Keeping
      a second live transcript in the corner turned the gallery HUD back into
      an engineering dashboard, so it remains semantic-only. */

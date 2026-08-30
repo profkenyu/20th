@@ -346,7 +346,14 @@ if (MOBILE) {
   await page.waitForFunction(() => window.TI_AUDIO?.().state === 'running');
   const on = await page.evaluate(() => window.TI_AUDIO?.() ?? null);
   soundCycle = { off, on };
-  greenMode = { locked: await readGreenMode() };
+  const green = await readGreenMode();
+  await page.click('#ti-green');
+  await page.waitForTimeout(950);
+  const raw = await readGreenMode();
+  await page.click('#ti-green');
+  await page.waitForTimeout(950);
+  const restored = await readGreenMode();
+  greenMode = { green, raw, restored };
 
   const failed = !mobileIntro?.visible || !mobileIntro?.insideViewport
     || !blueprintLayout?.visible || blueprintLayout.current !== 'lander'
@@ -381,11 +388,16 @@ if (MOBILE) {
     || mobileControl.audio?.state !== 'running' || mobileControl.audio?.ui !== 'on'
     || !soundCycle.off?.muted || soundCycle.off?.ui !== 'off'
     || soundCycle.on?.muted || soundCycle.on?.state !== 'running' || soundCycle.on?.ui !== 'on'
-    || greenMode.locked?.label !== 'GREEN' || !greenMode.locked?.visible
-    || !greenMode.locked?.pressed || !greenMode.locked?.disabled
-    || greenMode.locked?.state !== 'on' || !greenMode.locked?.terminal
-    || !greenMode.locked?.screenVisible || !greenMode.locked?.render?.archive
-    || !greenMode.locked?.canvasFilter?.includes('grayscale(1)')
+    || greenMode.green?.label !== 'RAW' || !greenMode.green?.visible
+    || !greenMode.green?.pressed || greenMode.green?.disabled
+    || greenMode.green?.state !== 'on' || !greenMode.green?.terminal
+    || !greenMode.green?.screenVisible || !greenMode.green?.render?.archive
+    || !greenMode.green?.canvasFilter?.includes('grayscale(1)')
+    || greenMode.raw?.label !== 'GREEN' || greenMode.raw?.pressed || greenMode.raw?.disabled
+    || greenMode.raw?.state !== 'off' || greenMode.raw?.screenVisible
+    || greenMode.raw?.canvasFilter !== 'none' || !greenMode.raw?.render?.archive
+    || greenMode.restored?.label !== 'RAW' || !greenMode.restored?.pressed
+    || !greenMode.restored?.screenVisible || !greenMode.restored?.canvasFilter?.includes('grayscale(1)')
     || !mobileControl.dispatched || mobileControl.dragExperience !== 'explorer' || errors.length > 0;
   console.log(`\n  mobile intro CTA       ${JSON.stringify(mobileIntro)}`);
   console.log(`  blueprint safe frame   ${JSON.stringify(blueprintLayout)}`);
@@ -643,11 +655,11 @@ if (!report.audio?.graphReady || !report.audio?.unlocked
 if (!MOBILE && (!greenMode?.before?.visible || greenMode.before.label !== 'GREEN'
     || greenMode.before.pressed || greenMode.before.disabled || greenMode.before.state !== 'off'
     || Math.abs(greenMode.before.soundHeight - greenMode.before.rect.height) > 1
-    || !greenMode?.on?.visible || !greenMode.on.pressed || greenMode.on.disabled
+    || !greenMode?.on?.visible || greenMode.on.label !== 'RAW' || !greenMode.on.pressed || greenMode.on.disabled
     || greenMode.on.state !== 'on' || !greenMode.on.classActive || !greenMode.on.screenVisible
     || !greenMode.on.canvasFilter?.includes('grayscale(1)')
     || greenMode.on.render?.archive || !greenMode.on.render?.green || !greenMode.on.render?.greenManual
-    || greenMode.off.pressed || greenMode.off.disabled || greenMode.off.state !== 'off'
+    || greenMode.off.label !== 'GREEN' || greenMode.off.pressed || greenMode.off.disabled || greenMode.off.state !== 'off'
     || greenMode.off.classActive || greenMode.off.screenVisible
     || greenMode.off.canvasFilter !== greenMode.before.canvasFilter
     || greenMode.off.render?.archive || greenMode.off.render?.green || greenMode.off.render?.greenManual)) {
