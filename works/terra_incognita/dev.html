@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover">
+<title>Terra Incognita</title>
+<!-- DEV ENTRY. Requires a server (file:// blocks module fetches).
+     `npm run build` turns this into the root index.html, which does not. -->
+<meta name="description" content="Terra Incognita · 20th solo exhibition · Kim Gunwoo">
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../../engine/fonts.css">
+<script>
+  /* External-app browsers often resolve their toolbar height after the first
+     paint. Keep the fixed exhibition frame tied to the actually visible
+     viewport instead of the initial layout viewport cached by `100vh`. */
+  (() => {
+    let frame = 0;
+    let settleTimer = 0;
+    let tailTimer = 0;
+    const sync = () => {
+      frame = 0;
+      const viewport = window.visualViewport;
+      const width = Math.max(1, Math.round(viewport?.width || window.innerWidth));
+      const height = Math.max(1, Math.round(viewport?.height || window.innerHeight));
+      const root = document.documentElement;
+      root.style.setProperty('--viewport-width', `${width}px`);
+      root.style.setProperty('--viewport-height', `${height}px`);
+      root.style.setProperty('--viewport-top', `${Math.max(0, Math.round(viewport?.offsetTop || 0))}px`);
+      root.style.setProperty('--viewport-left', `${Math.max(0, Math.round(viewport?.offsetLeft || 0))}px`);
+      if (!root.classList.contains('ti-viewport-ready')) {
+        root.classList.add('ti-viewport-ready');
+        dispatchEvent(new CustomEvent('ti-viewportready', { detail: { width, height } }));
+      }
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(sync);
+      clearTimeout(settleTimer);
+      clearTimeout(tailTimer);
+      settleTimer = setTimeout(() => { if (!frame) frame = requestAnimationFrame(sync); }, 140);
+      tailTimer = setTimeout(() => { if (!frame) frame = requestAnimationFrame(sync); }, 520);
+    };
+    sync();
+    addEventListener('resize', schedule, { passive: true });
+    addEventListener('orientationchange', schedule, { passive: true });
+    addEventListener('pageshow', schedule, { passive: true });
+    visualViewport?.addEventListener('resize', schedule, { passive: true });
+    visualViewport?.addEventListener('scroll', schedule, { passive: true });
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') schedule();
+    });
+  })();
+</script>
+<style>
+  :root{
+    --viewport-width:100vw;
+    --viewport-height:100vh;
+    --viewport-height:100dvh;
+    --viewport-top:0px;
+    --viewport-left:0px;
+    --safe-top:env(safe-area-inset-top,0px);
+    --safe-bottom:env(safe-area-inset-bottom,0px);
+    --safe-left:env(safe-area-inset-left,0px);
+    --safe-right:env(safe-area-inset-right,0px);
+    --bar:9vh;
+    --bar:clamp(34px,9svh,80px);
+    --frame-top:calc(var(--bar) + var(--safe-top));
+    --frame-bottom:calc(var(--bar) + var(--safe-bottom));
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:100%;height:var(--viewport-height);background:#050506;overflow:hidden;overscroll-behavior:none}
+  body{cursor:crosshair;-webkit-font-smoothing:antialiased;touch-action:none}
+  #gl{position:fixed;inset:0;display:block;transition:filter .9s ease}
+  .bar{position:fixed;left:0;right:0;background:#000;z-index:20;pointer-events:none}
+  .bar.t{height:var(--frame-top)}
+  .bar.b{height:var(--frame-bottom)}
+  .bar.t{top:0;border-bottom:1px solid rgba(192,21,42,.16)}
+  .bar.b{bottom:0;border-top:1px solid rgba(192,21,42,.16)}
+
+  /* shared across the practice: the universe label sits bottom-right */
+  #universe-id{
+    position:fixed;z-index:30;right:24px;bottom:calc(var(--frame-bottom) + 24px);
+    font-family:'Space Mono',ui-monospace,monospace;font-size:9px;
+    letter-spacing:.26em;color:#3a3e45;pointer-events:none;
+  }
+  #ti-sound{position:fixed;z-index:34;right:24px;bottom:calc(var(--frame-bottom) + 48px);
+    height:26px;min-height:26px;padding:0 8px;border:1px solid rgba(217,221,226,.16);background:rgba(5,5,6,.64);
+    color:#737982;font:700 6px/1 'DM Mono',ui-monospace,monospace;letter-spacing:.16em;
+    appearance:none;-webkit-appearance:none;touch-action:manipulation;text-transform:uppercase}
+  body:not(.ti-prologue-released):not(.embed) #ti-sound{pointer-events:none}
+  #ti-sound::before{content:"";display:inline-block;width:6px;height:6px;margin-right:7px;border-radius:50%;
+    background:#33373d;box-shadow:none;transition:background .25s ease,box-shadow .25s ease}
+  #ti-sound[data-audio-state="on"]{color:#eceef0;border-color:rgba(192,21,42,.52)}
+  #ti-sound[data-audio-state="on"]::before{background:#c0152a;box-shadow:0 0 10px rgba(192,21,42,.72)}
+  #ti-sound[data-audio-state="start"]{color:#d9dde2;border-color:rgba(217,221,226,.34)}
+  #ti-sound[data-audio-state="start"]::before{background:#d9dde2;animation:ti-audio-pulse 1.5s ease-in-out infinite}
+  #ti-sound[data-audio-state="resume"]{color:#e2a858;border-color:rgba(226,168,88,.48)}
+  #ti-sound[data-audio-state="resume"]::before{background:#e2a858;animation:ti-audio-pulse .8s ease-in-out infinite}
+  #ti-sound[data-audio-state="off"]{color:#666b72}
+  @keyframes ti-audio-pulse{50%{opacity:.3;box-shadow:0 0 10px currentColor}}
+  #ti-sound:focus-visible{outline:1px solid #d9dde2;outline-offset:3px}
+  #ti-green{position:fixed;z-index:34;right:24px;bottom:calc(var(--frame-bottom) + 88px);
+    min-width:52px;min-height:26px;padding:0 8px;border:1px solid rgba(133,242,168,.22);
+    background:rgba(3,10,6,.58);color:rgba(133,242,168,.58);
+    font:700 6px/1 'Space Mono',ui-monospace,monospace;letter-spacing:.18em;
+    appearance:none;-webkit-appearance:none;touch-action:manipulation;text-transform:uppercase;
+    transition:opacity .5s ease,color .25s ease,border-color .25s ease,background .25s ease,text-shadow .25s ease}
+  body:not(.ti-prologue-released):not(.embed) #ti-green{opacity:0;pointer-events:none}
+  #ti-green[data-green-state="on"]{color:#aaffbe;border-color:rgba(133,242,168,.62);
+    background:rgba(5,24,12,.82);text-shadow:0 0 7px rgba(133,242,168,.58)}
+  #ti-green:disabled{cursor:default;opacity:.66}
+  #ti-green:focus-visible{outline:1px solid #85f2a8;outline-offset:3px}
+  #ti-monitor{position:fixed;z-index:31;top:calc(var(--frame-top) + 18px);right:20px;
+    width:190px;height:217px;padding:6px 6px 8px;pointer-events:none;overflow:hidden;
+    border:1px dotted rgba(91,238,128,.58);background:
+      radial-gradient(circle at 6px 6px,rgba(130,255,160,.36) 0 1px,transparent 1.5px),
+      radial-gradient(circle at calc(100% - 6px) 6px,rgba(130,255,160,.30) 0 1px,transparent 1.5px),
+      linear-gradient(145deg,#0d1d13,#030b06 68%);
+    box-shadow:0 0 0 1px rgba(0,0,0,.9),0 12px 34px rgba(0,0,0,.42),
+      0 0 16px rgba(82,226,115,.06),inset 0 0 0 1px rgba(133,255,164,.12),
+      inset 0 -10px 22px rgba(0,0,0,.44);
+    transition:opacity 1.2s ease,filter 1.2s ease,box-shadow 1.2s ease}
+  #ti-minimap{display:block;width:100%;height:100%;background:#020b06}
+  #ti-monitor::before{content:"";position:absolute;z-index:2;inset:6px 6px 8px;pointer-events:none;
+    background:radial-gradient(ellipse at center,transparent 62%,rgba(0,8,3,.24) 100%);
+    box-shadow:inset 0 0 15px rgba(0,0,0,.40),inset 0 0 4px rgba(157,255,178,.28)}
+  #ti-monitor::after{content:"";position:absolute;z-index:3;inset:7px 7px 9px;pointer-events:none;
+    background:linear-gradient(112deg,transparent 0 18%,rgba(185,255,201,.022) 31%,transparent 46%);
+    opacity:.55;animation:monitor-breathe 8.4s ease-in-out infinite}
+  body.ti-observer #ti-monitor{opacity:.97;filter:saturate(1.04) brightness(1.04) contrast(1.04)}
+  body.ti-explorer #ti-monitor{opacity:1;filter:saturate(1.10) brightness(1.08) contrast(1.04);
+    box-shadow:0 0 0 1px rgba(0,0,0,.9),0 12px 34px rgba(0,0,0,.42),
+      0 0 18px rgba(82,226,115,.055),inset 0 0 0 1px rgba(133,255,164,.07)}
+  @keyframes monitor-breathe{50%{opacity:.82}}
+  #ti-sensor{position:fixed;inset:0;z-index:19;pointer-events:none;opacity:.034;mix-blend-mode:screen;background:radial-gradient(ellipse at center,transparent 54%,rgba(2,5,4,.3) 100%);animation:sensor-breathe 8s ease-in-out infinite}
+  body.sensor-stutter #ti-sensor{opacity:.07}@keyframes sensor-breathe{50%{opacity:.048}}
+  body.ti-desert #ti-sensor{opacity:.032;background:radial-gradient(ellipse at center,transparent 42%,rgba(73,32,13,.28) 100%),linear-gradient(90deg,transparent 0 36%,rgba(205,132,67,.018) 56%,transparent 78%)}
+  /* Low compute becomes a distinct archival state. The low backing resolution,
+     not this colour treatment, is what saves fill-rate. One static compositor
+     layer is kept deliberately faint to avoid CRT moire on photographed screens. */
+  /* Desktop archival fallback is terminal-coloured throughout. Hand-held
+     surfaces retain the authored opening, then enter this low-resolution
+     phosphor image only when the exploration surface is released. */
+  body:is(.ti-terminal,.ti-green-monitor):not(.ti-handheld-crt) #gl,
+  body.ti-handheld-crt.ti-prologue-released #gl{
+    filter:grayscale(1) sepia(1) hue-rotate(68deg) saturate(5.8) contrast(1.22) brightness(.80)!important;
+    image-rendering:pixelated}
+  body:is(.ti-terminal,.ti-green-monitor) #ti-monitor{filter:saturate(1.12) contrast(1.06) brightness(1.08)}
+  #ti-terminal-screen{position:fixed;inset:0;z-index:18;display:none;pointer-events:none;
+    background:radial-gradient(ellipse at center,transparent 48%,rgba(0,18,7,.34) 100%)}
+  body:is(.ti-terminal,.ti-green-monitor):not(.ti-handheld-crt) #ti-terminal-screen{display:block;animation:terminal-breathe 9s ease-in-out infinite}
+  body.ti-handheld-crt.ti-prologue-released #ti-terminal-screen{display:block;opacity:.72;
+    background:
+      repeating-linear-gradient(0deg,rgba(123,255,158,.095) 0 1px,transparent 1px 4px),
+      radial-gradient(ellipse at center,transparent 42%,rgba(0,24,8,.48) 100%);
+    animation:terminal-breathe 7.2s ease-in-out infinite}
+  @keyframes terminal-breathe{50%{opacity:.76}}
+  #ti-terminal-cue{position:fixed;z-index:42;right:max(20px,env(safe-area-inset-right));top:calc(var(--frame-top) + 247px);
+    width:min(270px,68vw);padding:10px 0 9px;border-top:1px solid rgba(118,255,158,.24);
+    font-family:'DM Mono','Noto Sans KR',ui-monospace,monospace;text-align:right;text-transform:uppercase;
+    color:rgba(164,255,190,.72);font-size:8px;line-height:1.8;letter-spacing:.16em;
+    opacity:0;transform:translateY(-5px);pointer-events:none;transition:opacity .7s ease,transform .7s ease}
+  #ti-terminal-cue b{display:block;font:700 9px/1.5 'Space Mono',ui-monospace,monospace;letter-spacing:.22em;color:#85f2a8}
+  #ti-terminal-cue.on{opacity:1;transform:none}
+  #ti-terminal-state{display:none;margin-top:9px;color:#69b47f}
+  body:is(.ti-terminal,.ti-green-monitor):not(.ti-handheld-crt) #ti-terminal-state,
+  body.ti-handheld-crt.ti-prologue-released #ti-terminal-state{display:block}
+  body:is(.ti-terminal,.ti-green-monitor) #fh-hud .eyebrow,
+  body:is(.ti-terminal,.ti-green-monitor) #fh-hud .v.warn{color:#85f2a8}
+  body:is(.ti-terminal,.ti-green-monitor) #fh-pulse.on{background-color:#85f2a8}
+  /* Survey evidence is already voiced by the timed central caption. Keeping
+     a second live transcript in the corner turned the gallery HUD back into
+     an engineering dashboard, so it remains semantic-only. */
+  #survey-log{display:none;position:fixed;z-index:31;left:24px;top:calc(var(--frame-top) + 22px);width:min(360px,52vw);pointer-events:none;font-family:'DM Mono',ui-monospace,monospace;font-size:9px;line-height:1.7;letter-spacing:.1em;color:rgba(177,230,197,.38);text-transform:uppercase}
+  #survey-log div{margin:0 0 4px;animation:survey-record 13s linear forwards}@keyframes survey-record{0%{opacity:0;transform:translateY(4px)}8%,68%{opacity:1;transform:none}100%{opacity:0}}
+  /* During travel this is a semantic-only progress report. At the exact 5+3
+     physical-completion gate the same element unfolds into a material
+     register: no duplicate counter and no presentation-only evidence. */
+  #ti-restoration{position:fixed;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);
+    white-space:nowrap;pointer-events:none;opacity:0;transform:translate(-50%,-10px)}
+  #ti-restoration .registration-readout{display:none}
+  body.ti-completion-tableau #ti-restoration{--registration-progress:0;z-index:32;
+    left:50%;top:calc(var(--frame-top) + clamp(10px,2svh,20px));
+    width:min(1060px,calc(100vw - max(36px,env(safe-area-inset-left)) - max(36px,env(safe-area-inset-right))));
+    height:auto;min-height:166px;padding:clamp(13px,1.7vw,22px);overflow:visible;clip-path:none;
+    white-space:normal;color:#d9dde2;border:1px solid rgba(217,221,226,.23);
+    background:linear-gradient(124deg,#151719 0%,#08090a 44%,#121416 100%);
+    box-shadow:0 0 0 7px rgba(5,5,6,.92),0 0 0 8px rgba(217,221,226,.08),
+      0 20px 54px rgba(0,0,0,.56),inset 0 0 0 1px rgba(217,221,226,.045);
+    opacity:1;transform:translate(-50%,0) rotate(-.08deg);visibility:visible;
+    transition:opacity .82s ease,transform .9s cubic-bezier(.2,.75,.18,1),visibility 0s}
+  body.ti-completion-tableau #ti-restoration::before{content:"";position:absolute;inset:7px;
+    border:1px solid rgba(217,221,226,.045);pointer-events:none;background:
+      linear-gradient(110deg,transparent 0 41%,rgba(255,255,255,.014) 50%,transparent 59%)}
+  body.ti-completion-tableau #ti-restoration.registration-out{opacity:0;
+    transform:translate(-50%,-14px) rotate(-.08deg);visibility:hidden;
+    transition:opacity .82s ease,transform .9s ease,visibility 0s linear .82s}
+  body.ti-completion-tableau #ti-restoration .head{position:relative;z-index:1;display:flex;
+    justify-content:space-between;gap:18px;margin-bottom:12px;padding-bottom:9px;
+    border-bottom:1px solid rgba(217,221,226,.13);font:700 8px/1.4 'Space Mono',monospace;
+    letter-spacing:.19em;text-transform:uppercase;color:rgba(217,221,226,.70)}
+  body.ti-completion-tableau #ti-restoration .head span:last-child{color:#c0152a;text-align:right}
+  body.ti-completion-tableau #ti-restoration .registration-field{position:relative;z-index:1;
+    display:grid;grid-template-columns:minmax(0,3.4fr) minmax(176px,1fr);gap:16px;align-items:stretch}
+  body.ti-completion-tableau #ti-restoration .registration-bank{display:grid;
+    grid-template-columns:minmax(0,5fr) minmax(168px,3fr);gap:7px;min-width:0}
+  body.ti-completion-tableau #ti-restoration-cells{display:grid;
+    grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;transition:gap .42s ease}
+  body.ti-completion-tableau #ti-restoration-cells i{--registration-weight:0;position:relative;
+    display:flex;min-width:0;min-height:91px;padding:9px 7px 11px;overflow:hidden;
+    flex-direction:column;border:1px solid rgba(217,221,226,.12);background:#090a0b;
+    color:#666c74;font-style:normal;text-transform:uppercase;
+    transition:border-color .2s ease,color .3s ease,background .3s ease}
+  body.ti-completion-tableau #ti-restoration-cells i::after{content:"";position:absolute;inset:0;
+    z-index:0;background:var(--material-colour,#c0152a);opacity:var(--registration-opacity,0);
+    pointer-events:none}
+  body.ti-completion-tableau #ti-restoration-cells i::before{content:"";position:absolute;z-index:2;
+    left:0;right:0;bottom:0;height:3px;background:var(--material-colour,#c0152a);
+    transform:scaleX(0);transform-origin:left;transition:transform .34s ease,background .42s ease}
+  body.ti-completion-tableau #ti-restoration-cells i.registered::before{transform:scaleX(1)}
+  body.ti-completion-tableau #ti-restoration-cells i.registration-active{border-color:rgba(217,221,226,.46);color:#d9dde2}
+  body.ti-completion-tableau #ti-restoration-cells i>*{position:relative;z-index:1;min-width:0}
+  body.ti-completion-tableau #ti-restoration-cells b{font:700 8px/1 'Space Mono',monospace;
+    letter-spacing:.12em;color:#c0152a}
+  body.ti-completion-tableau #ti-restoration-cells span{margin-top:auto;font:700 7px/1.35 'DM Mono',monospace;
+    letter-spacing:.07em;overflow-wrap:anywhere;color:#a4aab1}
+  body.ti-completion-tableau #ti-restoration-cells small{display:block;margin-top:5px;
+    font:500 6px/1.3 'DM Mono',monospace;letter-spacing:.06em;color:#50555c;overflow-wrap:anywhere}
+  body.ti-completion-tableau #ti-reserve-gauges{display:grid;grid-template-rows:repeat(3,1fr);
+    gap:4px;min-width:0}
+  body.ti-completion-tableau #ti-reserve-gauges .reserve-gauge{--reserve-level:0;position:relative;
+    display:grid;grid-template-columns:auto minmax(0,1fr) auto;grid-template-rows:auto 4px;
+    align-items:center;gap:3px 7px;min-width:0;padding:5px 7px;border:1px solid rgba(217,221,226,.12);
+    background:#090a0b;color:#666c74;text-transform:uppercase;transition:border-color .3s ease,color .3s ease}
+  body.ti-completion-tableau #ti-reserve-gauges .reserve-gauge.active{border-color:rgba(217,221,226,.46);color:#d9dde2}
+  body.ti-completion-tableau #ti-reserve-gauges .reserve-gauge.on{border-color:rgba(139,255,169,.22)}
+  body.ti-completion-tableau #ti-reserve-gauges b{font:700 8px/1 'Space Mono',monospace;
+    letter-spacing:.08em;color:var(--material-colour,#85f2a8)}
+  body.ti-completion-tableau #ti-reserve-gauges span{min-width:0;overflow:hidden;text-overflow:ellipsis;
+    white-space:nowrap;font:500 6px/1 'DM Mono',monospace;letter-spacing:.045em;color:#6f757d}
+  body.ti-completion-tableau #ti-reserve-gauges small{font:700 7px/1 'Space Mono',monospace;
+    color:#a4aab1;font-variant-numeric:tabular-nums}
+  body.ti-completion-tableau #ti-reserve-gauges .reserve-track{position:relative;display:block;
+    grid-column:1/-1;width:100%;height:4px;overflow:hidden;background:rgba(217,221,226,.07);font-style:normal}
+  body.ti-completion-tableau #ti-reserve-gauges .reserve-track em{position:absolute;inset:0;
+    background:var(--material-colour,#85f2a8);transform:scaleX(var(--reserve-level));transform-origin:left;
+    transition:transform .18s linear;opacity:.82}
+  body.ti-completion-tableau #ti-restoration .registration-readout{display:flex;min-width:0;
+    padding:10px 4px 8px 17px;border-left:1px solid rgba(217,221,226,.12);
+    flex-direction:column;justify-content:space-between;text-transform:uppercase}
+  #ti-registration-phase{font:700 7px/1.4 'DM Mono',monospace;letter-spacing:.16em;color:#777d85}
+  #ti-registration-sample{margin:12px 0 8px;font:700 clamp(14px,1.55vw,22px)/1.08 'Space Mono',monospace;
+    letter-spacing:-.035em;color:#d9dde2;overflow-wrap:anywhere}
+  #ti-registration-fixed-code{display:none;align-self:flex-start;margin:9px 0 7px;
+    --dot-size:clamp(2px,.26vw,4px);--dot-gap:clamp(1px,.11vw,2px);
+    --dot-character-gap:clamp(3px,.34vw,6px);--dot-colour:#85f2a8;
+    --dot-off:.055;--dot-on:.92;--dot-glow:4px}
+  #ti-registration-module{font:500 7px/1.5 'DM Mono','Noto Sans KR',monospace;
+    letter-spacing:.08em;color:#6f757d;overflow-wrap:anywhere}
+  body.ti-completion-tableau #ti-restoration.registration-fixed #ti-restoration-cells{gap:0}
+  body.ti-completion-tableau #ti-restoration.registration-fixed #ti-restoration-cells i::before{background:#c0152a}
+  body.ti-completion-tableau #ti-restoration.registration-fixed #ti-registration-sample{display:none}
+  body.ti-completion-tableau #ti-restoration.registration-fixed #ti-registration-fixed-code{display:inline-flex}
+  #ti-restoration-label{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);
+    white-space:nowrap}
+
+  /* Two composed still points interrupt the instrument view: the restored
+     vehicle on PLANET 01, and the final coordinate on PLANET 02. The letterbox
+     remains, but operational overlays withdraw so these read as images rather
+     than game states. */
+  #ti-monitor,#survey-log,#universe-id,#ti-sound,#ti-green,#ti-mobile-drive{transition:opacity 1.2s ease}
+  body.ti-completion-tableau #ti-monitor,
+  body.ti-completion-tableau #survey-log,
+  body.ti-completion-tableau #fh-hud,
+  body.ti-completion-tableau #ti-mobile-drive,
+  body.ti-completion-tableau #ti-sound,
+  body.ti-completion-tableau #ti-green,
+  body.ti-completion-tableau #universe-id,
+  body.ti-memory-tableau #ti-monitor,
+  body.ti-memory-tableau #survey-log,
+  body.ti-memory-tableau #fh-hud,
+  body.ti-memory-tableau #ti-mobile-drive,
+  body.ti-memory-tableau #ti-green,
+  body.ti-memory-tableau #universe-id,
+  body.ti-epilogue #ti-monitor,
+  body.ti-epilogue #survey-log,
+  body.ti-epilogue #fh-hud,
+  body.ti-epilogue #ti-mobile-drive,
+  body.ti-epilogue #ti-green,
+  body.ti-epilogue #universe-id{opacity:0!important;pointer-events:none!important}
+  body.ti-voyage #ti-green{opacity:0!important;pointer-events:none!important}
+  body.ti-epilogue-quiet #fh-cap-line{opacity:0!important}
+
+  /* arrival / departure, matching the other works */
+  #arrive,#depart{position:fixed;inset:0;z-index:46;background:#050506;pointer-events:none}
+  #arrive{opacity:1;transition:opacity .16s linear}
+  #depart{opacity:0;transition:opacity .6s ease}
+  /* Manual START acquires the field slowly: the receiver stutters across the
+     image before the survey resolves. This is absent from the idle auto-entry. */
+  #ti-entry-veil{position:fixed;z-index:47;inset:0;pointer-events:none;background:#020302;
+    opacity:0;visibility:hidden}
+  #ti-entry-veil::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:0;background:
+    repeating-linear-gradient(0deg,rgba(151,255,176,.16) 0 1px,transparent 1px 4px);
+    mix-blend-mode:screen}
+  body.ti-entry-blackout #ti-entry-veil{opacity:1;visibility:visible}
+  body.ti-entry-revealing #ti-entry-veil{opacity:0;visibility:hidden;
+    transition:opacity 3s cubic-bezier(.22,.61,.36,1),visibility 0s linear 3s}
+  body.ti-entry-revealing #ti-entry-veil::before{opacity:.62;animation:ti-entry-static .14s steps(2,end) 17}
+  body.ti-entry-revealing #gl{will-change:transform,filter;animation:ti-entry-receiver-lock 3s steps(1,end) both}
+  @keyframes ti-entry-static{0%{transform:translateY(-1px)}45%{transform:translateY(2px)}100%{transform:translateY(0)}}
+  @keyframes ti-entry-receiver-lock{
+    0%{transform:translate3d(-5px,1px,0) scaleX(1.012);filter:brightness(.30) contrast(1.48) saturate(.42)}
+    11%{transform:translate3d(4px,-1px,0) scaleX(.994);filter:brightness(.43) contrast(1.36) saturate(.58)}
+    23%{transform:translate3d(-3px,0,0) scaleX(1.008);filter:brightness(.56) contrast(1.28) saturate(.72)}
+    42%{transform:translate3d(2px,0,0) scaleX(.998);filter:brightness(.72) contrast(1.17) saturate(.86)}
+    64%{transform:translate3d(-1px,0,0);filter:brightness(.86) contrast(1.08) saturate(.94)}
+    82%{transform:translate3d(0,0,0);filter:brightness(.96) contrast(1.02) saturate(.99)}
+    100%{transform:none;filter:none}}
+  /* Anime.js is reserved for authored instrument thresholds, never the
+     renderer or vehicle. The individual translate property preserves the
+     monitor's mobile scale transform. */
+  body.ti-entry-receiver-sync #ti-monitor,body.ti-entry-receiver-sync #survey-log,
+  body.ti-entry-receiver-sync #fh-hud,body.ti-entry-receiver-sync #fh-mission,
+  body.ti-entry-receiver-sync #universe-id,body.ti-entry-receiver-sync #ti-sound,
+  body.ti-entry-receiver-sync #ti-green,
+  body.ti-entry-receiver-sync #fh-cap-line{opacity:var(--ti-receiver-opacity,1);translate:var(--ti-receiver-shift,0) 0}
+  body.embed #arrive,body.embed #depart,body.embed #ti-entry-veil,body.embed #universe-id{display:none}
+
+  /* Written context arrives after the two production drawings have established
+     the machines. Korean remains the primary reading language of the room. */
+  /* The prologue is bilingual, and the two languages are NOT equals on the
+     page. Korean is the reading language of the room, set in a clear gothic at
+     full size; English is its secondary field notation, set
+     smaller and dimmer beneath. Printing both at the same weight would make
+     the visitor choose, and a visitor who is choosing is not reading. */
+  #ti-prologue{position:fixed;inset:0;z-index:44;display:grid;place-items:center;
+    padding:calc(var(--frame-top) + clamp(14px,3svh,36px))
+      max(9vw,calc(var(--safe-right) + 18px))
+      calc(var(--frame-bottom) + clamp(76px,9svh,92px))
+      max(9vw,calc(var(--safe-left) + 18px));background:rgba(5,5,6,.08);
+    pointer-events:none;
+    transition:background 1.1s ease,opacity 2.6s cubic-bezier(.4,0,.2,1),visibility 0s linear 2.6s}
+  #ti-prologue .inner{width:min(640px,calc(var(--viewport-width) - var(--safe-left) - var(--safe-right) - 36px));text-align:center;
+    max-height:100%;overflow:auto;scrollbar-width:none;opacity:0;visibility:hidden;
+    transform:translateY(5px);transition:opacity 1.4s ease,transform 1.6s ease,visibility 0s linear 1.4s}
+  #ti-prologue .inner::-webkit-scrollbar{display:none}
+  #ti-prologue h1{font-family:'Space Mono',ui-monospace,monospace;font-size:clamp(13px,1.5vw,20px);
+    font-weight:700;letter-spacing:.28em;color:#c0152a;text-transform:uppercase}
+  #ti-prologue .title-coordinate{position:absolute;left:50%;top:calc(50% - clamp(106px,13vh,136px));
+    width:min(174px,28vw);height:1px;pointer-events:none;background:#c0152a;opacity:0;
+    transform:translateX(-50%) scaleX(.16);transform-origin:center;box-shadow:0 0 12px rgba(192,21,42,.18)}
+  #ti-prologue.ti-title-rebinding .title-coordinate{opacity:var(--ti-title-coordinate,0);
+    transform:translateX(-50%) scaleX(calc(.16 + var(--ti-title-coordinate,0) * .84))}
+  #ti-prologue.ti-title-rebinding h1{opacity:var(--ti-title-heading,0);
+    transform:translateY(calc((1 - var(--ti-title-heading,0)) * 7px))}
+  #ti-prologue .rule{width:44px;height:1px;background:#c0152a;
+    margin:clamp(14px,2.6vh,24px) auto;opacity:.8}
+  #ti-prologue.ti-title-rebinding .rule{opacity:calc(var(--ti-title-rule,0) * .8);
+    transform:scaleX(calc(.22 + var(--ti-title-rule,0) * .78));transform-origin:center}
+  #ti-prologue .ko{font-family:'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',Arial,sans-serif;
+    font-size:clamp(14px,1.45vw,19px);font-weight:400;line-height:2.0;
+    letter-spacing:.01em;color:#d9dde2;word-break:keep-all}
+  #ti-prologue .en{margin-top:clamp(14px,2.4vh,22px);
+    font-family:'Cormorant Garamond','Times New Roman',serif;
+    font-size:clamp(13px,1.25vw,17px);font-weight:300;line-height:1.7;
+    letter-spacing:.015em;color:#767c85}
+  #ti-prologue .mission{display:block;margin-top:clamp(14px,2.6vh,26px);
+    font-family:'DM Mono',ui-monospace,monospace;
+    font-size:9px;letter-spacing:.25em;color:#50555d;text-transform:uppercase}
+  #ti-prologue .controls{position:absolute;left:50%;bottom:calc(var(--frame-bottom) + 28px);transform:translateX(-50%);width:max-content;max-width:88vw;text-align:center;font-family:'DM Mono',ui-monospace,monospace;font-size:9px;line-height:1.9;letter-spacing:.16em;color:#737982;text-transform:uppercase;opacity:0;visibility:hidden;transition:opacity 1.2s ease,visibility 0s linear 1.2s}
+  #ti-prologue kbd{display:inline-block;margin:0 3px;padding:1px 5px;border:1px solid rgba(217,221,226,.22);border-radius:2px;font:inherit;color:#d9dde2}
+  /* the way out, stated quietly and only once the visitor could act on it */
+  #ti-prologue .skip{display:block;margin-top:clamp(22px,3.2vh,34px);
+    font-family:'DM Mono',ui-monospace,monospace;font-size:9px;letter-spacing:.22em;
+    color:#33373d;text-transform:uppercase;opacity:0;transition:opacity 1.4s ease}
+  #ti-prologue.armed .skip{opacity:1}
+  body.ti-prologue-reading #ti-prologue{background:rgba(5,5,6,.88)}
+  body.ti-prologue-reading #ti-prologue .inner{opacity:1;visibility:visible;transform:none;transition-delay:.08s,0s,0s}
+  body.ti-prologue-reading #ti-prologue .controls{opacity:1;visibility:visible;transition-delay:.32s,0s}
+  body.ti-blueprints-out #ti-prologue{background:#050506}
+  #ti-prologue #ti-start,#ti-prologue #ti-mobile-start{--start-size:72px;--start-rgb:77,84,79;
+    position:relative;isolation:isolate;width:var(--start-size);height:var(--start-size);
+    min-width:0;min-height:0;padding:0;align-items:center;justify-content:center;border-radius:50%;
+    border:1px solid rgba(var(--start-rgb),.24);background:
+      radial-gradient(circle at 50% 38%,rgba(232,255,237,.07),transparent 31%),
+      radial-gradient(circle at center,#101311 0 51%,#020403 52% 63%,#151816 64% 68%,#030403 69%);
+    box-shadow:0 2px 0 #000,0 0 0 4px #020302,0 0 14px rgba(var(--start-rgb),.08),
+      inset 0 1px 1px rgba(255,255,255,.06),inset 0 -6px 12px rgba(0,0,0,.74);
+    font:700 8px/1 'DM Mono',ui-monospace,monospace;letter-spacing:.16em;color:#555d57;
+    appearance:none;-webkit-appearance:none;touch-action:manipulation;margin-left:auto;margin-right:auto;
+    transition:opacity 1.4s ease,transform .18s ease,border-color .35s ease,color .35s ease,box-shadow .35s ease}
+  #ti-prologue #ti-start::before,#ti-prologue #ti-mobile-start::before{content:"";position:absolute;z-index:0;inset:4px;
+    border:3px solid rgba(var(--start-rgb),.70);border-radius:50%;
+    box-shadow:0 0 8px rgba(var(--start-rgb),.30),inset 0 0 7px rgba(var(--start-rgb),.12)}
+  #ti-prologue #ti-start span,#ti-prologue #ti-mobile-start span{position:relative;z-index:1}
+  #ti-prologue #ti-start{display:inline-flex}
+  #ti-prologue #ti-mobile-start{display:none}
+  #ti-prologue #ti-start:disabled,#ti-prologue #ti-mobile-start:disabled{--start-rgb:70,76,72;color:#424844}
+  #ti-prologue.armed #ti-start,#ti-prologue.armed #ti-mobile-start{--start-rgb:76,218,115;
+    pointer-events:auto;color:#bcffcb;border-color:rgba(139,255,169,.18);
+    box-shadow:0 2px 0 #000,0 0 0 4px #020302,0 0 17px rgba(76,218,115,.22),
+      inset 0 1px 1px rgba(255,255,255,.08),inset 0 -6px 12px rgba(0,0,0,.74)}
+  #ti-prologue.armed #ti-start:not(:disabled):active,#ti-prologue.armed #ti-mobile-start:not(:disabled):active{
+    transform:translateY(2px) scale(.97);box-shadow:0 0 0 4px #020302,
+      0 0 9px rgba(76,218,115,.16),inset 0 4px 10px rgba(0,0,0,.82)}
+  #ti-prologue button:focus-visible{outline:1px solid #8bffa9;outline-offset:8px}
+  body.ti-prologue-out #ti-prologue{opacity:0;visibility:hidden}
+  body.ti-docking-silence #ti-restoration-cells i,
+  body.ti-docking-silence #ti-reserve-gauges .reserve-gauge{opacity:var(--ti-cell-silence,1);
+    transform:translateY(calc((1 - var(--ti-cell-silence,1)) * -5px));
+    transition:none!important}
+  body.embed #ti-prologue{display:none}
+
+  /* Autonomous mobile driving: orientation bends the route; standing the
+     device upright parks it and laying it forward resumes a modestly faster
+     course. The signal dot follows the rover's physical beacon uniform. */
+  #ti-mobile-drive{display:none;position:fixed;z-index:33;left:50%;
+    bottom:calc(var(--frame-bottom) + 12px);transform:translateX(-50%);
+    width:min(480px,calc(100vw - max(28px,env(safe-area-inset-left)) - max(28px,env(safe-area-inset-right))));
+    grid-template-columns:1.15fr .82fr 1fr;gap:5px;padding:5px;
+    border:1px solid rgba(217,221,226,.15);background:rgba(2,3,4,.80);
+    backdrop-filter:blur(8px);font-family:'DM Mono',ui-monospace,monospace}
+  #ti-mobile-drive button{min-height:48px;border:0;margin:0;padding:7px 10px;appearance:none;
+    -webkit-appearance:none;background:rgba(10,11,13,.76);color:#a4abb4;text-align:left;
+    font:700 8px/1.45 'DM Mono',ui-monospace,monospace;letter-spacing:.10em;text-transform:uppercase;
+    touch-action:none;border-radius:0}
+  #ti-mobile-drive button:disabled{opacity:.48}
+  #ti-mobile-tilt{position:relative;padding-left:25px!important}
+  #ti-mobile-steer{text-align:center!important;border-left:1px solid rgba(217,221,226,.12)!important;
+    color:#d9dde2!important;cursor:ew-resize}
+  #ti-mobile-signal{position:absolute;left:10px;top:50%;width:7px;height:7px;margin-top:-3.5px;
+    border-radius:50%;background:#ffb21c;box-shadow:0 0 8px rgba(255,178,28,.48);
+    opacity:.18;transform:scale(.88);transform-origin:center}
+  #ti-mobile-toggle{border-left:1px solid rgba(192,21,42,.45)!important;text-align:center!important}
+  #ti-mobile-toggle[aria-pressed="true"]{border-color:rgba(217,221,226,.72)!important;background:rgba(23,24,27,.88)}
+  #ti-mobile-state{display:block;color:#f0f1f2;font:700 9px/1.4 'Space Mono',ui-monospace,monospace;letter-spacing:.15em}
+  #ti-mobile-hint{display:block;margin-top:3px;color:#666d76;font-size:7px;font-weight:400;letter-spacing:.06em}
+
+  #fh-watchdog{
+    position:fixed;inset:0;z-index:60;display:none;background:#050506;
+    flex-direction:column;justify-content:center;padding:0 12vw;gap:14px;
+    font-family:'DM Mono','Noto Sans KR',ui-monospace,monospace;color:#8a9099;
+  }
+  #fh-watchdog.on{display:flex}
+  #fh-watchdog h1{font-family:'Space Mono',monospace;font-size:13px;letter-spacing:.24em;color:#c0152a}
+  #fh-watchdog p{font-size:11px;line-height:1.9;max-width:46ch}
+  #fh-watchdog .r{width:56px;height:1px;background:#c0152a}
+
+  .mobile-controls{display:none}
+  @media (max-width:760px){
+    #universe-id{right:max(14px,env(safe-area-inset-right));bottom:calc(var(--frame-bottom) + 14px)}
+    #ti-sound{right:max(14px,env(safe-area-inset-right));top:calc(var(--frame-top) + 14px);bottom:auto}
+    #ti-green{right:max(14px,env(safe-area-inset-right));top:calc(var(--frame-top) + 48px);bottom:auto}
+    #ti-monitor{right:max(14px,env(safe-area-inset-right));transform:scale(.62);transform-origin:top right}
+    #ti-terminal-cue{left:max(14px,env(safe-area-inset-left));right:auto;width:min(46vw,180px);text-align:left}
+  }
+  @media (pointer:coarse), (max-width:760px){
+    #ti-prologue .controls{bottom:calc(var(--frame-bottom) + 18px);font-size:8px}
+    body.ti-mobile .desktop-controls{display:none}body.ti-mobile .mobile-controls{display:inline}
+    body.ti-mobile #ti-prologue #ti-mobile-start{display:inline-flex}
+    body.ti-mobile #ti-prologue #ti-start{display:none}
+    body.ti-mobile.ti-prologue-released #ti-mobile-drive,body.ti-mobile.embed #ti-mobile-drive{display:grid}
+  }
+  @media (max-width:760px){
+    body.ti-completion-tableau #ti-restoration{top:calc(var(--frame-top) + 10px);
+      width:calc(100vw - max(22px,env(safe-area-inset-left)) - max(22px,env(safe-area-inset-right)));
+      min-height:0;padding:11px}
+    body.ti-completion-tableau #ti-restoration .head{margin-bottom:8px;padding-bottom:7px;
+      font-size:6px;letter-spacing:.13em}
+    body.ti-completion-tableau #ti-restoration .registration-field{
+      grid-template-columns:minmax(0,2.5fr) minmax(104px,.9fr);gap:9px}
+    body.ti-completion-tableau #ti-restoration .registration-bank{grid-template-columns:1fr;gap:4px}
+    body.ti-completion-tableau #ti-restoration-cells{grid-template-columns:repeat(5,minmax(0,1fr));gap:3px}
+    body.ti-completion-tableau #ti-restoration-cells i{min-height:53px;padding:6px 5px 7px}
+    body.ti-completion-tableau #ti-restoration-cells b{font-size:6px}
+    body.ti-completion-tableau #ti-restoration-cells span{font-size:5.5px;line-height:1.22}
+    body.ti-completion-tableau #ti-restoration-cells small{display:none}
+    body.ti-completion-tableau #ti-reserve-gauges{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:1fr;gap:3px}
+    body.ti-completion-tableau #ti-reserve-gauges .reserve-gauge{min-height:31px;padding:4px 5px;gap:2px 4px}
+    body.ti-completion-tableau #ti-reserve-gauges span{display:none}
+    body.ti-completion-tableau #ti-reserve-gauges b,body.ti-completion-tableau #ti-reserve-gauges small{font-size:5.5px}
+    body.ti-completion-tableau #ti-restoration .registration-readout{padding:6px 1px 5px 9px}
+    #ti-registration-phase{font-size:5.5px;letter-spacing:.10em}
+    #ti-registration-sample{margin:8px 0 6px;font-size:clamp(10px,3.1vw,14px)}
+    #ti-registration-module{font-size:5.5px;line-height:1.35;letter-spacing:.045em}
+    body.ti-completion-tableau #ti-restoration.registration-fixed #ti-restoration-cells{gap:0}
+  }
+  @media (max-width:600px) and (orientation:portrait){
+    #ti-prologue{padding:calc(var(--frame-top) + 12px)
+      max(18px,calc(var(--safe-right) + 14px))
+      calc(var(--frame-bottom) + 78px)
+      max(18px,calc(var(--safe-left) + 14px))}
+    #ti-prologue .inner{width:100%;max-width:560px}
+    #ti-prologue h1{font-size:12px;letter-spacing:.24em}
+    #ti-prologue .rule{margin:11px auto}
+    #ti-prologue .ko{font-size:13px;line-height:1.72}
+    #ti-prologue .en{margin-top:10px;font-size:12px;line-height:1.48}
+    #ti-prologue .mission{margin-top:10px;font-size:7px;line-height:1.5;letter-spacing:.17em}
+    #ti-prologue .skip{margin-top:24px}
+    #ti-prologue .controls{bottom:calc(var(--frame-bottom) + 12px);width:calc(var(--viewport-width) - var(--safe-left) - var(--safe-right) - 28px);font-size:7px;line-height:1.55;letter-spacing:.12em}
+  }
+  @media (max-height:700px){
+    #ti-prologue{padding-top:calc(var(--frame-top) + 10px);padding-bottom:calc(var(--frame-bottom) + 68px)}
+    #ti-prologue h1{font-size:11px}
+    #ti-prologue .rule{margin:8px auto}
+    #ti-prologue .ko{font-size:clamp(11.5px,1.4vw,15px);line-height:1.58}
+    #ti-prologue .en{margin-top:8px;font-size:clamp(10.5px,1.2vw,14px);line-height:1.42}
+    #ti-prologue .mission{margin-top:8px;font-size:7px;line-height:1.45;letter-spacing:.16em}
+    #ti-prologue .skip{margin-top:16px}
+    #ti-prologue #ti-start,#ti-prologue #ti-mobile-start{--start-size:58px;min-height:0}
+    #ti-prologue .controls{bottom:calc(var(--frame-bottom) + 10px);font-size:7px;line-height:1.55}
+  }
+  body.ti-mobile #ti-monitor{right:max(14px,env(safe-area-inset-right));transform:scale(.62);transform-origin:top right}
+  body.ti-mobile #ti-sound{right:max(14px,env(safe-area-inset-right));top:calc(var(--frame-top) + 160px);bottom:auto}
+  body.ti-mobile #ti-green{right:max(14px,env(safe-area-inset-right));top:calc(var(--frame-top) + 194px);bottom:auto}
+  body.ti-mobile #universe-id{right:max(14px,env(safe-area-inset-right));bottom:calc(var(--frame-bottom) + 14px)}
+  body.ti-mobile #fh-keys{display:none!important}
+  body.ti-mobile #ti-terminal-cue{left:50%;right:auto;top:calc(var(--frame-top) + 48px);width:min(300px,42vw);
+    text-align:center;transform:translate(-50%,-5px)}
+  body.ti-mobile #ti-terminal-cue.on{transform:translate(-50%,0)}
+  @media (pointer:coarse) and (orientation:landscape) and (max-height:520px){
+    body.ti-mobile #ti-green{right:max(116px,calc(var(--safe-right) + 112px));top:calc(var(--frame-top) + 160px)}
+    body.ti-mobile #ti-prologue{place-items:center start;padding:calc(var(--frame-top) + 10px) 35vw calc(var(--frame-bottom) + 10px) max(5vw,calc(var(--safe-left) + 10px))}
+    body.ti-mobile #ti-prologue .inner{width:58vw;text-align:left;max-height:100%}
+    body.ti-mobile #ti-prologue .rule{margin:9px 0}
+    body.ti-mobile #ti-prologue .ko{font-size:12px;line-height:1.55}
+    body.ti-mobile #ti-prologue .en{margin-top:8px;font-size:11px;line-height:1.4}
+    body.ti-mobile #ti-prologue .mission{margin-top:8px;font-size:7px;letter-spacing:.14em}
+    body.ti-mobile #ti-prologue #ti-mobile-start{position:fixed;right:max(22px,env(safe-area-inset-right));
+      bottom:calc(var(--frame-bottom) + 18px);--start-size:58px;min-width:0}
+    body.ti-mobile #ti-prologue .controls{display:none}
+    body.ti-completion-tableau #ti-restoration{top:calc(var(--frame-top) + 7px);min-height:0;padding:8px 10px}
+    body.ti-completion-tableau #ti-restoration .head{margin-bottom:6px;padding-bottom:5px}
+    body.ti-completion-tableau #ti-restoration .registration-field{
+      grid-template-columns:minmax(0,4.8fr) minmax(110px,1fr);gap:8px}
+    body.ti-completion-tableau #ti-restoration-cells{grid-template-columns:repeat(5,minmax(0,1fr));gap:2px}
+    body.ti-completion-tableau #ti-restoration-cells i{min-height:42px;padding:5px 4px 6px}
+    body.ti-completion-tableau #ti-restoration-cells span{display:none}
+    #ti-registration-sample{margin:5px 0 3px;font-size:10px}
+    body.ti-completion-tableau #fh-cap-line{bottom:calc(var(--frame-bottom) + 8px);
+      width:calc(100vw - max(72px,env(safe-area-inset-left)) - max(72px,env(safe-area-inset-right)));
+      max-width:none}
+    body.ti-completion-tableau #fh-cap-line .ko{font-size:10px;line-height:1.55}
+    body.ti-completion-tableau #fh-cap-line .en{margin-top:4px;font-size:7px;line-height:1.45}
+    body.ti-completion-tableau #fh-cap-line .bar{margin-top:7px}
+  }
+  body.ti-paused *{animation-play-state:paused!important}
+  @media (prefers-reduced-motion:reduce){
+    #ti-terminal-screen,#ti-monitor::after,#ti-sensor,#survey-log div{animation:none!important}
+    #ti-prologue,#arrive,#depart,#ti-terminal-cue{transition-duration:.12s!important}
+    body.ti-completion-tableau #ti-restoration,
+    body.ti-completion-tableau #ti-restoration-cells,
+    body.ti-completion-tableau #ti-restoration-cells i,
+    body.ti-completion-tableau #ti-restoration-cells i::before,
+    body.ti-completion-tableau #ti-reserve-gauges .reserve-track em{transition-duration:.12s!important}
+  }
+</style>
+</head>
+<body>
+<canvas id="gl" role="img" aria-label="세 행성의 물질·수분·지질 기억을 자율 로버가 통과하는 실시간 WebGPU 작품 Terra Incognita"></canvas>
+<div id="ti-terminal-screen" aria-hidden="true"></div>
+<div id="ti-terminal-cue" role="status" aria-live="polite" aria-hidden="true"><b>Archival Terminal</b>제한된 연산 자원 · 기록 신호로 전환<br>Low-compute telemetry recovered</div>
+<div id="ti-sensor" aria-hidden="true"></div>
+<div id="ti-monitor" role="img" aria-label="세 행성의 착륙선 재구성, 로버 위치와 지질 기억을 표시하는 녹색 형광체 임무 모니터">
+  <canvas id="ti-minimap" width="308" height="352" aria-hidden="true"></canvas>
+</div>
+<div id="survey-log" aria-hidden="true"></div>
+<div id="ti-restoration" role="status" aria-live="polite" aria-label="Lander structure and reserve recovery progress">
+  <div class="head" aria-hidden="true"><span>TI–01 / Structure + Reserve Registration</span><span id="ti-restoration-progress">SHELL 0 / 5 · RESERVE 0 / 3</span></div>
+  <div class="registration-field" aria-hidden="true">
+    <div class="registration-bank">
+      <div id="ti-restoration-cells"><i></i><i></i><i></i><i></i><i></i></div>
+      <div id="ti-reserve-gauges">
+        <div class="reserve-gauge"></div><div class="reserve-gauge"></div><div class="reserve-gauge"></div>
+      </div>
+    </div>
+    <div class="registration-readout">
+      <span id="ti-registration-phase">PLANNED 05 → OBSERVED 00</span>
+      <strong id="ti-registration-sample">FIELD EVIDENCE</strong>
+      <span id="ti-registration-fixed-code" aria-hidden="true"></span>
+      <small id="ti-registration-module">REGISTRATION PASS · WAITING</small>
+    </div>
+  </div>
+  <div id="ti-restoration-label">Wire State · 5 Structures + 3 Reserves Required</div>
+</div>
+<div class="bar t"></div>
+<div class="bar b"></div>
+<button id="ti-sound" type="button" aria-pressed="false" data-audio-state="start"><span data-sound-label aria-live="polite">TAP FOR SOUND</span></button>
+<button id="ti-green" type="button" aria-pressed="false" aria-label="녹색 모니터 켜기" data-green-state="off" disabled>GREEN</button>
+<div id="ti-mobile-drive" aria-label="모바일 로버 조작">
+  <button id="ti-mobile-tilt" type="button" aria-pressed="false">
+    <i id="ti-mobile-signal" aria-hidden="true"></i><span id="ti-mobile-sensor">ENABLE TILT · 기울기 조향</span>
+  </button>
+  <button id="ti-mobile-steer" type="button" disabled>DRAG STEER<br>좌우 드래그</button>
+  <button id="ti-mobile-toggle" type="button" aria-pressed="false">
+    <strong id="ti-mobile-state">STANDBY</strong><small id="ti-mobile-hint">자동 탐사 대기</small>
+  </button>
+</div>
+
+<div id="fh-watchdog">
+  <h1>BOOT STAGE STALLED</h1>
+  <div class="r"></div>
+  <p id="fh-watchdog-en">The current boot stage did not complete within 30 seconds.</p>
+  <p id="fh-watchdog-ko">현재 시작 단계가 30초 안에 완료되지 않았다.</p>
+</div>
+
+<div id="arrive"></div>
+<div id="depart"></div>
+<div id="ti-entry-veil" aria-hidden="true"></div>
+<section id="ti-prologue" aria-label="Terra Incognita prologue">
+  <span class="title-coordinate" aria-hidden="true"></span>
+  <div class="inner">
+    <h1>Terra Incognita</h1>
+    <div class="rule"></div>
+    <p class="ko">지도 이전의 세 표면을 하나의 기억이 통과한다.
+      무인 로버는 첫 행성에서 여덟 물질을 회수해 착륙선을 복원하고,
+      두 번째 행성에서 수분을 확인한다.
+      두 세계의 증거는 세 번째 행성의 지질 기억으로 다시 나타난다.</p>
+    <p class="en">One memory crosses three unmapped surfaces. Eight material signatures restore the lander on Planet 01; water is confirmed on Planet 02. Their combined evidence reappears as geological memory on Planet 03.</p>
+    <span class="mission">Three-Body Autonomous Survey · Matter / Water / Memory<span id="ti-terminal-state">Archival Terminal · Low Bandwidth</span></span>
+    <button id="ti-start" class="skip desktop-start" type="button" disabled><span>START</span></button>
+    <button id="ti-mobile-start" class="skip" type="button" disabled><span>START</span></button>
+  </div>
+  <div class="controls"><span class="desktop-controls">OBSERVER BY DEFAULT &nbsp;·&nbsp; <kbd>WASD</kbd> EXPLORE &nbsp;·&nbsp; <kbd>C</kbd> CAMERA &nbsp;·&nbsp; <kbd>SPACE</kbd> OBSERVER</span><span class="mobile-controls">기울이거나 좌우 드래그하여 탐사 · 무입력 시 감상으로 복귀<br>Tilt or drag to explore · Returns to observer</span></div>
+</section>
+
+<script>
+/* UNIVERSE SEED — must run BEFORE the module, which reads window.UNIVERSE_SEED
+   at import time. Verbatim convention from the other works in the practice. */
+(function(){
+  var s=sessionStorage.getItem('universe_seed');
+  if(!s){s=Math.floor(Math.random()*16777216).toString(16).padStart(6,'0').toUpperCase();sessionStorage.setItem('universe_seed',s);}
+  window.UNIVERSE_SEED=s;
+  var lbl=document.getElementById('universe-label');
+  if(lbl){lbl.textContent='#'+s;return;}
+  var el=document.getElementById('universe-id');
+  if(!el){el=document.createElement('div');el.id='universe-id';document.body.appendChild(el);}
+  el.textContent='UNIVERSE #'+s;
+})();
+
+/* arrival / departure fades and ?embed, matching the other works */
+(function(){
+  if(location.search.indexOf('embed')>-1){document.body.classList.add('embed');return;}
+  var a=document.getElementById('arrive'), d=document.getElementById('depart');
+  var revealed=false;
+  window.TI_REVEAL_OPENING=function(){
+    if(revealed)return;
+    revealed=true;
+    var blueprint=document.getElementById('ti-opening-blueprints');
+    a.dataset.revealSource=document.body.classList.contains('ti-blueprints-active')
+      && blueprint && blueprint.getAttribute('aria-hidden')==='false'?'blueprint':'unready';
+    requestAnimationFrame(function(){requestAnimationFrame(function(){a.style.opacity='0';});});
+  };
+  window.addEventListener('pageshow',function(e){if(e.persisted){a.style.opacity='0';d.style.opacity='0';}});
+  document.addEventListener('click',function(e){
+    var el=e.target.closest?e.target.closest('a[href]'):null;
+    if(!el)return;
+    var href=el.getAttribute('href');
+    if(!href||href.indexOf('http')===0||href.charAt(0)==='#'||el.hasAttribute('onclick'))return;
+    e.preventDefault();
+    d.style.opacity='1';
+    setTimeout(function(){location.href=href;},650);
+  },true);
+})();
+
+/* Stage-aware watchdog. Every completed boot stage renews the deadline; a late
+   successful first frame always clears the panel. */
+(function(){
+  var timer=0,stage='module';
+  function hide(){var el=document.getElementById('fh-watchdog');if(el)el.classList.remove('on');}
+  function fail(){
+    if(window.TI_READY){hide();return;}
+    var el=document.getElementById('fh-watchdog');if(!el)return;
+    var en=document.getElementById('fh-watchdog-en'),ko=document.getElementById('fh-watchdog-ko');
+    if(en)en.textContent='Boot stage '+stage.toUpperCase()+' did not complete within 30 seconds. Reload the local exhibition file or inspect the GPU status.';
+    if(ko)ko.textContent='시작 단계 '+stage.toUpperCase()+'가 30초 안에 완료되지 않았다. 전시 파일을 다시 열거나 GPU 상태를 확인할 것.';
+    el.classList.add('on');
+  }
+  function schedule(){clearTimeout(timer);timer=setTimeout(fail,30000);}
+  window.TI_BOOT={
+    beat:function(next){stage=next||stage;hide();schedule();},
+    ready:function(){window.TI_READY=true;clearTimeout(timer);hide();}
+  };
+  window.TI_BOOT.beat('module');
+})();
+</script>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "../../node_modules/three/build/three.webgpu.js",
+    "three/webgpu": "../../node_modules/three/build/three.webgpu.js",
+    "three/tsl": "../../node_modules/three/build/three.tsl.js",
+    "three/addons/": "../../node_modules/three/examples/jsm/",
+    "animejs": "../../node_modules/animejs/dist/modules/index.js"
+  }
+}
+</script>
+<script type="module" src="./main.js"></script>
+</body>
+</html>
