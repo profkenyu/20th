@@ -34,7 +34,7 @@ const CSS = `
     monospace;
   text-transform: uppercase;
   color: #eceef0;
-  border-left: 1px dotted rgba(91, 238, 128, .76);
+  border-left: 2px dotted rgba(91, 238, 128, .76);
   padding: 4px 9px 4px 12px;
   background:
     linear-gradient(
