@@ -48,6 +48,11 @@ export { DockingSequence } from "./core/docking.js";
 export { VoyageSequence } from "./core/voyage.js";
 export { WaterMission } from "./core/water-mission.js";
 export { MissionMemory, MISSION_MEMORY_VERSION } from "./core/mission-memory.js";
+export {
+  FieldArchive,
+  FIELD_ARCHIVE_VERSION,
+  DEFAULT_FIELD_ARCHIVE_KEY
+} from "./core/field-archive.js";
 export { GeologicalMemory } from "./core/geological-memory.js";
 export { ShotDirector, CAMERA_SHOTS } from "./core/shot-director.js";
 export { Power } from "./vehicle/power.js";

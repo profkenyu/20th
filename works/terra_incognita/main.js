@@ -31,6 +31,7 @@ import {
   Restoration,
   WaterMission,
   MissionMemory,
+  FieldArchive,
   GeologicalMemory,
   DockingSequence,
   VoyageSequence,
@@ -252,6 +253,24 @@ const PLANETS = Object.freeze({
     mission: "geological-memory"
   })
 });
+const FIELD_ARCHIVE_STATIONS = Object.freeze({
+  terra: Object.freeze([0, 2, 4, 6].map((index, order) => Object.freeze({
+    id: `P01-${String(order + 1).padStart(3, "0")}`,
+    body: "terra",
+    planet: "PLANET 01",
+    world: "SHEAR WORLD",
+    label: ["SHEAR LAMINAE", "LOW ALBEDO CARBON", "SPECULAR BANDING", "RARE-EARTH RETURN"][order],
+    x: TERRA_SAMPLE_SITES[index].x,
+    z: TERRA_SAMPLE_SITES[index].z,
+    radius: 13,
+    order
+  }))),
+  desert: Object.freeze([
+    Object.freeze({ id: "P02-001", body: "desert", planet: "PLANET 02", world: "YARDANG FIELD", label: "LANDING DATUM", x: DESERT_START[0], z: DESERT_START[1], radius: 15, order: 0 }),
+    Object.freeze({ id: "P02-002", body: "desert", planet: "PLANET 02", world: "YARDANG FIELD", label: "SINTERED PASSAGE", x: 74, z: 474, radius: 24, order: 1 }),
+    Object.freeze({ id: "P02-003", body: "desert", planet: "PLANET 02", world: "YARDANG FIELD", label: "HYDRATION RETURN", x: BODY02_WATER_SITE.x, z: BODY02_WATER_SITE.z, radius: 12, order: 2 })
+  ])
+});
 const COMPLETION_TABLEAU_MS = 5400;
 const COMPLETION_CAPTION = Object.freeze({
   r: 0,
@@ -355,7 +374,7 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.02;
 captureDeviceErrors(renderer, handleGpuFault);
 window.TI_BOOT?.beat("world");
-let scene, hud, captions, ambient, kiosk, ground, field, wake, dust, graniteField, storm, transferFx, matterPassage, scatter, beam, sky, landmark, rover, lander, restoration, waterMission, missionMemory, geologicalMemory, docking, voyage, shotDirector, power, lens, adaptive, minimap, optics, survey, mobileControl, openingBlueprints, animeRituals;
+let scene, hud, captions, ambient, kiosk, ground, field, wake, dust, graniteField, storm, transferFx, matterPassage, scatter, beam, sky, landmark, rover, lander, restoration, waterMission, missionMemory, fieldArchive, geologicalMemory, docking, voyage, shotDirector, power, lens, adaptive, minimap, optics, survey, mobileControl, openingBlueprints, animeRituals;
 let world = "terra";
 let landerPresent = true;
 let archiveMode = false, greenMonitorManual = false, rawMonitorManual = false;
@@ -433,6 +452,11 @@ try {
   lander = new Lander(heightCPU);
   restoration = new Restoration(lander, heightCPU, TERRA_SAMPLE_SITES);
   missionMemory = new MissionMemory();
+  fieldArchive = new FieldArchive();
+  fieldArchive.registerStations([
+    ...FIELD_ARCHIVE_STATIONS.terra,
+    ...FIELD_ARCHIVE_STATIONS.desert
+  ]);
   geologicalMemory = new GeologicalMemory({ renderer, heightAt: heightCPU, onComplete: (memory, now) => {
     rover.auto = false;
     rover.missionHold = true;
@@ -780,6 +804,7 @@ window.TI_MEMORY = () => ({
   ledger: missionMemory.snapshot(),
   geological: geologicalMemory.snapshot()
 });
+window.TI_FIELD_ARCHIVE = () => fieldArchive.snapshot();
 window.TI_RESTORATION = TEST ? (level) => {
   if (level == null) return restoration.snapshot();
   restoration.reset(level);
@@ -975,6 +1000,7 @@ function activateArrivalMission(key, now) {
     waterMission.reset();
     const model = missionMemory.composeBody03({ start: planet.start });
     const activated = geologicalMemory.activate(model, now);
+    if (activated) fieldArchive.registerStations(fieldArchiveStationsFor("granite"));
     shotDirector.mission = geologicalMemory;
     rover.auto = activated;
     rover.missionHold = false;
@@ -1288,6 +1314,7 @@ async function frame() {
     lens.setProfile(shotDirector.rendered);
     lens.render();
   } else renderer.render(scene, camera);
+  captureFieldArchiveObservation(now, missionEnding);
   if (!completionTableau && !docking.active && (!voyage.active || voyage.phase === "ended")) await kiosk.update(now, returnToStart);
   else kiosk.last = now;
   if (adaptive.sample(frameMs, now) === "critical") activateArchive("measured");
@@ -1424,6 +1451,54 @@ function activateArchive(reason = "device", announce = true) {
   hud?.set("mode", `ARCHIVAL \xB7 ${reason.toUpperCase()}`);
   hud?.set("tier", `${CFG.tier} \xB7 LOW BANDWIDTH`);
   if (announce && released) showArchiveCue();
+}
+function fieldArchiveStationsFor(body = world) {
+  if (body !== "granite") return FIELD_ARCHIVE_STATIONS[body] ?? [];
+  return (geologicalMemory?.model?.sites ?? []).map((site, order) => ({
+    id: `P03-${String(order + 1).padStart(3, "0")}`,
+    body: "granite",
+    planet: "PLANET 03",
+    world: "JOINTED GRANITE",
+    label: ["MATERIAL PHASE", "HYDRATION PHASE", "CONCORDANCE"][order] ?? "MEMORY DATUM",
+    x: site.x,
+    z: site.z,
+    radius: 14,
+    order
+  }));
+}
+function captureArchiveFrame() {
+  const sourceWidth = canvas?.width ?? 0;
+  const sourceHeight = canvas?.height ?? 0;
+  if (!sourceWidth || !sourceHeight) return null;
+  const width = Math.min(touchTerminal ? 240 : 320, sourceWidth);
+  const height = Math.max(1, Math.round(width * sourceHeight / sourceWidth));
+  try {
+    const frame = document.createElement("canvas");
+    frame.width = width;
+    frame.height = height;
+    const context = frame.getContext("2d", { alpha: false });
+    if (!context) return null;
+    context.fillStyle = "#040607";
+    context.fillRect(0, 0, width, height);
+    context.drawImage(canvas, 0, 0, sourceWidth, sourceHeight, 0, 0, width, height);
+    return frame.toDataURL("image/webp", touchTerminal ? 0.62 : 0.72);
+  } catch {
+    return null;
+  }
+}
+function captureFieldArchiveObservation(now, missionEnding) {
+  if (!released || pendingArrival || completionTableau || docking.started || voyage.active || missionEnding) return;
+  const stations = fieldArchiveStationsFor();
+  if (!stations.length) return;
+  const record = fieldArchive.observe({
+    stations,
+    body: world,
+    rover,
+    shot: shotDirector.rendered,
+    now,
+    image: captureArchiveFrame
+  });
+  if (record) hud.flash();
 }
 function orbitEase(p) {
   const t = Math.max(0, Math.min(1, p));

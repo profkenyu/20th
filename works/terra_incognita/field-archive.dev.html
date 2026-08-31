@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#070809">
+<title>FIELD ARCHIVE / COORDINATE RECORDS</title>
+<link rel="stylesheet" href="../../engine/fonts.css">
+<style>
+  :root { color-scheme: dark; --paper:#090a0b; --ink:#dde0e2; --dim:#747a80; --faint:#34383c; --signal:#bd1830; --line:rgba(221,224,226,.17); --green:#7ba889; }
+  * { box-sizing:border-box; }
+  html, body { min-height:100%; margin:0; background:var(--paper); }
+  body { overflow-x:hidden; color:var(--ink); font-family:"DM Mono", "Noto Sans KR", ui-monospace, monospace; }
+  body::before { content:""; position:fixed; inset:0; pointer-events:none; opacity:.26; background:repeating-linear-gradient(0deg,rgba(255,255,255,.018) 0 1px,transparent 1px 4px); }
+  .shell { width:min(1480px,100%); min-height:100dvh; margin:0 auto; padding:clamp(18px,3vw,48px); }
+  .masthead { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:18px; align-items:start; padding-bottom:clamp(30px,5vw,72px); border-bottom:1px solid var(--line); }
+  .eyebrow, .meta, .filter, .record-id, .status, .row-meta, .footer { font-size:9px; letter-spacing:.16em; text-transform:uppercase; }
+  .eyebrow { margin:0 0 12px; color:var(--signal); }
+  h1 { max-width:17ch; margin:0; font-size:clamp(20px,2.55vw,38px); line-height:1.12; font-weight:500; letter-spacing:-.045em; }
+  .masthead-side { display:grid; gap:12px; justify-items:end; text-align:right; }
+  .masthead-side p { max-width:31ch; margin:0; color:var(--dim); font:500 10px/1.7 "DM Mono", "Noto Sans KR", monospace; }
+  .back { display:inline-flex; align-items:center; min-height:30px; border:1px solid var(--line); padding:0 9px; color:var(--ink); font-size:8px; letter-spacing:.15em; text-decoration:none; text-transform:uppercase; }
+  .back:hover, .back:focus-visible { border-color:var(--signal); color:#fff; outline:none; }
+  .archive { padding-top:22px; }
+  .toolbar { display:flex; align-items:center; justify-content:space-between; gap:16px; min-height:40px; border-bottom:1px solid var(--line); }
+  .filters { display:flex; flex-wrap:wrap; gap:4px; }
+  .filter { min-height:28px; border:0; padding:0 8px; background:transparent; color:var(--dim); font-family:inherit; cursor:pointer; }
+  .filter:hover, .filter:focus-visible, .filter[aria-pressed="true"] { color:var(--ink); outline:none; }
+  .filter[aria-pressed="true"] { box-shadow:inset 0 -1px var(--signal); }
+  #fa-count { color:var(--dim); white-space:nowrap; }
+  .workbench { display:grid; grid-template-columns:minmax(320px,.68fr) minmax(0,1.32fr); min-height:calc(100dvh - 254px); }
+  .ledger { border-right:1px solid var(--line); }
+  .ledger-head { display:flex; justify-content:space-between; gap:10px; padding:17px 14px 13px 0; color:var(--dim); }
+  #fa-ledger { display:grid; }
+  .record { width:100%; display:grid; grid-template-columns:74px minmax(0,1fr) auto; gap:10px; align-items:center; min-height:71px; padding:11px 14px 11px 0; border:0; border-top:1px solid rgba(221,224,226,.1); background:transparent; color:inherit; font:inherit; text-align:left; cursor:pointer; }
+  .record:hover, .record:focus-visible, .record[aria-pressed="true"] { background:rgba(255,255,255,.025); outline:none; }
+  .record[aria-pressed="true"] { box-shadow:inset 2px 0 var(--signal); }
+  .record-id { color:var(--dim); }
+  .record-label { overflow:hidden; font-size:10px; line-height:1.5; letter-spacing:.045em; text-overflow:ellipsis; white-space:nowrap; }
+  .record-label small { display:block; overflow:hidden; color:var(--dim); font-size:8px; letter-spacing:.13em; text-overflow:ellipsis; white-space:nowrap; }
+  .status { color:var(--faint); font-size:7px; text-align:right; }
+  .status.acquired { color:var(--green); }
+  .preview { position:relative; display:grid; align-content:start; gap:0; padding:0 0 0 clamp(18px,3vw,48px); }
+  .preview-top { display:flex; justify-content:space-between; gap:12px; padding:17px 0 13px; color:var(--dim); }
+  .frame { position:relative; display:grid; place-items:center; aspect-ratio:16 / 9; overflow:hidden; border:1px solid var(--line); background:#050606; }
+  .frame::after { content:""; position:absolute; inset:0; pointer-events:none; background:linear-gradient(115deg,transparent 48%,rgba(255,255,255,.08) 49%,transparent 50%); opacity:.18; }
+  #fa-image { display:none; width:100%; height:100%; object-fit:cover; filter:saturate(.68) contrast(1.08); }
+  #fa-image.on { display:block; }
+  .no-image { display:grid; gap:8px; justify-items:center; color:var(--dim); text-align:center; }
+  .no-image i { display:block; width:32px; height:1px; background:var(--signal); }
+  .no-image b { font-size:9px; font-weight:400; letter-spacing:.16em; }
+  .no-image span { font-size:8px; letter-spacing:.08em; }
+  .caption { display:grid; grid-template-columns:1fr auto; gap:18px; padding:15px 0 19px; border-bottom:1px solid var(--line); }
+  #fa-title { margin:0; font-size:clamp(14px,1.55vw,21px); font-weight:400; letter-spacing:-.03em; }
+  #fa-location { margin:7px 0 0; color:var(--dim); font-size:9px; letter-spacing:.11em; }
+  #fa-data { margin:0; color:var(--dim); font-size:8px; line-height:1.7; letter-spacing:.09em; text-align:right; white-space:pre-line; }
+  .memory { display:none; margin-top:22px; border-top:1px solid var(--line); }
+  .memory.on { display:block; }
+  .memory-head { display:flex; justify-content:space-between; gap:15px; padding:13px 0; color:var(--dim); }
+  #fa-memory-map { display:block; width:100%; height:auto; border:1px solid var(--line); background:#060707; }
+  .memory-note { margin:10px 0 0; color:var(--dim); font-size:8px; line-height:1.7; letter-spacing:.08em; }
+  .footer { display:flex; justify-content:space-between; gap:14px; margin-top:34px; padding-top:14px; border-top:1px solid var(--line); color:var(--dim); line-height:1.6; }
+  @media (max-width:820px) {
+    .masthead { grid-template-columns:1fr; }
+    .masthead-side { justify-items:start; text-align:left; }
+    .workbench { grid-template-columns:1fr; }
+    .ledger { border-right:0; }
+    .preview { padding:0; }
+  }
+  @media (max-width:520px) {
+    .shell { padding:16px; }
+    .masthead { padding-bottom:34px; }
+    h1 { max-width:15ch; }
+    .toolbar { align-items:flex-start; flex-direction:column; padding-bottom:9px; }
+    .record { grid-template-columns:64px minmax(0,1fr) 66px; min-height:64px; }
+    .caption { grid-template-columns:1fr; gap:10px; }
+    #fa-data { text-align:left; }
+    .footer { flex-direction:column; }
+  }
+</style>
+</head>
+<body>
+<main class="shell">
+  <header class="masthead">
+    <div>
+      <p class="eyebrow">Terra Incognita / field transmission</p>
+      <h1>FIELD ARCHIVE / COORDINATE RECORDS</h1>
+    </div>
+    <div class="masthead-side">
+      <a class="back" href="index.html">← Return to terrain</a>
+      <p>각 기록은 로버가 지정 좌표를 통과한 순간에만 확보됩니다. 미획득 신호는 빈 상태로 남습니다.</p>
+    </div>
+  </header>
+
+  <section class="archive" aria-label="좌표 관측 기록">
+    <div class="toolbar">
+      <nav class="filters" aria-label="행성별 기록 필터">
+        <button class="filter" type="button" data-filter="all" aria-pressed="true">All</button>
+        <button class="filter" type="button" data-filter="terra" aria-pressed="false">Planet 01</button>
+        <button class="filter" type="button" data-filter="desert" aria-pressed="false">Planet 02</button>
+        <button class="filter" type="button" data-filter="granite" aria-pressed="false">Planet 03</button>
+      </nav>
+      <div id="fa-count" class="meta" aria-live="polite">00 / 00 signals acquired</div>
+    </div>
+    <div class="workbench">
+      <section class="ledger" aria-label="좌표 목록">
+        <div class="ledger-head meta"><span>Coordinate ledger</span><span>Image status</span></div>
+        <div id="fa-ledger"></div>
+      </section>
+      <section class="preview" aria-live="polite">
+        <div class="preview-top meta"><span>Camera return</span><span id="fa-frame">Frame —</span></div>
+        <div class="frame">
+          <img id="fa-image" alt="로버가 수집한 좌표 관측 이미지">
+          <div id="fa-empty" class="no-image"><i></i><b>NO IMAGE</b><span>SIGNAL NOT ACQUIRED</span></div>
+        </div>
+        <div class="caption">
+          <div><h2 id="fa-title">Awaiting coordinate</h2><p id="fa-location">—</p></div>
+          <p id="fa-data">—</p>
+        </div>
+        <section id="fa-memory" class="memory" aria-label="세 번째 행성의 지질 기억 도면">
+          <div class="memory-head meta"><span>Geological memory / concordance</span><span>Planet 03</span></div>
+          <canvas id="fa-memory-map" width="880" height="264" aria-label="첫 두 행성의 관측 기록과 세 번째 행성의 지질 기억 연결도"></canvas>
+          <p class="memory-note">첫 번째 행성의 물질 기록과 두 번째 행성의 수분 기록은 세 번째 행성에서 하나의 지질 기억으로 교차 참조됩니다.</p>
+        </section>
+      </section>
+    </div>
+  </section>
+  <footer class="footer"><span>Field archive remains intentionally incomplete.</span><span id="fa-footer">No active field source.</span></footer>
+</main>
+<script>
+(() => {
+  const KEY = "terra-incognita:field-archive:v1";
+  const FALLBACK = [
+    ["P01-001", "terra", "PLANET 01", "SHEAR WORLD", "SHEAR LAMINAE", 231.6, 543.4, 0],
+    ["P01-002", "terra", "PLANET 01", "SHEAR WORLD", "LOW ALBEDO CARBON", 209.9, 471.4, 1],
+    ["P01-003", "terra", "PLANET 01", "SHEAR WORLD", "SPECULAR BANDING", 173.9, 391.9, 2],
+    ["P01-004", "terra", "PLANET 01", "SHEAR WORLD", "RARE-EARTH RETURN", 131.1, 294.2, 3],
+    ["P02-001", "desert", "PLANET 02", "YARDANG FIELD", "LANDING DATUM", 96, 520, 0],
+    ["P02-002", "desert", "PLANET 02", "YARDANG FIELD", "SINTERED PASSAGE", 74, 474, 1],
+    ["P02-003", "desert", "PLANET 02", "YARDANG FIELD", "HYDRATION RETURN", 52, 428, 2]
+  ].map(([id, body, planet, world, label, x, z, order]) => ({ id, body, planet, world, label, x, z, order }));
+  const byId = (items) => new Map(items.map((item) => [item.id, item]));
+  const escape = (value) => String(value ?? "").replace(/[&<>\"]/g, (char) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "\"":"&quot;" })[char]);
+  const read = () => {
+    try {
+      const data = JSON.parse(sessionStorage.getItem(KEY) || "null");
+      return data && data.version === 1 ? data : { stations: [], records: [] };
+    } catch { return { stations: [], records: [] }; }
+  };
+  const source = read();
+  const bodyOrder = ["terra", "desert", "granite"];
+  const stations = [...byId([...FALLBACK, ...(source.stations || [])]).values()].sort((a, b) => bodyOrder.indexOf(a.body) - bodyOrder.indexOf(b.body) || a.order - b.order);
+  const records = (source.records || []).filter((record) => stations.some((station) => station.id === record.id));
+  const recordsById = byId(records);
+  const ledger = document.getElementById("fa-ledger");
+  const image = document.getElementById("fa-image");
+  const empty = document.getElementById("fa-empty");
+  const count = document.getElementById("fa-count");
+  const title = document.getElementById("fa-title");
+  const location = document.getElementById("fa-location");
+  const data = document.getElementById("fa-data");
+  const frame = document.getElementById("fa-frame");
+  const memory = document.getElementById("fa-memory");
+  const memoryMap = document.getElementById("fa-memory-map");
+  let filter = "all";
+  let selected = stations.find((station) => recordsById.has(station.id)) || stations[0] || null;
+  const coord = (station) => `X ${Number(station.x).toFixed(1)}  /  Z ${Number(station.z).toFixed(1)}`;
+  function filtered() { return stations.filter((station) => filter === "all" || station.body === filter); }
+  function drawMemory(station) {
+    const ctx = memoryMap.getContext("2d");
+    const width = memoryMap.width, height = memoryMap.height;
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = "#060707"; ctx.fillRect(0, 0, width, height);
+    ctx.strokeStyle = "rgba(221,224,226,.14)"; ctx.lineWidth = 1;
+    [width / 3, width * 2 / 3].forEach((x) => { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke(); });
+    ctx.fillStyle = "#737a80"; ctx.font = "10px DM Mono, monospace";
+    ["P01 / MATTER", "P02 / WATER", "P03 / MEMORY"].forEach((label, index) => ctx.fillText(label, 18 + index * width / 3, 22));
+    const groups = [["terra", width / 6], ["desert", width / 2], ["granite", width * 5 / 6]];
+    const nodes = groups.flatMap(([body, x]) => stations.filter((item) => item.body === body).map((item, index, list) => ({ item, x, y: 62 + ((index + 1) / (list.length + 1)) * (height - 86) })));
+    const activeP3 = nodes.find((node) => node.item.id === station.id);
+    if (activeP3) {
+      nodes.filter((node) => (node.item.body === "terra" || node.item.body === "desert") && recordsById.has(node.item.id)).forEach((node) => {
+        ctx.beginPath(); ctx.setLineDash([4, 5]); ctx.strokeStyle = node.item.body === "terra" ? "rgba(123,168,137,.7)" : "rgba(189,24,48,.76)"; ctx.moveTo(node.x, node.y); ctx.lineTo(activeP3.x, activeP3.y); ctx.stroke();
+      });
+    }
+    ctx.setLineDash([]);
+    nodes.forEach((node) => {
+      const acquired = recordsById.has(node.item.id), active = node.item.id === station.id;
+      ctx.beginPath(); ctx.fillStyle = active ? "#dde0e2" : acquired ? "#7ba889" : "#363a3e"; ctx.arc(node.x, node.y, active ? 5 : 3, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = active ? "#dde0e2" : "#737a80"; ctx.font = "9px DM Mono, monospace"; ctx.fillText(node.item.id, node.x + 9, node.y + 3);
+    });
+  }
+  function select(station) {
+    selected = station;
+    const record = recordsById.get(station.id);
+    document.querySelectorAll(".record").forEach((node) => node.setAttribute("aria-pressed", String(node.dataset.id === station.id)));
+    title.textContent = station.label;
+    location.textContent = `${station.planet} / ${station.world} / ${coord(station)}`;
+    frame.textContent = record ? `FRAME ${String(record.frame).padStart(2, "0")}` : "FRAME —";
+    data.textContent = record ? `${record.shot || "MAST"} CAMERA\nHEADING ${Number(record.heading || 0).toFixed(2)} RAD\nCOORDINATE ${coord(station)}` : `NO IMAGE\nSIGNAL NOT ACQUIRED\nCOORDINATE ${coord(station)}`;
+    if (record && typeof record.image === "string") { image.src = record.image; image.classList.add("on"); empty.hidden = true; }
+    else { image.removeAttribute("src"); image.classList.remove("on"); empty.hidden = false; }
+    memory.classList.toggle("on", station.body === "granite");
+    if (station.body === "granite") drawMemory(station);
+  }
+  function clearPreview() {
+    title.textContent = "No coordinate records";
+    location.textContent = "PLANET 03 / GEOLOGICAL MEMORY / WAITING FOR ARRIVAL";
+    frame.textContent = "FRAME —";
+    data.textContent = "NO IMAGE\nSIGNAL NOT ACQUIRED\nPLANETARY FIELD NOT YET REGISTERED";
+    image.removeAttribute("src");
+    image.classList.remove("on");
+    empty.hidden = false;
+    memory.classList.remove("on");
+  }
+  function render() {
+    const visible = filtered();
+    if (!visible.some((station) => station.id === selected?.id)) selected = visible[0] || null;
+    ledger.innerHTML = visible.map((station) => {
+      const acquired = recordsById.has(station.id);
+      return `<button class="record" type="button" data-id="${escape(station.id)}" aria-pressed="${station.id === selected?.id}"><span class="record-id">${escape(station.id)}</span><span class="record-label">${escape(station.label)}<small>${escape(coord(station))}</small></span><span class="status ${acquired ? "acquired" : ""}">${acquired ? "Acquired" : "No image"}</span></button>`;
+    }).join("") || `<p class="meta">NO COORDINATE RECORDS</p>`;
+    ledger.querySelectorAll(".record").forEach((node) => {
+      const station = stations.find((item) => item.id === node.dataset.id);
+      node.addEventListener("pointerenter", (event) => { if (event.pointerType === "mouse") select(station); });
+      node.addEventListener("focus", () => select(station));
+      node.addEventListener("click", () => select(station));
+    });
+    count.textContent = `${String(records.length).padStart(2, "0")} / ${String(stations.length).padStart(2, "0")} SIGNALS ACQUIRED`;
+    document.getElementById("fa-footer").textContent = records.length ? `${records.length} stored camera return${records.length === 1 ? "" : "s"} / session field cache` : "No active field source.";
+    if (selected) select(selected);
+    else clearPreview();
+  }
+  document.querySelectorAll(".filter").forEach((node) => node.addEventListener("click", () => {
+    filter = node.dataset.filter;
+    document.querySelectorAll(".filter").forEach((button) => button.setAttribute("aria-pressed", String(button === node)));
+    render();
+  }));
+  image.addEventListener("error", () => { image.classList.remove("on"); empty.hidden = false; });
+  render();
+})();
+</script>
+</body>
+</html>

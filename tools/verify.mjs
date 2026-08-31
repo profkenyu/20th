@@ -211,7 +211,7 @@ async function ui() {
     const body = m[2].replace(/\s/g, "");
     if (body.includes("position:fixed") && !body.includes("pointer-events:none")) blockers.push(m[1]);
   }
-  const allowed = ["gl", "fh-watchdog", "ti-transfer-trigger"];
+  const allowed = ["gl", "fh-watchdog", "ti-transfer-trigger", "ti-field-archive"];
   const bad_ = blockers.filter((b) => !allowed.includes(b));
   bad_.length ? bad("overlays swallow the pointer", bad_.join(", ")) : ok("overlays are pointer-transparent", `except ${allowed.join(" and ")}, correctly`);
 }
@@ -232,6 +232,16 @@ async function build() {
     for (const ch of await readFile(f, "utf8")) if (ch >= "\uAC00" && ch <= "\uD7A3") used.add(ch);
   const missing = [...used].filter((c) => !subset.has(c));
   missing.length ? bad("Korean subset is stale", `${missing.length} glyphs missing: ${missing.join("")} \u2014 run npm run fonts`) : ok("Korean subset covers every glyph drawn", `${used.size} syllables`);
+  const archive = await readFile(`${ROOT}/field-archive.html`, "utf8").catch(() => null);
+  if (!archive) {
+    bad("field archive output", "missing \u2014 run npm run build");
+  } else if (!archive.includes("FIELD ARCHIVE / COORDINATE RECORDS") || !archive.includes("SIGNAL NOT ACQUIRED")) {
+    bad("field archive output", "missing coordinate record UI");
+  } else if (/(?:src|href)="https?:\/\//i.test(archive)) {
+    bad("field archive output", "contains external dependency");
+  } else {
+    ok("field archive output", `${(archive.length / 1024).toFixed(0)} KB, stored-coordinate UI present`);
+  }
 }
 console.log("\u2550\u2550 VERIFY \u2550\u2550\n");
 for (const f of await walk(`${ROOT}/works`)) if (f.endsWith("main.js")) await bootOrder(f);

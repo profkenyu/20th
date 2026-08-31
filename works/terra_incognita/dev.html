@@ -147,6 +147,43 @@
     touch-action: manipulation;
     text-transform: uppercase;
   }
+  #ti-field-archive {
+    position: fixed;
+    z-index: 34;
+    left: 24px;
+    bottom: calc(var(--frame-bottom) + 48px);
+    display: inline-flex;
+    align-items: center;
+    min-height: 26px;
+    padding: 0 8px;
+    border: 1px solid rgba(217, 221, 226, .16);
+    background: rgba(5, 5, 6, .64);
+    color: #737982;
+    font: 700 6px/1 "DM Mono", ui-monospace, monospace;
+    letter-spacing: .16em;
+    text-decoration: none;
+    text-transform: uppercase;
+    transition: color .2s ease, border-color .2s ease, background .2s ease, opacity 1.2s ease;
+  }
+  #ti-field-archive::before {
+    content: "";
+    width: 5px;
+    height: 5px;
+    margin-right: 7px;
+    border-radius: 50%;
+    background: #c0152a;
+  }
+  #ti-field-archive:hover,
+  #ti-field-archive:focus-visible {
+    border-color: rgba(192, 21, 42, .72);
+    background: rgba(12, 7, 8, .88);
+    color: #eceef0;
+    outline: none;
+  }
+  body:not(.ti-prologue-released):not(.embed) #ti-field-archive {
+    opacity: 0;
+    pointer-events: none;
+  }
   body:not(.ti-prologue-released):not(.embed) #ti-sound {
     pointer-events: none;
   }
@@ -809,6 +846,7 @@
   #survey-log,
   #universe-id,
   #ti-sound,
+  #ti-field-archive,
   #ti-green,
   #ti-mobile-drive {
     transition: opacity 1.2s ease;
@@ -818,18 +856,21 @@
   body.ti-completion-tableau #fh-hud,
   body.ti-completion-tableau #ti-mobile-drive,
   body.ti-completion-tableau #ti-sound,
+  body.ti-completion-tableau #ti-field-archive,
   body.ti-completion-tableau #ti-green,
   body.ti-completion-tableau #universe-id,
   body.ti-memory-tableau #ti-monitor,
   body.ti-memory-tableau #survey-log,
   body.ti-memory-tableau #fh-hud,
   body.ti-memory-tableau #ti-mobile-drive,
+  body.ti-memory-tableau #ti-field-archive,
   body.ti-memory-tableau #ti-green,
   body.ti-memory-tableau #universe-id,
   body.ti-epilogue #ti-monitor,
   body.ti-epilogue #survey-log,
   body.ti-epilogue #fh-hud,
   body.ti-epilogue #ti-mobile-drive,
+  body.ti-epilogue #ti-field-archive,
   body.ti-epilogue #ti-green,
   body.ti-epilogue #universe-id {
     opacity: 0 !important;
@@ -1359,6 +1400,11 @@
       top: calc(var(--frame-top) + 14px);
       bottom: auto;
     }
+    #ti-field-archive {
+      left: max(14px, env(safe-area-inset-left));
+      top: calc(var(--frame-top) + 14px);
+      bottom: auto;
+    }
     #ti-green {
       right: max(14px, env(safe-area-inset-right));
       top: calc(var(--frame-top) + 48px);
@@ -1559,6 +1605,11 @@
     top: calc(var(--frame-top) + 160px);
     bottom: auto;
   }
+  body.ti-mobile #ti-field-archive {
+    left: max(14px, env(safe-area-inset-left));
+    top: calc(var(--frame-top) + 14px);
+    bottom: auto;
+  }
   body.ti-mobile #ti-green {
     right: max(14px, env(safe-area-inset-right));
     top: calc(var(--frame-top) + 194px);
@@ -1722,6 +1773,7 @@
 <div class="bar t"></div>
 <div class="bar b"></div>
 <button id="ti-sound" type="button" aria-pressed="false" data-audio-state="start"><span data-sound-label aria-live="polite">TAP FOR SOUND</span></button>
+<a id="ti-field-archive" href="field-archive.html" aria-label="좌표 기록 아카이브 열기">FIELD ARCHIVE</a>
 <button id="ti-green" type="button" aria-pressed="false" aria-label="녹색 모니터 켜기" data-green-state="off" disabled>GREEN</button>
 <div id="ti-mobile-drive" aria-label="모바일 로버 조작">
   <button id="ti-mobile-tilt" type="button" aria-pressed="false">

@@ -152,7 +152,7 @@ def page_base(c, number, title, subtitle):
     rule(c, M, TOP - 76, W - M, TOP - 76, LINE, 0.7)
 
 
-def footer(c, number, note="CURRENT IMPLEMENTATION + CURATORIAL PROPOSAL / 2026.08.30"):
+def footer(c, number, note="CURRENT IMPLEMENTATION + CURATORIAL PROPOSAL / 2026.08.31"):
     rule(c, M, 29, W - M, 29, LINE, 0.55)
     caps(c, note, M, 16, 5.5, DIM, 0.55)
     c.setFont("Helvetica", 6)
@@ -218,11 +218,11 @@ def cover(c):
     c.drawString(M, H - 118, "TERRA INCOGNITA")
     c.setFont("KOR", 22)
     c.drawString(M, H - 154, "행성 임무 · 이동 UI · 전시 운영 제안서")
-    para(c, "세 행성의 실제 해금 조건을 기준으로 관객 경험, 작품의 의미, 전시 공간과 운영 방식을 하나의 실행 문서로 정리한다.", M, H - 186, 420, 10, 16, MUTED, max_lines=3)
+    para(c, "설계도 오프닝과 START 전이, 세 행성의 실제 해금 조건, 터치 단말의 저대역 탐사면을 기준으로 관객 경험과 전시 운영을 하나의 실행 문서로 정리한다.", M, H - 186, 420, 10, 16, MUTED, max_lines=3)
     y = 104
-    tag(c, "현재 구현 검증", M, y, RED)
-    tag(c, "관객용 UI 제안", M + 105, y, INK)
-    tag(c, "전시 실행안", M + 214, y, GREEN)
+    tag(c, "WebGPU 실행 조건", M, y, RED)
+    tag(c, "설계도 · START 의식", M + 121, y, INK)
+    tag(c, "전시 실행안", M + 247, y, GREEN)
     caps(c, "MISSION CHAIN", W - 278, H - 66, 6.2, RED, 0.7)
     route_y = H - 202
     nodes = [
@@ -244,7 +244,7 @@ def cover(c):
     rule(c, W - 306, 78, W - M, 78, LINE, 0.55)
     para(c, "핵심 명제", W - 306, 61, 76, 7.2, 10, RED)
     para(c, "관측된 증거가 다음 세계의 조건이 된다.", W - 225, 61, 185, 8.6, 12.5, INK, max_lines=2)
-    caps(c, "2026.08.30 / VERSION 1.0", M, 31, 5.8, DIM, 0.7)
+    caps(c, "2026.08.31 / VERSION 1.1", M, 31, 5.8, DIM, 0.7)
     c.showPage()
 
 
@@ -500,16 +500,16 @@ def ui_mock(c, x, y, w, h):
 
 
 def ui_proposal(c):
-    page_base(c, 6, "행성 이동 UI 제안", "권장안은 ‘자유 선택 메뉴’가 아니라 미션의 인과관계를 보여주는 RELAY STRIP이다. 이동권은 임무 완료가 만든다.")
-    section(c, "PUBLIC VIEW / PROPOSED", M, 414, 470)
+    page_base(c, 6, "현재 UI와 행성 전이 원칙", "현재 빌드는 HUD를 기본적으로 감추고, START와 임무 완료 때만 상태를 드러낸다. RELAY STRIP은 이 인과를 더 선명하게 하는 선택적 전시안이다.")
+    section(c, "PUBLIC VIEW / OPTIONAL RELAY", M, 414, 470)
     ui_mock(c, M, 216, 470, 168)
     rx = 536
     section(c, "DESIGN RULES", rx, 414, W - M - rx)
     rules = [
-        ("01", "항상 표시하지 말고 목표 접근·완료·전이에만 나타낸다."),
+        ("01", "기본 상태에서는 HUD를 숨기고, 가장자리 호출·H 입력에서만 유지한다."),
         ("02", "LOCKED / CURRENT / READY / ARCHIVED 네 상태만 사용한다."),
         ("03", "공개 모드에서는 이전·다음 행성 임의 이동을 금지한다."),
-        ("04", "READY 뒤 6초 자동 이동. 선택 세션에서는 1.2초 HOLD만 허용한다."),
+        ("04", "READY 뒤 자동 전이한다. 운영자 직접 이동은 maintenance 경로에만 남긴다."),
     ]
     yy = 363
     for no, copy in rules:
@@ -522,7 +522,7 @@ def ui_proposal(c):
     half = (W - M * 2 - 16) / 2
     box(c, M, 77, half, 88, PANEL, LINE, 3)
     caps(c, "AUDIENCE LAYER", M + 12, 141, 6.3, GREEN, 0.7)
-    para(c, "현재 행성, 완료 조건, 다음 행성 잠금 상태만 표시한다. 기본 전시는 자동 전이이며 입력 없이도 전체 서사가 유지된다.", M + 12, 120, half - 24, 7.7, 11.5, INK, max_lines=4)
+    para(c, "현재 행성, 완료 조건, 다음 행성 잠금 상태만 짧게 표시한다. 기본 전시는 자동 전이이며 입력이 없어도 전체 서사가 유지된다.", M + 12, 120, half - 24, 7.7, 11.5, INK, max_lines=4)
     box(c, M + half + 16, 77, half, 88, BG, RED, 3)
     caps(c, "OPERATOR LAYER", M + half + 28, 141, 6.3, RED, 0.7)
     para(c, "H 고정 HUD 또는 전용 maintenance URL에서만 P01/P02/P03 직접 이동을 허용한다. 미션·격납·비행 중에는 모든 점프를 비활성화한다.", M + half + 28, 120, half - 24, 7.7, 11.5, INK, max_lines=4)
@@ -531,17 +531,17 @@ def ui_proposal(c):
 
 
 def concept(c):
-    page_base(c, 7, "이 작품이 나타내고자 하는 것", "Terra Incognita의 탐사는 정복이나 수집이 아니라, 다음 세계를 가능하게 하는 증거의 보존과 전달이다.")
+    page_base(c, 7, "이 작품이 나타내고자 하는 것", "Terra Incognita의 탐사는 정복이나 수집이 아니라, 다음 세계를 가능하게 하는 증거의 보존과 전달이다. 시작의 설계도는 그 보존될 기계의 사전 기록이다.")
     c.setFont("KOR", 19)
     c.setFillColor(INK)
     c.drawString(M, 403, "“몸체는 이동하지만, 세계를 잇는 것은 관측된 상태다.”")
     para(c, "로버가 수집한 물질·수분·위상 정보는 UI의 점수가 아니라 착륙선의 구조, 다음 행성의 목적, 마지막 지질장의 좌표가 된다. 계산을 제거하면 세 행성의 관계도 사라진다.", M, 374, W - M * 2, 8.8, 13.5, MUTED, max_lines=3)
     section(c, "COMPLETE SYSTEM CHAIN", M, 324, W - M * 2)
     chain = [
-        ("INPUT", "접근·정지"),
-        ("MODEL", "중력·스펙트럼"),
+        ("INPUT", "START·접근·정지"),
+        ("MODEL", "지형·중력·스펙트럼"),
         ("STATE", "증거 원장"),
-        ("MAPPING", "구조·좌표"),
+        ("MAPPING", "구조·좌표·지형"),
         ("EVENT", "격납·이동·소멸"),
     ]
     gap = 10
@@ -598,7 +598,7 @@ def floor_plan(c, x, y, w, h):
 
 
 def exhibition(c):
-    page_base(c, 8, "권장 전시 방식", "하나의 큰 화면에서 세 행성이 시간적으로 이어지는 단일 채널 설치가 작품의 인과 구조를 가장 정확하게 보존한다.")
+    page_base(c, 8, "권장 전시 방식", "하나의 큰 화면에서 설계도·START·세 행성이 시간적으로 이어지는 단일 채널 설치가 작품의 인과 구조를 가장 정확하게 보존한다.")
     section(c, "RECOMMENDED FLOOR PLAN", M, 414, 430)
     floor_plan(c, M, 217, 430, 167)
     rx = 505
@@ -617,9 +617,9 @@ def exhibition(c):
         yy -= 52
     section(c, "VIEWING RHYTHM", M, 190, W - M * 2)
     rhythm = [
-        ("ENTRY", "서문·설계도", "관객의 속도를 낮춘다"),
+        ("ENTRY", "노이즈·설계도", "기계의 기록을 먼저 읽는다"),
+        ("GATE", "제목·START", "수동 시작 또는 8초 뒤 진입"),
         ("OBSERVER", "자율 항로", "먼저 지켜본다"),
-        ("PERTURB", "선택적 조작", "경로만 잠시 흔든다"),
         ("LOCK", "스캔·격납", "입력을 멈춘다"),
         ("AFTERMATH", "기억 소멸", "자동 초기화"),
     ]
@@ -636,18 +636,18 @@ def exhibition(c):
 
 
 def priorities(c):
-    page_base(c, 9, "기타 제안사항 · 실행 우선순위", "새로운 효과를 더하기보다 미션의 인과, 운영 안정성, 관객의 읽기 속도를 먼저 정리하는 것이 중요하다.")
+    page_base(c, 9, "기타 제안사항 · 실행 우선순위", "새로운 효과를 더하기보다 WebGPU 실행 조건, 미션의 인과, 운영 안정성, 관객의 읽기 속도를 먼저 정리하는 것이 중요하다.")
     section(c, "PRIORITY MATRIX", M, 414, W - M * 2)
     x, y = M, 190
     widths = [56, 152, 345, 207]
     table_row(c, ["우선", "항목", "실행", "판정 기준"], widths, x, y + 180, 28, PANEL_DARK, [MUTED] * 4, [6.5] * 4)
     rows = [
-        ("P0", "공개 이동 규칙", "관객 UI는 상태만 표시하고 미션 전 임의 점프 금지", "서사 순서가 깨지지 않음"),
+        ("P0", "실행 조건", "navigator.gpu·어댑터·WebGPU backend를 모두 확인하고 미지원 장비는 실행하지 않음", "WebGL 대체 실행을 허용하지 않음"),
         ("P0", "운영 복구", "장치 손실·오디오 중단·비정상 정지 뒤 자동 복귀", "무인 운영 가능"),
-        ("P1", "RELAY STRIP", "CURRENT / READY / LOCKED / ARCHIVED 4상태 구현", "다음 조건이 2초 내 판독"),
+        ("P1", "공개 이동 규칙", "관객 UI는 상태만 표시하고 미션 전 임의 점프 금지", "서사 순서가 깨지지 않음"),
         ("P1", "전시 자막", "핵심 전이 문장만 한·영 유지, 설명문 남발 금지", "이미지가 텍스트에 종속되지 않음"),
-        ("P2", "운영자 모드", "maintenance URL에서 행성 점프·미션 강제완료 제공", "관객에게 노출되지 않음"),
-        ("P2", "접근성", "reduced motion, 사운드 상태, 모바일 안전영역 점검", "핵심 사건 동일 유지"),
+        ("P2", "터치 단말", "START 뒤 저해상도 녹색 CRT 탐사면·30Hz 저대역 모드 유지", "저성능에서도 같은 임무 정체성 유지"),
+        ("P2", "접근성", "reduced motion, 사운드 상태, 모바일 안전영역과 외부 링크 첫 진입 점검", "핵심 사건 동일 유지"),
     ]
     for i, row in enumerate(rows):
         fill = BG if i % 2 == 0 else PANEL
@@ -656,9 +656,9 @@ def priorities(c):
     section(c, "FINAL CHECK", M, 165, W - M * 2)
     checks = [
         ("MISSION", "8/8 → H₂O → 3/3가 실제 빌드에서 끝까지 이어지는가"),
-        ("UI", "모든 이동 입력이 스캔·격납·비행 중 잠기는가"),
+        ("OPENING", "수동 START는 3.6초 암전·수신기 복구를 거치고, 자동 진입은 8초 뒤 별도 경로를 유지하는가"),
         ("DISPLAY", "프로젝터에서 검은 레벨·와이어·면 재질이 구분되는가"),
-        ("DEVICE", "외부 링크 첫 진입·새로고침·BFCache·iPhone/iPad를 각각 확인했는가"),
+        ("DEVICE", "외부 링크 첫 진입·새로고침·BFCache·iPhone/iPad·실제 WebGPU 화면을 각각 확인했는가"),
     ]
     half = (W - M * 2 - 16) / 2
     for i, (name, copy) in enumerate(checks):
