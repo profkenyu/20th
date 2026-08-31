@@ -1,5 +1,6 @@
-export const FIELD_ARCHIVE_VERSION = 1;
-export const DEFAULT_FIELD_ARCHIVE_KEY = "terra-incognita:field-archive:v1";
+export const FIELD_ARCHIVE_VERSION = 2;
+export const DEFAULT_FIELD_ARCHIVE_KEY = "terra-incognita:field-archive:v2";
+export const FIELD_ARCHIVE_CAPACITY = 24;
 
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -60,8 +61,8 @@ export class FieldArchive {
     try {
       const stored = JSON.parse(this.storage.getItem(this.key) ?? "null");
       if (stored?.version !== FIELD_ARCHIVE_VERSION) return this.snapshot();
-      this.data.stations = (stored.stations ?? []).map(cleanStation).slice(0, 18);
-      this.data.records = (stored.records ?? []).map(cleanRecord).slice(0, 18);
+      this.data.stations = (stored.stations ?? []).map(cleanStation).slice(0, FIELD_ARCHIVE_CAPACITY);
+      this.data.records = (stored.records ?? []).map(cleanRecord).slice(0, FIELD_ARCHIVE_CAPACITY);
     } catch {
     }
     return this.snapshot();
@@ -86,14 +87,16 @@ export class FieldArchive {
       }
     }
     this.data.stations.sort((a, b) => a.body.localeCompare(b.body) || a.order - b.order);
+    this.data.stations = this.data.stations.slice(0, FIELD_ARCHIVE_CAPACITY);
     if (changed) this.persist();
     return this.snapshot();
   }
   has(id) {
     return this.data.records.some((record) => record.id === id);
   }
-  observe({ stations = [], body, rover, shot, now = performance.now(), image = null } = {}) {
+  observe({ stations = [], body, rover, shot, now = performance.now(), image = null, minSpeed = 0 } = {}) {
     if (!rover?.pos || !body) return null;
+    if (this.data.records.length >= FIELD_ARCHIVE_CAPACITY || Math.abs(finite(rover.speed)) < Math.max(0, finite(minSpeed))) return null;
     for (const source of stations) {
       const station = cleanStation(source);
       if (station.body !== body || this.has(station.id)) continue;

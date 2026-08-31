@@ -254,21 +254,28 @@ const PLANETS = Object.freeze({
   })
 });
 const FIELD_ARCHIVE_STATIONS = Object.freeze({
-  terra: Object.freeze([0, 2, 4, 6].map((index, order) => Object.freeze({
-    id: `P01-${String(order + 1).padStart(3, "0")}`,
-    body: "terra",
-    planet: "PLANET 01",
-    world: "SHEAR WORLD",
-    label: ["SHEAR LAMINAE", "LOW ALBEDO CARBON", "SPECULAR BANDING", "RARE-EARTH RETURN"][order],
-    x: TERRA_SAMPLE_SITES[index].x,
-    z: TERRA_SAMPLE_SITES[index].z,
-    radius: 13,
-    order
-  }))),
+  terra: Object.freeze([
+    Object.freeze({ id: "P01-001", body: "terra", planet: "PLANET 01", world: "SHEAR WORLD", label: "DEPARTURE FRAME", x: 233.2, z: 558.5, radius: 12, order: 0 }),
+    Object.freeze({ id: "P01-002", body: "terra", planet: "PLANET 01", world: "SHEAR WORLD", label: "SHEAR LAMINAE", x: TERRA_SAMPLE_SITES[0].x, z: TERRA_SAMPLE_SITES[0].z, radius: 13, order: 1 }),
+    Object.freeze({ id: "P01-003", body: "terra", planet: "PLANET 01", world: "SHEAR WORLD", label: "CERAMIC APPROACH", x: 216, z: 530, radius: 14, order: 2 }),
+    Object.freeze({ id: "P01-004", body: "terra", planet: "PLANET 01", world: "SHEAR WORLD", label: "SPECTRAL SPLIT", x: TERRA_SAMPLE_SITES[1].x, z: TERRA_SAMPLE_SITES[1].z, radius: 13, order: 3 }),
+    Object.freeze({ id: "P01-005", body: "terra", planet: "PLANET 01", world: "SHEAR WORLD", label: "CARBON TRANSIT", x: 205, z: 493, radius: 14, order: 4 }),
+    Object.freeze({ id: "P01-006", body: "terra", planet: "PLANET 01", world: "SHEAR WORLD", label: "LOW ALBEDO CARBON", x: TERRA_SAMPLE_SITES[2].x, z: TERRA_SAMPLE_SITES[2].z, radius: 13, order: 5 }),
+    Object.freeze({ id: "P01-007", body: "terra", planet: "PLANET 01", world: "SHEAR WORLD", label: "PRESSURE RIDGE", x: 188, z: 458, radius: 14, order: 6 }),
+    Object.freeze({ id: "P01-008", body: "terra", planet: "PLANET 01", world: "SHEAR WORLD", label: "SERVICE / PRESSURE", x: TERRA_SAMPLE_SITES[3].x, z: TERRA_SAMPLE_SITES[3].z, radius: 13, order: 7 }),
+    Object.freeze({ id: "P01-009", body: "terra", planet: "PLANET 01", world: "SHEAR WORLD", label: "SPECULAR BANDING", x: TERRA_SAMPLE_SITES[4].x, z: TERRA_SAMPLE_SITES[4].z, radius: 13, order: 8 }),
+    Object.freeze({ id: "P01-010", body: "terra", planet: "PLANET 01", world: "SHEAR WORLD", label: "LATTICE DESCENT", x: TERRA_SAMPLE_SITES[5].x, z: TERRA_SAMPLE_SITES[5].z, radius: 13, order: 9 }),
+    Object.freeze({ id: "P01-011", body: "terra", planet: "PLANET 01", world: "SHEAR WORLD", label: "RARE-EARTH RETURN", x: TERRA_SAMPLE_SITES[6].x, z: TERRA_SAMPLE_SITES[6].z, radius: 13, order: 10 }),
+    Object.freeze({ id: "P01-012", body: "terra", planet: "PLANET 01", world: "SHEAR WORLD", label: "RESERVE EGRESS", x: TERRA_SAMPLE_SITES[7].x, z: TERRA_SAMPLE_SITES[7].z, radius: 13, order: 11 })
+  ]),
   desert: Object.freeze([
-    Object.freeze({ id: "P02-001", body: "desert", planet: "PLANET 02", world: "YARDANG FIELD", label: "LANDING DATUM", x: DESERT_START[0], z: DESERT_START[1], radius: 15, order: 0 }),
-    Object.freeze({ id: "P02-002", body: "desert", planet: "PLANET 02", world: "YARDANG FIELD", label: "SINTERED PASSAGE", x: 74, z: 474, radius: 24, order: 1 }),
-    Object.freeze({ id: "P02-003", body: "desert", planet: "PLANET 02", world: "YARDANG FIELD", label: "HYDRATION RETURN", x: BODY02_WATER_SITE.x, z: BODY02_WATER_SITE.z, radius: 12, order: 2 })
+    Object.freeze({ id: "P02-001", body: "desert", planet: "PLANET 02", world: "YARDANG FIELD", label: "LANDING DATUM", x: DESERT_START[0], z: DESERT_START[1], radius: 14, order: 0 }),
+    Object.freeze({ id: "P02-002", body: "desert", planet: "PLANET 02", world: "YARDANG FIELD", label: "YARDANG INGRESS", x: 88, z: 503, radius: 13, order: 1 }),
+    Object.freeze({ id: "P02-003", body: "desert", planet: "PLANET 02", world: "YARDANG FIELD", label: "SINTERED PASSAGE", x: 79, z: 486, radius: 13, order: 2 }),
+    Object.freeze({ id: "P02-004", body: "desert", planet: "PLANET 02", world: "YARDANG FIELD", label: "WIND-SHADOW CUT", x: 70, z: 468, radius: 13, order: 3 }),
+    Object.freeze({ id: "P02-005", body: "desert", planet: "PLANET 02", world: "YARDANG FIELD", label: "HYDRATION GRADIENT", x: 62, z: 450, radius: 13, order: 4 }),
+    Object.freeze({ id: "P02-006", body: "desert", planet: "PLANET 02", world: "YARDANG FIELD", label: "PORE-ICE APPROACH", x: 56, z: 438, radius: 12, order: 5 }),
+    Object.freeze({ id: "P02-007", body: "desert", planet: "PLANET 02", world: "YARDANG FIELD", label: "HYDRATION RETURN", x: BODY02_WATER_SITE.x, z: BODY02_WATER_SITE.z, radius: 12, order: 6 })
   ])
 });
 const COMPLETION_TABLEAU_MS = 5400;
@@ -1454,17 +1461,18 @@ function activateArchive(reason = "device", announce = true) {
 }
 function fieldArchiveStationsFor(body = world) {
   if (body !== "granite") return FIELD_ARCHIVE_STATIONS[body] ?? [];
-  return (geologicalMemory?.model?.sites ?? []).map((site, order) => ({
-    id: `P03-${String(order + 1).padStart(3, "0")}`,
-    body: "granite",
-    planet: "PLANET 03",
-    world: "JOINTED GRANITE",
-    label: ["MATERIAL PHASE", "HYDRATION PHASE", "CONCORDANCE"][order] ?? "MEMORY DATUM",
-    x: site.x,
-    z: site.z,
-    radius: 14,
-    order
-  }));
+  const sites = geologicalMemory?.model?.sites ?? [];
+  if (sites.length !== 3) return [];
+  const between = (a, b) => ({ x: (a.x + b.x) * 0.5, z: (a.z + b.z) * 0.5 });
+  const start = { x: PLANETS.granite.start[0], z: PLANETS.granite.start[1] };
+  const transit = between(sites[0], sites[1]);
+  return [
+    { id: "P03-001", body: "granite", planet: "PLANET 03", world: "JOINTED GRANITE", label: "LANDING DATUM", ...start, radius: 14, order: 0 },
+    { id: "P03-002", body: "granite", planet: "PLANET 03", world: "JOINTED GRANITE", label: "MATERIAL PHASE", x: sites[0].x, z: sites[0].z, radius: 14, order: 1 },
+    { id: "P03-003", body: "granite", planet: "PLANET 03", world: "JOINTED GRANITE", label: "MEMORY TRANSIT", ...transit, radius: 16, order: 2 },
+    { id: "P03-004", body: "granite", planet: "PLANET 03", world: "JOINTED GRANITE", label: "HYDRATION PHASE", x: sites[1].x, z: sites[1].z, radius: 14, order: 3 },
+    { id: "P03-005", body: "granite", planet: "PLANET 03", world: "JOINTED GRANITE", label: "CONCORDANCE", x: sites[2].x, z: sites[2].z, radius: 14, order: 4 }
+  ];
 }
 function captureArchiveFrame() {
   const sourceWidth = canvas?.width ?? 0;
@@ -1496,7 +1504,8 @@ function captureFieldArchiveObservation(now, missionEnding) {
     rover,
     shot: shotDirector.rendered,
     now,
-    image: captureArchiveFrame
+    image: captureArchiveFrame,
+    minSpeed: 0.035
   });
   if (record) hud.flash();
 }

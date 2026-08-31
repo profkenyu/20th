@@ -237,10 +237,14 @@ async function build() {
     bad("field archive output", "missing \u2014 run npm run build");
   } else if (!archive.includes("FIELD ARCHIVE / COORDINATE RECORDS") || !archive.includes("SIGNAL NOT ACQUIRED")) {
     bad("field archive output", "missing coordinate record UI");
+  } else if (["P01", "P02", "P03"].some((planet, index) => (archive.match(new RegExp(`\\[\\"${planet}-`, "g")) ?? []).length !== [12, 7, 5][index])) {
+    bad("field archive output", "expected 12 / 7 / 5 moving-photo records");
+  } else if (/id=\"fa-title\"|id=\"fa-location\"|id=\"fa-data\"|id=\"fa-frame\"/.test(archive)) {
+    bad("field archive output", "hover image still contains lower text metadata");
   } else if (/(?:src|href)="https?:\/\//i.test(archive)) {
     bad("field archive output", "contains external dependency");
   } else {
-    ok("field archive output", `${(archive.length / 1024).toFixed(0)} KB, stored-coordinate UI present`);
+    ok("field archive output", `${(archive.length / 1024).toFixed(0)} KB, 12 / 7 / 5 moving-photo records`);
   }
 }
 console.log("\u2550\u2550 VERIFY \u2550\u2550\n");

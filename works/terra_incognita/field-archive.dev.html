@@ -44,18 +44,6 @@
   .no-image { display:grid; gap:5px; justify-items:center; color:#8e8e8b; text-align:center; }
   .no-image i { display:block; width:26px; height:1px; background:var(--signal); }
   .no-image b, .no-image span { font-size:9px; font-weight:400; letter-spacing:.08em; }
-  .caption { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:18px; padding-top:9px; background:var(--paper); }
-  .caption-data { min-width:120px; text-align:right; }
-  #fa-title { margin:0; overflow:hidden; font-size:inherit; font-weight:400; line-height:20px; text-overflow:ellipsis; white-space:nowrap; }
-  #fa-location, #fa-data { margin:0; color:var(--dim); font-family:"DM Mono", "Noto Sans KR", monospace; font-size:8px; line-height:1.55; letter-spacing:.04em; }
-  #fa-location { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  #fa-data { text-align:right; white-space:pre-line; }
-  .frame-index { display:block; margin-bottom:2px; color:var(--ink); font-family:Arial, Helvetica, sans-serif; font-size:10px; line-height:1; }
-  .memory { display:none; margin-top:14px; background:var(--paper); }
-  .memory.on { display:block; }
-  .memory-head { display:flex; justify-content:space-between; gap:15px; padding:0 0 7px; color:var(--dim); font-size:9px; }
-  #fa-memory-map { display:block; width:100%; height:auto; border:1px solid #d7d7d3; background:#f6f6f3; }
-  .memory-note { margin:7px 0 0; color:var(--dim); font-family:"Noto Sans KR", sans-serif; font-size:9px; line-height:1.55; }
   .footer { position:fixed; z-index:1; right:var(--pad); bottom:16px; left:var(--pad); display:flex; justify-content:space-between; gap:14px; color:var(--dim); font-size:9px; line-height:1.4; pointer-events:none; }
   .sr-only { position:absolute; width:1px; height:1px; padding:0; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
   @media (max-width:700px) {
@@ -74,10 +62,6 @@
     .selection-line { left:7px; right:7px; }
     .preview { top:auto; right:var(--pad); bottom:42px; left:var(--pad); width:auto; max-height:calc(100dvh - 142px); overflow:hidden; z-index:7; }
     .preview.on { box-shadow:0 0 0 5px var(--paper); }
-    .caption { gap:10px; padding-top:7px; }
-    #fa-title { font-size:12px; }
-    #fa-location, #fa-data { font-size:7px; }
-    .memory { margin-top:9px; }
     .footer { bottom:12px; font-size:8px; }
     #fa-footer { display:none; }
     .footer { justify-content:flex-end; }
@@ -106,15 +90,6 @@
         <img id="fa-image" alt="로버가 수집한 좌표 관측 이미지">
         <div id="fa-empty" class="no-image"><i></i><b>NO IMAGE</b><span>SIGNAL NOT ACQUIRED</span></div>
       </div>
-      <div class="caption">
-        <div><h2 id="fa-title">Awaiting coordinate</h2><p id="fa-location">—</p></div>
-        <div class="caption-data"><span id="fa-frame" class="frame-index">FRAME —</span><p id="fa-data">—</p></div>
-      </div>
-      <section id="fa-memory" class="memory" aria-label="세 번째 행성의 지질 기억 도면">
-        <div class="memory-head"><span>Geological memory / concordance</span><span>Planet 03</span></div>
-        <canvas id="fa-memory-map" width="880" height="264" aria-label="첫 두 행성의 관측 기록과 세 번째 행성의 지질 기억 연결도"></canvas>
-        <p class="memory-note">첫 번째 행성의 물질 기록과 두 번째 행성의 수분 기록은 세 번째 행성에서 하나의 지질 기억으로 교차 참조됩니다.</p>
-      </section>
     </section>
     <div id="fa-selection" class="selection-line" aria-hidden="true"></div>
   </section>
@@ -122,22 +97,39 @@
 </main>
 <script>
 (() => {
-  const KEY = "terra-incognita:field-archive:v1";
+  const KEY = "terra-incognita:field-archive:v2";
   const FALLBACK = [
-    ["P01-001", "terra", "PLANET 01", "SHEAR WORLD", "SHEAR LAMINAE", 231.6, 543.4, 0],
-    ["P01-002", "terra", "PLANET 01", "SHEAR WORLD", "LOW ALBEDO CARBON", 209.9, 471.4, 1],
-    ["P01-003", "terra", "PLANET 01", "SHEAR WORLD", "SPECULAR BANDING", 173.9, 391.9, 2],
-    ["P01-004", "terra", "PLANET 01", "SHEAR WORLD", "RARE-EARTH RETURN", 131.1, 294.2, 3],
+    ["P01-001", "terra", "PLANET 01", "SHEAR WORLD", "DEPARTURE FRAME", 233.2, 558.5, 0],
+    ["P01-002", "terra", "PLANET 01", "SHEAR WORLD", "SHEAR LAMINAE", 231.6, 543.4, 1],
+    ["P01-003", "terra", "PLANET 01", "SHEAR WORLD", "CERAMIC APPROACH", 216, 530, 2],
+    ["P01-004", "terra", "PLANET 01", "SHEAR WORLD", "SPECTRAL SPLIT", 199.1, 516.1, 3],
+    ["P01-005", "terra", "PLANET 01", "SHEAR WORLD", "CARBON TRANSIT", 205, 493, 4],
+    ["P01-006", "terra", "PLANET 01", "SHEAR WORLD", "LOW ALBEDO CARBON", 209.9, 471.4, 5],
+    ["P01-007", "terra", "PLANET 01", "SHEAR WORLD", "PRESSURE RIDGE", 188, 458, 6],
+    ["P01-008", "terra", "PLANET 01", "SHEAR WORLD", "SERVICE / PRESSURE", 168.5, 445.3, 7],
+    ["P01-009", "terra", "PLANET 01", "SHEAR WORLD", "SPECULAR BANDING", 173.9, 391.9, 8],
+    ["P01-010", "terra", "PLANET 01", "SHEAR WORLD", "LATTICE DESCENT", 127.7, 352.8, 9],
+    ["P01-011", "terra", "PLANET 01", "SHEAR WORLD", "RARE-EARTH RETURN", 131.1, 294.2, 10],
+    ["P01-012", "terra", "PLANET 01", "SHEAR WORLD", "RESERVE EGRESS", 92.5, 247.9, 11],
     ["P02-001", "desert", "PLANET 02", "YARDANG FIELD", "LANDING DATUM", 96, 520, 0],
-    ["P02-002", "desert", "PLANET 02", "YARDANG FIELD", "SINTERED PASSAGE", 74, 474, 1],
-    ["P02-003", "desert", "PLANET 02", "YARDANG FIELD", "HYDRATION RETURN", 52, 428, 2]
+    ["P02-002", "desert", "PLANET 02", "YARDANG FIELD", "YARDANG INGRESS", 88, 503, 1],
+    ["P02-003", "desert", "PLANET 02", "YARDANG FIELD", "SINTERED PASSAGE", 79, 486, 2],
+    ["P02-004", "desert", "PLANET 02", "YARDANG FIELD", "WIND-SHADOW CUT", 70, 468, 3],
+    ["P02-005", "desert", "PLANET 02", "YARDANG FIELD", "HYDRATION GRADIENT", 62, 450, 4],
+    ["P02-006", "desert", "PLANET 02", "YARDANG FIELD", "PORE-ICE APPROACH", 56, 438, 5],
+    ["P02-007", "desert", "PLANET 02", "YARDANG FIELD", "HYDRATION RETURN", 52, 428, 6],
+    ["P03-001", "granite", "PLANET 03", "JOINTED GRANITE", "LANDING DATUM", 120, 460, 0],
+    ["P03-002", "granite", "PLANET 03", "JOINTED GRANITE", "MATERIAL PHASE", 107, 431, 1],
+    ["P03-003", "granite", "PLANET 03", "JOINTED GRANITE", "MEMORY TRANSIT", 124, 402, 2],
+    ["P03-004", "granite", "PLANET 03", "JOINTED GRANITE", "HYDRATION PHASE", 150, 383, 3],
+    ["P03-005", "granite", "PLANET 03", "JOINTED GRANITE", "CONCORDANCE", 170, 345, 4]
   ].map(([id, body, planet, world, label, x, z, order]) => ({ id, body, planet, world, label, x, z, order }));
   const byId = (items) => new Map(items.map((item) => [item.id, item]));
   const escape = (value) => String(value ?? "").replace(/[&<>\"]/g, (char) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "\"":"&quot;" })[char]);
   const read = () => {
     try {
       const data = JSON.parse(sessionStorage.getItem(KEY) || "null");
-      return data && data.version === 1 ? data : { stations: [], records: [] };
+      return data && data.version === 2 ? data : { stations: [], records: [] };
     } catch { return { stations: [], records: [] }; }
   };
   const source = read();
@@ -152,40 +144,10 @@
   const preview = document.getElementById("fa-preview");
   const frameSurface = preview.querySelector(".frame");
   const selection = document.getElementById("fa-selection");
-  const title = document.getElementById("fa-title");
-  const location = document.getElementById("fa-location");
-  const data = document.getElementById("fa-data");
-  const frame = document.getElementById("fa-frame");
-  const memory = document.getElementById("fa-memory");
-  const memoryMap = document.getElementById("fa-memory-map");
   let filter = "all";
   let selected = null;
   const coord = (station) => `X ${Number(station.x).toFixed(1)}  /  Z ${Number(station.z).toFixed(1)}`;
   function filtered() { return stations.filter((station) => filter === "all" || station.body === filter); }
-  function drawMemory(station) {
-    const ctx = memoryMap.getContext("2d");
-    const width = memoryMap.width, height = memoryMap.height;
-    ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = "#f6f6f3"; ctx.fillRect(0, 0, width, height);
-    ctx.strokeStyle = "rgba(16,16,15,.15)"; ctx.lineWidth = 1;
-    [width / 3, width * 2 / 3].forEach((x) => { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke(); });
-    ctx.fillStyle = "#858582"; ctx.font = "10px DM Mono, monospace";
-    ["P01 / MATTER", "P02 / WATER", "P03 / MEMORY"].forEach((label, index) => ctx.fillText(label, 18 + index * width / 3, 22));
-    const groups = [["terra", width / 6], ["desert", width / 2], ["granite", width * 5 / 6]];
-    const nodes = groups.flatMap(([body, x]) => stations.filter((item) => item.body === body).map((item, index, list) => ({ item, x, y: 62 + ((index + 1) / (list.length + 1)) * (height - 86) })));
-    const activeP3 = nodes.find((node) => node.item.id === station.id);
-    if (activeP3) {
-      nodes.filter((node) => (node.item.body === "terra" || node.item.body === "desert") && recordsById.has(node.item.id)).forEach((node) => {
-        ctx.beginPath(); ctx.setLineDash([4, 5]); ctx.strokeStyle = node.item.body === "terra" ? "rgba(83,110,91,.72)" : "rgba(198,93,34,.72)"; ctx.moveTo(node.x, node.y); ctx.lineTo(activeP3.x, activeP3.y); ctx.stroke();
-      });
-    }
-    ctx.setLineDash([]);
-    nodes.forEach((node) => {
-      const acquired = recordsById.has(node.item.id), active = node.item.id === station.id;
-      ctx.beginPath(); ctx.fillStyle = active ? "#10100f" : acquired ? "#536e5b" : "#c2c2bd"; ctx.arc(node.x, node.y, active ? 5 : 3, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = active ? "#10100f" : "#858582"; ctx.font = "9px DM Mono, monospace"; ctx.fillText(node.item.id, node.x + 9, node.y + 3);
-    });
-  }
   function positionPreview(node = selected && ledger.querySelector(`[data-id="${selected.id}"]`)) {
     if (!node) return;
     const rect = node.getBoundingClientRect();
@@ -202,28 +164,17 @@
     selected = station;
     const record = recordsById.get(station.id);
     document.querySelectorAll(".record").forEach((node) => node.setAttribute("aria-pressed", String(node.dataset.id === station.id)));
-    title.textContent = station.label;
-    location.textContent = `${station.planet} / ${station.world} / ${coord(station)}`;
-    frame.textContent = record ? `FRAME ${String(record.frame).padStart(2, "0")}` : "FRAME —";
-    data.textContent = record ? `${record.shot || "MAST"} CAMERA\nHEADING ${Number(record.heading || 0).toFixed(2)} RAD\nCOORDINATE ${coord(station)}` : `NO IMAGE\nSIGNAL NOT ACQUIRED\nCOORDINATE ${coord(station)}`;
     if (record && typeof record.image === "string") { image.src = record.image; image.classList.add("on"); empty.hidden = true; frameSurface.classList.remove("empty"); }
     else { image.removeAttribute("src"); image.classList.remove("on"); empty.hidden = false; frameSurface.classList.add("empty"); }
-    memory.classList.toggle("on", station.body === "granite");
-    if (station.body === "granite") drawMemory(station);
     preview.classList.add("on");
     positionPreview(node);
   }
   function clearPreview() {
     selected = null;
     document.querySelectorAll(".record").forEach((node) => node.setAttribute("aria-pressed", "false"));
-    title.textContent = "No coordinate records";
-    location.textContent = "PLANET 03 / GEOLOGICAL MEMORY / WAITING FOR ARRIVAL";
-    frame.textContent = "FRAME —";
-    data.textContent = "NO IMAGE\nSIGNAL NOT ACQUIRED\nPLANETARY FIELD NOT YET REGISTERED";
     image.removeAttribute("src");
     image.classList.remove("on");
     empty.hidden = false;
-    memory.classList.remove("on");
     preview.classList.remove("on");
     selection.classList.remove("on");
   }
