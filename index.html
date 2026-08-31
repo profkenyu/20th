@@ -158,6 +158,19 @@
     bottom: 0;
     border-top: 1px solid rgba(192, 21, 42, .16);
   }
+  #ti-copyright {
+    position: fixed;
+    z-index: 21;
+    left: 50%;
+    bottom: max(9px, calc(var(--safe-bottom) + 7px));
+    color: rgba(217, 221, 226, .48);
+    font: 6px/1 "DM Mono", ui-monospace, monospace;
+    letter-spacing: .11em;
+    pointer-events: none;
+    text-transform: uppercase;
+    transform: translateX(-50%);
+    white-space: nowrap;
+  }
   #universe-id {
     position: fixed;
     z-index: 30;
@@ -1039,7 +1052,8 @@
   body.embed #arrive,
   body.embed #depart,
   body.embed #ti-entry-veil,
-  body.embed #universe-id {
+  body.embed #universe-id,
+  body.embed #ti-copyright {
     display: none;
   }
   #ti-prologue {
@@ -1818,6 +1832,7 @@
 </div>
 <div class="bar t"></div>
 <div class="bar b"></div>
+<div id="ti-copyright">©2026 KIM GUNWOO. ALL RIGHTS RESERVED.</div>
 <button id="ti-sound" type="button" aria-pressed="false" data-audio-state="start"><span data-sound-label aria-live="polite">TAP FOR SOUND</span></button>
 <a id="ti-field-archive" href="field-archive.html" aria-label="좌표 기록 아카이브 열기">FIELD ARCHIVE</a>
 <button id="ti-green" type="button" aria-pressed="false" aria-label="녹색 모니터 켜기" data-green-state="off" disabled>GREEN</button>
