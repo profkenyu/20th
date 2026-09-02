@@ -3,6 +3,12 @@ import { dirname, resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const UA = { "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126 Safari/537.36" };
+const NOTO_SUBSET_FONT = `${ROOT}/engine/noto-sans-kr-subset.woff2`;
+const NOTO_SUBSET_TEXT = `${ROOT}/engine/noto-sans-kr-subset.txt`;
+const GENERATED_HTML = new Set([
+  `${ROOT}/works/terra_incognita/index.html`,
+  `${ROOT}/works/terra_incognita/field-archive.html`
+]);
 async function walk(dir, out = []) {
   for (const e of await readdir(dir, { withFileTypes: true })) {
     const p = join(dir, e.name);
@@ -11,15 +17,19 @@ async function walk(dir, out = []) {
   }
   return out;
 }
-async function hangul() {
-  const files = [...await walk(`${ROOT}/engine`), ...await walk(`${ROOT}/works`)];
+async function usedCharacters() {
+  const files = [
+    ...await walk(`${ROOT}/engine`),
+    ...await walk(`${ROOT}/works`),
+    ...await walk(`${ROOT}/tools`)
+  ].filter((file) => !GENERATED_HTML.has(file));
   const set = new Set();
   for (const f of files) {
     for (const ch of await readFile(f, "utf8")) {
-      if (ch >= "\uAC00" && ch <= "\uD7A3") set.add(ch);
+      if (ch.codePointAt(0) > 0x7f) set.add(ch);
     }
   }
-  return [...set].sort().join("");
+  return [...set].sort((a, b) => a.codePointAt(0) - b.codePointAt(0)).join("");
 }
 async function faces(query, text) {
   let url = "https://fonts.googleapis.com/css2?" + query;
@@ -38,13 +48,24 @@ async function faces(query, text) {
   }
   return out;
 }
-const ko = await hangul();
+async function localNotoFace(text) {
+  const subsetText = (await readFile(NOTO_SUBSET_TEXT, "utf8")).trimEnd();
+  if (subsetText !== text) {
+    throw new Error("Noto Sans KR subset is stale: regenerate it for the current source characters");
+  }
+  const bytes = await readFile(NOTO_SUBSET_FONT);
+  return {
+    bytes: bytes.length,
+    css: `@font-face {\n  font-family: 'Noto Sans KR';\n  font-style: normal;\n  font-weight: 400;\n  font-display: swap;\n  src: url(data:font/woff2;base64,${bytes.toString("base64")}) format('woff2');\n}`
+  };
+}
+const chars = await usedCharacters();
 const all = [
   ...await faces("family=DM+Mono:wght@300;400;500&display=swap"),
   ...await faces("family=Space+Mono:wght@400;700&display=swap"),
-  ...await faces("family=Noto+Sans+KR:wght@400&display=swap", ko)
+  await localNotoFace(chars)
 ];
-const header = `/* SUBSET: ${ko} */\n\n`;
+const header = `/* SUBSET: ${chars} */\n\n`;
 await writeFile(`${ROOT}/engine/fonts.css`, header + all.map((f) => f.css).join("\n") + "\n");
 const kb = (await stat(`${ROOT}/engine/fonts.css`)).size / 1024;
-console.log(`\u2713 engine/fonts.css \u2014 ${all.length} faces, ${ko.length} hangul, ${kb.toFixed(1)} KB`);
+console.log(`\u2713 engine/fonts.css \u2014 ${all.length} faces, ${chars.length} subset chars, ${kb.toFixed(1)} KB`);

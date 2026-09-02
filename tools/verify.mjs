@@ -245,6 +245,8 @@ async function build() {
     bad("field archive output", "expected 12 / 7 / 5 moving-photo records");
   } else if (/id=\"fa-title\"|id=\"fa-location\"|id=\"fa-data\"|id=\"fa-frame\"/.test(archive)) {
     bad("field archive output", "hover image still contains lower text metadata");
+  } else if (/archive-test|diagnosticImage|readPreviewFixture/.test(archive)) {
+    bad("field archive output", "contains a development-only image fixture");
   } else if (/(?:src|href)="https?:\/\//i.test(archive)) {
     bad("field archive output", "contains external dependency");
   } else {

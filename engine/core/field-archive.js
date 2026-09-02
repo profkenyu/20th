@@ -10,13 +10,34 @@ const CAPTURE_SCHEDULE = Object.freeze({
   granite: Object.freeze(["panorama", "macro", "portrait", "tele", "fisheye"])
 });
 export const ARCHIVE_CAPTURE_PROFILES = Object.freeze({
-  fisheye: Object.freeze({ lens: "FISHEYE 8MM", viewpoint: "MAST / FORWARD", aspect: 1, zoom: 1.04, focusX: .5, focusY: .52, projection: "fisheye" }),
-  wide: Object.freeze({ lens: "ULTRAWIDE 18MM", viewpoint: "LOW FRONT", aspect: 16 / 9, zoom: 1.08, focusX: .5, focusY: .56, projection: "rectilinear" }),
-  rear: Object.freeze({ lens: "STANDARD 35MM", viewpoint: "REAR FOLLOW", aspect: 3 / 2, zoom: 1.28, focusX: .5, focusY: .53, projection: "rectilinear" }),
-  tele: Object.freeze({ lens: "TELEPHOTO 120MM", viewpoint: "MATERIAL FACE", aspect: 4 / 3, zoom: 2.24, focusX: .53, focusY: .5, projection: "rectilinear" }),
-  macro: Object.freeze({ lens: "MACRO 90MM", viewpoint: "GROUND CLOSE", aspect: 4 / 5, zoom: 2.82, focusX: .5, focusY: .68, projection: "rectilinear" }),
-  portrait: Object.freeze({ lens: "WIDE 24MM", viewpoint: "LATERAL RISE", aspect: 3 / 4, zoom: 1.6, focusX: .64, focusY: .5, projection: "rectilinear" }),
-  panorama: Object.freeze({ lens: "PANORAMA 24MM", viewpoint: "HORIZON SWEEP", aspect: 2.39, zoom: 1.04, focusX: .46, focusY: .5, projection: "rectilinear" })
+  fisheye: Object.freeze({
+    lens: "FISHEYE 8MM", viewpoint: "MAST / FORWARD", aspect: 1,
+    zoom: 1.04, focusX: .5, focusY: .52, projection: "fisheye"
+  }),
+  wide: Object.freeze({
+    lens: "ULTRAWIDE 18MM", viewpoint: "LOW FRONT", aspect: 16 / 9,
+    zoom: 1.08, focusX: .5, focusY: .56, projection: "rectilinear"
+  }),
+  rear: Object.freeze({
+    lens: "STANDARD 35MM", viewpoint: "REAR FOLLOW", aspect: 3 / 2,
+    zoom: 1.28, focusX: .5, focusY: .53, projection: "rectilinear"
+  }),
+  tele: Object.freeze({
+    lens: "TELEPHOTO 120MM", viewpoint: "MATERIAL FACE", aspect: 4 / 3,
+    zoom: 2.24, focusX: .53, focusY: .5, projection: "rectilinear"
+  }),
+  macro: Object.freeze({
+    lens: "MACRO 90MM", viewpoint: "GROUND CLOSE", aspect: 4 / 5,
+    zoom: 2.82, focusX: .5, focusY: .68, projection: "rectilinear"
+  }),
+  portrait: Object.freeze({
+    lens: "WIDE 24MM", viewpoint: "LATERAL RISE", aspect: 3 / 4,
+    zoom: 1.6, focusX: .64, focusY: .5, projection: "rectilinear"
+  }),
+  panorama: Object.freeze({
+    lens: "PANORAMA 24MM", viewpoint: "HORIZON SWEEP", aspect: 2.39,
+    zoom: 1.04, focusX: .46, focusY: .5, projection: "rectilinear"
+  })
 });
 
 const stationOrder = (source) => {

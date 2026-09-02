@@ -1569,58 +1569,92 @@ function fieldArchiveStationsFor(body = world) {
     { id: "P03-005", body: "granite", planet: "PLANET 03", world: "JOINTED GRANITE", label: "CONCORDANCE", x: sites[2].x, z: sites[2].z, radius: 14, order: 4 }
   ];
 }
+const archiveFrameCanvas = document.createElement("canvas");
+const archiveSampleCanvas = document.createElement("canvas");
+function resizeArchiveCanvas(target, width, height) {
+  if (target.width !== width) target.width = width;
+  if (target.height !== height) target.height = height;
+}
+function archiveFrameSize(aspect, sourceWidth, sourceHeight) {
+  const longSide = Math.min(touchTerminal ? 240 : 360, Math.max(sourceWidth, sourceHeight));
+  return aspect >= 1
+    ? { width: longSide, height: Math.max(1, Math.round(longSide / aspect)) }
+    : { width: Math.max(1, Math.round(longSide * aspect)), height: longSide };
+}
+function archiveSourceCrop(capture, aspect, sourceWidth, sourceHeight) {
+  const sourceAspect = sourceWidth / sourceHeight;
+  const zoom = Math.max(1, Math.min(3.2, Number(capture.zoom) || 1));
+  const width = (sourceAspect > aspect ? sourceHeight * aspect : sourceWidth) / zoom;
+  const height = (sourceAspect > aspect ? sourceHeight : sourceWidth / aspect) / zoom;
+  const focusX = Math.max(0, Math.min(1, Number(capture.focusX) || .5));
+  const focusY = Math.max(0, Math.min(1, Number(capture.focusY) || .5));
+  return {
+    x: Math.max(0, Math.min(sourceWidth - width, sourceWidth * focusX - width * .5)),
+    y: Math.max(0, Math.min(sourceHeight - height, sourceHeight * focusY - height * .5)),
+    width,
+    height
+  };
+}
+function drawArchiveFisheye(context, crop, width, height) {
+  resizeArchiveCanvas(archiveSampleCanvas, width, height);
+  const sampleContext = archiveSampleCanvas.getContext("2d", { alpha: false });
+  if (!sampleContext) return false;
+  sampleContext.drawImage(canvas, crop.x, crop.y, crop.width, crop.height, 0, 0, width, height);
+  const source = sampleContext.getImageData(0, 0, width, height).data;
+  const output = context.createImageData(width, height);
+  const radial = Math.min(width, height) * .5;
+  const centerX = (width - 1) * .5;
+  const centerY = (height - 1) * .5;
+  const strength = 1.28;
+  const normalizer = Math.atan(strength);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const targetIndex = (y * width + x) * 4;
+      const nx = (x - centerX) / radial;
+      const ny = (y - centerY) / radial;
+      const radius = Math.hypot(nx, ny);
+      if (radius > 1) {
+        output.data[targetIndex] = 4;
+        output.data[targetIndex + 1] = 6;
+        output.data[targetIndex + 2] = 7;
+        output.data[targetIndex + 3] = 255;
+        continue;
+      }
+      const scale = radius > 0 ? Math.atan(radius * strength) / normalizer / radius : 1;
+      const sourceX = Math.max(0, Math.min(width - 1, Math.round(centerX + nx * scale * radial)));
+      const sourceY = Math.max(0, Math.min(height - 1, Math.round(centerY + ny * scale * radial)));
+      const sourceIndex = (sourceY * width + sourceX) * 4;
+      output.data[targetIndex] = source[sourceIndex];
+      output.data[targetIndex + 1] = source[sourceIndex + 1];
+      output.data[targetIndex + 2] = source[sourceIndex + 2];
+      output.data[targetIndex + 3] = 255;
+    }
+  }
+  context.putImageData(output, 0, 0);
+  return true;
+}
 function captureArchiveFrame(capture = {}) {
   const sourceWidth = canvas?.width ?? 0;
   const sourceHeight = canvas?.height ?? 0;
   if (!sourceWidth || !sourceHeight) return null;
   const aspect = Math.max(.5, Math.min(2.5, Number(capture.aspect) || sourceWidth / sourceHeight));
-  const longSide = Math.min(touchTerminal ? 240 : 360, Math.max(sourceWidth, sourceHeight));
-  const width = aspect >= 1 ? longSide : Math.max(1, Math.round(longSide * aspect));
-  const height = aspect >= 1 ? Math.max(1, Math.round(longSide / aspect)) : longSide;
-  const sourceAspect = sourceWidth / sourceHeight;
-  let cropWidth = sourceAspect > aspect ? sourceHeight * aspect : sourceWidth;
-  let cropHeight = sourceAspect > aspect ? sourceHeight : sourceWidth / aspect;
-  const zoom = Math.max(1, Math.min(3.2, Number(capture.zoom) || 1));
-  cropWidth /= zoom;
-  cropHeight /= zoom;
-  const focusX = Math.max(0, Math.min(1, Number(capture.focusX) || .5));
-  const focusY = Math.max(0, Math.min(1, Number(capture.focusY) || .5));
-  const sourceX = Math.max(0, Math.min(sourceWidth - cropWidth, sourceWidth * focusX - cropWidth * .5));
-  const sourceY = Math.max(0, Math.min(sourceHeight - cropHeight, sourceHeight * focusY - cropHeight * .5));
+  const { width, height } = archiveFrameSize(aspect, sourceWidth, sourceHeight);
+  const crop = archiveSourceCrop(capture, aspect, sourceWidth, sourceHeight);
   try {
-    const frame = document.createElement("canvas");
-    frame.width = width;
-    frame.height = height;
-    const context = frame.getContext("2d", { alpha: false });
+    resizeArchiveCanvas(archiveFrameCanvas, width, height);
+    const context = archiveFrameCanvas.getContext("2d", { alpha: false });
     if (!context) return null;
     context.fillStyle = "#040607";
     context.fillRect(0, 0, width, height);
+    let rendered = true;
     if (capture.projection === "fisheye") {
-      const radial = Math.max(width, height) * .5;
-      const centerX = width * .5;
-      const centerY = height * .5;
-      context.save();
-      context.beginPath();
-      context.arc(centerX, centerY, radial, 0, Math.PI * 2);
-      context.clip();
-      for (let y = 0; y < height; y += 2) {
-        for (let x = 0; x < width; x += 2) {
-          const nx = (x + 1 - centerX) / radial;
-          const ny = (y + 1 - centerY) / radial;
-          const radius = Math.hypot(nx, ny);
-          if (radius > 1) continue;
-          const mapped = Math.atan(radius * 1.28) / Math.atan(1.28);
-          const sourcePx = sourceX + cropWidth * (.5 + nx * mapped * .5);
-          const sourcePy = sourceY + cropHeight * (.5 + ny * mapped * .5);
-          context.drawImage(canvas, sourcePx, sourcePy, cropWidth / width * 2.4, cropHeight / height * 2.4, x, y, 2.4, 2.4);
-        }
-      }
-      context.restore();
+      rendered = drawArchiveFisheye(context, crop, width, height);
     } else {
-      context.drawImage(canvas, sourceX, sourceY, cropWidth, cropHeight, 0, 0, width, height);
+      context.drawImage(canvas, crop.x, crop.y, crop.width, crop.height, 0, 0, width, height);
     }
+    if (!rendered) return null;
     return {
-      image: frame.toDataURL("image/webp", touchTerminal ? 0.62 : 0.72),
+      image: archiveFrameCanvas.toDataURL("image/webp", touchTerminal ? 0.62 : 0.72),
       width,
       height,
       capture
