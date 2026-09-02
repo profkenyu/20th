@@ -263,7 +263,8 @@
         const snapshot = archive.snapshot();
         const evidence = snapshot.stations.find((station) => station.archiveRole === "evidence");
         const potential = snapshot.stations.find((station) => station.archiveRole === "potential");
-        if (!evidence || !potential || potential.potentialCount !== 2 || snapshot.records.length !== 1 || snapshot.records[0].kind !== "resource-evidence")
+        const profile = snapshot.records[0]?.capture;
+        if (!evidence || !potential || potential.potentialCount !== 2 || snapshot.records.length !== 1 || snapshot.records[0].kind !== "resource-evidence" || !profile || profile.aspect <= 0 || !profile.lens || !profile.viewpoint)
           throw new Error(`archive resolution failed: ${JSON.stringify(snapshot)}`);
         const legacyValues = new Map([["terra-incognita:field-archive:v2", JSON.stringify({
           version: 2,
@@ -275,9 +276,9 @@
           setItem: (key, value) => legacyValues.set(key, value),
           removeItem: (key) => legacyValues.delete(key)
         } }).snapshot();
-        if (migrated.version !== 3 || migrated.records.length !== 1 || !legacyValues.has("terra-incognita:field-archive:v3"))
+        if (migrated.version !== 4 || migrated.records.length !== 1 || !migrated.records[0].capture?.lens || !legacyValues.has("terra-incognita:field-archive:v4"))
           throw new Error(`v2 archive did not migrate: ${JSON.stringify(migrated)}`);
-        return "1 evidence image \xB7 2 unchosen sites \xB7 v2 records migrated to v3";
+        return "1 evidence image \xB7 2 unchosen sites \xB7 v2 records migrated to v4 with capture profiles";
       });
       await step("scene.add all", () => {
         scene.add(sky, ground.mesh, ...scat.meshes, rover.group, lander.group);

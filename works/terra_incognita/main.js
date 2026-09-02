@@ -290,7 +290,6 @@ const DOCKED_BREATH_MS = 2800;
 const ARRIVAL_BREATH_MS = 3e3;
 const WATER_CONFIRM_BREATH_MS = 4800;
 const FINAL_TABLEAU_MS = 12e3;
-const EXPLORER_IDLE_MS = 12e3;
 const DRIVE_KEYS = new Set([
   "KeyW",
   "KeyA",
@@ -396,7 +395,7 @@ let experienceMode = "observer", lastExplorerIntent = -Infinity;
 let released = false;
 let prologuePhase = "blueprints";
 let entryRevealRequested = false;
-let soundControl = null, fieldArchiveControl = null, greenControl = null, desktopStart = null;
+let soundControl = null, fieldArchiveControl = null, greenControl = null, driveModeControl = null, lightControl = null, cameraControl = null, desktopStart = null;
 let running = false, hasTimestamp = false;
 let rafId = 0, loopGeneration = 0, frameInFlight = false;
 let tPrev = 0, tStamp = 0, tProbe = 0, frames = 0, acc = 0;
@@ -413,6 +412,27 @@ try {
   ambient.bindControl(soundControl);
   fieldArchiveControl = document.getElementById("ti-field-archive");
   greenControl = document.getElementById("ti-green");
+  driveModeControl = document.getElementById("ti-drive-mode");
+  lightControl = document.getElementById("ti-light");
+  cameraControl = document.getElementById("ti-camera");
+  driveModeControl?.addEventListener("pointerdown", (event) => event.stopPropagation());
+  driveModeControl?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleDriveMode(performance.now());
+  });
+  lightControl?.addEventListener("pointerdown", (event) => event.stopPropagation());
+  lightControl?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleHeadlights();
+  });
+  cameraControl?.addEventListener("pointerdown", (event) => event.stopPropagation());
+  cameraControl?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    cycleCameraView(performance.now());
+  });
   greenControl?.addEventListener("pointerdown", (event) => event.stopPropagation());
   greenControl?.addEventListener("click", (event) => {
     event.preventDefault();
@@ -559,7 +579,7 @@ try {
   });
   shotDirector.setExperience("observer");
   mobileControl.setExplorer(false);
-  mobileControl.onIntent = (_kind, now) => enterExplorer(now, { rear: true });
+  mobileControl.onIntent = (kind, now) => kind === "drive-mode" ? toggleDriveMode(now) : enterExplorer(now, { rear: true });
   rover.onSpace = (now) => {
     if (!released) return;
     enterObserver(now, { resumeRoute: observerMayDrive() });
@@ -613,12 +633,7 @@ addEventListener("keydown", (e) => {
   if (!e.repeat && e.code === "KeyC") {
     e.preventDefault();
     if (!released) return;
-    shotDirector.setOpening(false);
-    if (shotDirector.cycle(now)) {
-      enterExplorer(now, { rear: false });
-      openingShot = null;
-      kiosk.last = now;
-    }
+    cycleCameraView(now);
   }
   if (!e.repeat && (e.code === "Equal" || e.code === "NumpadEqual" || e.key === "=")) {
     e.preventDefault();
@@ -688,6 +703,8 @@ function enterExplorer(now = performance.now(), { rear = true } = {}) {
   nextAutoPauseAt = now + 46e3;
   mobileControl.setExplorer(true);
   hud.setExperience("explorer");
+  syncDriveModeControl();
+  syncRoverUtilityControls();
   kiosk.last = now;
   return true;
 }
@@ -706,8 +723,58 @@ function enterObserver(now = performance.now(), { resumeRoute = observerMayDrive
   mobileControl.setExplorer(false);
   shotDirector.setExperience("observer", now);
   hud.setExperience("observer");
+  syncDriveModeControl();
+  syncRoverUtilityControls();
   if (changed) kiosk.last = now;
   return changed;
+}
+function toggleDriveMode(now = performance.now()) {
+  if (!released || authoredExperienceLock()) return false;
+  return experienceMode === "explorer" ? enterObserver(now, { resumeRoute: true }) : enterExplorer(now, { rear: true });
+}
+function toggleHeadlights() {
+  if (!released || authoredExperienceLock() || rover.disabled || rover.transmitting) return false;
+  rover.lamps = !rover.lamps;
+  syncRoverUtilityControls();
+  kiosk.last = performance.now();
+  return true;
+}
+function cycleCameraView(now = performance.now()) {
+  if (!released || authoredExperienceLock()) return false;
+  shotDirector.setOpening(false);
+  if (!shotDirector.cycle(now)) return false;
+  enterExplorer(now, { rear: false });
+  openingShot = null;
+  kiosk.last = now;
+  syncRoverUtilityControls();
+  return true;
+}
+function syncDriveModeControl() {
+  const manual = experienceMode === "explorer";
+  const locked = !released || authoredExperienceLock();
+  if (driveModeControl) {
+    driveModeControl.dataset.driveState = manual ? "manual" : "auto";
+    driveModeControl.setAttribute("aria-pressed", String(manual));
+    driveModeControl.disabled = locked;
+    driveModeControl.setAttribute("aria-disabled", String(locked));
+    driveModeControl.setAttribute("aria-hidden", String(!released && !location.search.includes("embed")));
+    driveModeControl.setAttribute("aria-label", manual ? "수동운행 사용 중 · 자동운행으로 전환" : "자동운행 사용 중 · 수동운행으로 전환");
+  }
+}
+function syncRoverUtilityControls() {
+  const locked = !released || authoredExperienceLock();
+  if (lightControl) {
+    const on = !!rover.lamps;
+    lightControl.dataset.lightState = on ? "on" : "off";
+    lightControl.setAttribute("aria-pressed", String(on));
+    lightControl.setAttribute("aria-label", on ? "헤드라이트 끄기" : "헤드라이트 켜기");
+    lightControl.disabled = locked || rover.disabled || rover.transmitting;
+  }
+  if (cameraControl) {
+    cameraControl.dataset.cameraState = experienceMode === "explorer" ? "manual" : "auto";
+    cameraControl.setAttribute("aria-label", `카메라 시점 이동 · 현재 ${shotDirector.label}`);
+    cameraControl.disabled = locked;
+  }
 }
 const a = GPU_PROFILE;
 hud.set("backend", "WebGPU");
@@ -789,10 +856,11 @@ window.TI_CAMERA = () => ({
 });
 window.TI_EXPERIENCE = () => ({
   mode: experienceMode,
+  driveMode: experienceMode === "explorer" ? "manual" : "auto",
   auto: rover.auto,
   manualInput: rover.manualInputEnabled,
   idleFor: experienceMode === "explorer" ? performance.now() - lastExplorerIntent : 0,
-  returnAfter: EXPLORER_IDLE_MS
+  manualPersistent: true
 });
 window.TI_ANOMALIES = () => restoration.sites.map((site, index) => ({
   index,
@@ -896,6 +964,8 @@ function setExperienceControlsReady(ready) {
   soundControl.disabled = !ready;
   soundControl.setAttribute("aria-hidden", String(!ready));
   syncGreenMonitor();
+  syncDriveModeControl();
+  syncRoverUtilityControls();
 }
 window.TI_PROLOGUE = () => ({
   phase: prologuePhase,
@@ -1227,8 +1297,6 @@ async function frame() {
     if (driveHeld) lastExplorerIntent = now;
     if (authoredExperienceLock()) {
       enterObserver(now, { resumeRoute: observerMayDrive() });
-    } else if (now - lastExplorerIntent >= EXPLORER_IDLE_MS) {
-      enterObserver(now, { resumeRoute: true });
     }
   }
   rover.manualInputEnabled = experienceMode === "explorer" && !authoredExperienceLock();
@@ -1266,6 +1334,7 @@ async function frame() {
     blocked: !!completionTableau || !!pendingArrival || docking.started || voyage.active || missionEnding,
     missionHold: rover.missionHold
   });
+  syncDriveModeControl();
   const v = rover.update(dt);
   restoration.update(v, now, world === "terra");
   if (world === "terra" && restoration.event && !restoration.event.all && restoration.event.t0 !== resourceSignalAt) {
@@ -1365,6 +1434,7 @@ async function frame() {
   }
   rover.disabled = pw.dead && !docking.active && !voyage.active;
   rover.transmitting = false;
+  syncRoverUtilityControls();
   const roverVisibleForFlight = !voyage.active || voyage.phase === "egress" || voyage.phase === "close";
   uLampPower.value = rover.lamps && roverVisibleForFlight ? pw.bus * openingLampGain(now) : 0;
   ambient.setPower(pw.dead ? 0 : pw.charge);
@@ -1499,12 +1569,24 @@ function fieldArchiveStationsFor(body = world) {
     { id: "P03-005", body: "granite", planet: "PLANET 03", world: "JOINTED GRANITE", label: "CONCORDANCE", x: sites[2].x, z: sites[2].z, radius: 14, order: 4 }
   ];
 }
-function captureArchiveFrame() {
+function captureArchiveFrame(capture = {}) {
   const sourceWidth = canvas?.width ?? 0;
   const sourceHeight = canvas?.height ?? 0;
   if (!sourceWidth || !sourceHeight) return null;
-  const width = Math.min(touchTerminal ? 240 : 320, sourceWidth);
-  const height = Math.max(1, Math.round(width * sourceHeight / sourceWidth));
+  const aspect = Math.max(.5, Math.min(2.5, Number(capture.aspect) || sourceWidth / sourceHeight));
+  const longSide = Math.min(touchTerminal ? 240 : 360, Math.max(sourceWidth, sourceHeight));
+  const width = aspect >= 1 ? longSide : Math.max(1, Math.round(longSide * aspect));
+  const height = aspect >= 1 ? Math.max(1, Math.round(longSide / aspect)) : longSide;
+  const sourceAspect = sourceWidth / sourceHeight;
+  let cropWidth = sourceAspect > aspect ? sourceHeight * aspect : sourceWidth;
+  let cropHeight = sourceAspect > aspect ? sourceHeight : sourceWidth / aspect;
+  const zoom = Math.max(1, Math.min(3.2, Number(capture.zoom) || 1));
+  cropWidth /= zoom;
+  cropHeight /= zoom;
+  const focusX = Math.max(0, Math.min(1, Number(capture.focusX) || .5));
+  const focusY = Math.max(0, Math.min(1, Number(capture.focusY) || .5));
+  const sourceX = Math.max(0, Math.min(sourceWidth - cropWidth, sourceWidth * focusX - cropWidth * .5));
+  const sourceY = Math.max(0, Math.min(sourceHeight - cropHeight, sourceHeight * focusY - cropHeight * .5));
   try {
     const frame = document.createElement("canvas");
     frame.width = width;
@@ -1513,8 +1595,36 @@ function captureArchiveFrame() {
     if (!context) return null;
     context.fillStyle = "#040607";
     context.fillRect(0, 0, width, height);
-    context.drawImage(canvas, 0, 0, sourceWidth, sourceHeight, 0, 0, width, height);
-    return frame.toDataURL("image/webp", touchTerminal ? 0.62 : 0.72);
+    if (capture.projection === "fisheye") {
+      const radial = Math.max(width, height) * .5;
+      const centerX = width * .5;
+      const centerY = height * .5;
+      context.save();
+      context.beginPath();
+      context.arc(centerX, centerY, radial, 0, Math.PI * 2);
+      context.clip();
+      for (let y = 0; y < height; y += 2) {
+        for (let x = 0; x < width; x += 2) {
+          const nx = (x + 1 - centerX) / radial;
+          const ny = (y + 1 - centerY) / radial;
+          const radius = Math.hypot(nx, ny);
+          if (radius > 1) continue;
+          const mapped = Math.atan(radius * 1.28) / Math.atan(1.28);
+          const sourcePx = sourceX + cropWidth * (.5 + nx * mapped * .5);
+          const sourcePy = sourceY + cropHeight * (.5 + ny * mapped * .5);
+          context.drawImage(canvas, sourcePx, sourcePy, cropWidth / width * 2.4, cropHeight / height * 2.4, x, y, 2.4, 2.4);
+        }
+      }
+      context.restore();
+    } else {
+      context.drawImage(canvas, sourceX, sourceY, cropWidth, cropHeight, 0, 0, width, height);
+    }
+    return {
+      image: frame.toDataURL("image/webp", touchTerminal ? 0.62 : 0.72),
+      width,
+      height,
+      capture
+    };
   } catch {
     return null;
   }

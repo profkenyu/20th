@@ -141,19 +141,29 @@
     color: #3a3e45;
     pointer-events: none;
   }
-  #ti-sound {
+  #ti-rover-tools {
     position: fixed;
     z-index: 34;
     right: 20px;
     top: calc(var(--frame-top) + 243px);
     bottom: auto;
+    display: grid;
+    width: 190px;
+    height: var(--utility-button-height);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    transition: opacity 1.2s ease;
+  }
+  #ti-rover-tools > button,
+  #ti-rover-tools > a {
     height: var(--utility-button-height);
     min-height: var(--utility-button-height);
     display: grid;
-    width: 64px;
+    width: 100%;
+    min-width: 0;
     grid-template-rows: 22px 8px;
     gap: 2px;
     padding: 3px 1px 2px;
+    overflow: hidden;
     place-items: center;
     border: 0;
     background: transparent;
@@ -161,29 +171,24 @@
     appearance: none;
     -webkit-appearance: none;
     touch-action: manipulation;
-    text-transform: uppercase;
-  }
-  #ti-field-archive {
-    position: fixed;
-    z-index: 34;
-    right: 98px;
-    top: calc(var(--frame-top) + 243px);
-    bottom: auto;
-    display: grid;
-    width: 64px;
-    grid-template-rows: 22px 8px;
-    gap: 2px;
-    padding: 3px 1px 2px;
-    overflow: hidden;
-    place-items: center;
-    height: var(--utility-button-height);
-    min-height: var(--utility-button-height);
-    border: 0;
-    background: transparent;
-    color: #737982;
     text-decoration: none;
     text-transform: uppercase;
-    transition: color .2s ease, border-color .2s ease, background .2s ease, opacity 1.2s ease;
+    transition: color .2s ease, opacity .2s ease;
+  }
+  #ti-rover-tools > button:hover,
+  #ti-rover-tools > button:focus-visible,
+  #ti-rover-tools > a:hover,
+  #ti-rover-tools > a:focus-visible {
+    color: #eceef0;
+    outline: none;
+  }
+  #ti-rover-tools > button:focus-visible,
+  #ti-rover-tools > a:focus-visible {
+    box-shadow: inset 0 -1px #85f2a8;
+  }
+  #ti-rover-tools > button:disabled {
+    cursor: default;
+    opacity: .36;
   }
   #ti-field-archive::before {
     display: none;
@@ -202,14 +207,21 @@
     26% { opacity: 1; text-shadow: 0 0 7px rgba(226, 168, 88, .52); }
     100% { opacity: 1; text-shadow: none; }
   }
-  body:not(.ti-prologue-released):not(.embed) #ti-field-archive {
+  body:not(.ti-prologue-released):not(.embed) #ti-rover-tools {
     opacity: 0;
     pointer-events: none;
   }
-  body:not(.ti-prologue-released):not(.embed) #ti-sound {
-    pointer-events: none;
-  }
   .ti-utility-icon { display:block; width:19px; height:19px; overflow:visible; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+  .ti-generated-icon {
+    display: block;
+    width: 22px;
+    height: 22px;
+    background: currentColor;
+    -webkit-mask: var(--ti-icon) center / contain no-repeat;
+    mask: var(--ti-icon) center / contain no-repeat;
+  }
+  #ti-light .ti-generated-icon { --ti-icon:url("./assets/light-icon.png"); }
+  #ti-camera .ti-generated-icon { --ti-icon:url("./assets/camera-icon.png"); }
   #ti-sound .speaker { fill:currentColor; stroke:none; }
   #ti-sound .wave, #ti-sound .mute { transition: opacity .2s ease, transform .2s ease; transform-origin:center; }
   #ti-sound .mute { opacity:0; }
@@ -239,6 +251,13 @@
     outline: 1px solid #d9dde2;
     outline-offset: 3px;
   }
+  #ti-light[data-light-state=on],
+  #ti-camera[data-camera-state=manual] {
+    color: #eceef0;
+  }
+  #ti-light[data-light-state=off] {
+    color: #4f545b;
+  }
   #ti-green {
     position: fixed;
     z-index: 34;
@@ -246,9 +265,9 @@
     bottom: calc(var(--frame-bottom) + 24px);
     display: grid;
     grid-template-columns: 1fr 1fr;
-    width: 110px;
-    height: 34px;
-    min-height: 34px;
+    width: 92px;
+    height: 28px;
+    min-height: 28px;
     padding: 2px;
     overflow: hidden;
     border: 1px solid rgba(217, 221, 226, .38);
@@ -256,7 +275,7 @@
     background: rgba(5, 5, 6, .72);
     color: rgba(217, 221, 226, .58);
     font:
-      700 7px/1 "Space Mono",
+      700 6px/1 "Space Mono",
       ui-monospace,
       monospace;
     letter-spacing: .12em;
@@ -286,9 +305,68 @@
     outline: 1px solid #85f2a8;
     outline-offset: 3px;
   }
+  #ti-drive-mode {
+    position: fixed;
+    z-index: 34;
+    right: 122px;
+    bottom: calc(var(--frame-bottom) + 24px);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 92px;
+    height: 28px;
+    min-height: 28px;
+    padding: 2px;
+    overflow: hidden;
+    border: 1px solid rgba(217, 221, 226, .38);
+    border-radius: 999px;
+    background: rgba(5, 5, 6, .72);
+    color: rgba(217, 221, 226, .58);
+    font:
+      700 6px/1 "Space Mono",
+      ui-monospace,
+      monospace;
+    letter-spacing: .10em;
+    appearance: none;
+    -webkit-appearance: none;
+    touch-action: manipulation;
+    text-transform: uppercase;
+    transition: opacity .5s ease, border-color .25s ease, background .25s ease;
+  }
+  #ti-drive-mode .mode {
+    display: grid;
+    height: 100%;
+    place-items: center;
+    border-radius: 999px;
+    transition: color .25s ease, background .25s ease;
+  }
+  #ti-drive-mode[data-drive-state=auto] [data-drive-option=auto] {
+    background: #86f0a8;
+    color: #060706;
+  }
+  #ti-drive-mode[data-drive-state=manual] {
+    border-color: rgba(192, 21, 42, .72);
+  }
+  #ti-drive-mode[data-drive-state=manual] [data-drive-option=manual] {
+    background: #e9ebe8;
+    color: #060706;
+  }
+  #ti-drive-mode:disabled {
+    cursor: default;
+    opacity: .42;
+  }
+  #ti-drive-mode:focus-visible {
+    outline: 1px solid #85f2a8;
+    outline-offset: 3px;
+  }
+  body:not(.ti-prologue-released):not(.embed) #ti-drive-mode {
+    opacity: 0;
+    pointer-events: none;
+  }
   #ti-sound .ti-utility-icon { width:22px; height:22px; }
   #ti-field-archive .ti-utility-icon { width:22px; height:22px; stroke-width:1.75; }
   #ti-sound .ti-utility-label,
+  #ti-light .ti-utility-label,
+  #ti-camera .ti-utility-label,
   #ti-field-archive span { max-width:100%; overflow:hidden; font:700 5px/1 "DM Mono", ui-monospace, monospace; letter-spacing:0; text-overflow:clip; white-space:nowrap; }
   .ti-utility-sr { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
   #ti-monitor {
@@ -856,9 +934,9 @@
   #ti-monitor,
   #survey-log,
   #universe-id,
-  #ti-sound,
-  #ti-field-archive,
+  #ti-rover-tools,
   #ti-green,
+  #ti-drive-mode,
   #ti-mobile-drive {
     transition: opacity 1.2s ease;
   }
@@ -866,28 +944,32 @@
   body.ti-completion-tableau #survey-log,
   body.ti-completion-tableau #fh-hud,
   body.ti-completion-tableau #ti-mobile-drive,
-  body.ti-completion-tableau #ti-sound,
-  body.ti-completion-tableau #ti-field-archive,
+  body.ti-completion-tableau #ti-rover-tools,
   body.ti-completion-tableau #ti-green,
+  body.ti-completion-tableau #ti-drive-mode,
   body.ti-completion-tableau #universe-id,
   body.ti-memory-tableau #ti-monitor,
   body.ti-memory-tableau #survey-log,
   body.ti-memory-tableau #fh-hud,
   body.ti-memory-tableau #ti-mobile-drive,
-  body.ti-memory-tableau #ti-field-archive,
+  body.ti-memory-tableau #ti-rover-tools,
   body.ti-memory-tableau #ti-green,
+  body.ti-memory-tableau #ti-drive-mode,
   body.ti-memory-tableau #universe-id,
   body.ti-epilogue #ti-monitor,
   body.ti-epilogue #survey-log,
   body.ti-epilogue #fh-hud,
   body.ti-epilogue #ti-mobile-drive,
-  body.ti-epilogue #ti-field-archive,
+  body.ti-epilogue #ti-rover-tools,
   body.ti-epilogue #ti-green,
+  body.ti-epilogue #ti-drive-mode,
   body.ti-epilogue #universe-id {
     opacity: 0 !important;
     pointer-events: none !important;
   }
-  body.ti-voyage #ti-green {
+  body.ti-voyage #ti-green,
+  body.ti-voyage #ti-drive-mode,
+  body.ti-voyage #ti-rover-tools {
     opacity: 0 !important;
     pointer-events: none !important;
   }
@@ -995,8 +1077,9 @@
   body.ti-entry-receiver-sync #fh-hud,
   body.ti-entry-receiver-sync #fh-mission,
   body.ti-entry-receiver-sync #universe-id,
-  body.ti-entry-receiver-sync #ti-sound,
+  body.ti-entry-receiver-sync #ti-rover-tools,
   body.ti-entry-receiver-sync #ti-green,
+  body.ti-entry-receiver-sync #ti-drive-mode,
   body.ti-entry-receiver-sync #fh-cap-line {
     opacity: var(--ti-receiver-opacity,1);
     translate: var(--ti-receiver-shift,0) 0;
@@ -1413,19 +1496,18 @@
       top: calc(var(--frame-top) + 4px);
       bottom: auto;
     }
-    #ti-sound {
+    #ti-rover-tools {
       right: max(14px, env(safe-area-inset-right));
-      top: calc(var(--frame-top) + 160px);
-      bottom: auto;
-    }
-    #ti-field-archive {
-      right: calc(max(14px, env(safe-area-inset-right)) + 78px);
-      left: auto;
       top: calc(var(--frame-top) + 160px);
       bottom: auto;
     }
     #ti-green {
       right: max(14px, env(safe-area-inset-right));
+      top: auto;
+      bottom: calc(var(--frame-bottom) + 88px);
+    }
+    #ti-drive-mode {
+      right: calc(max(14px, env(safe-area-inset-right)) + 98px);
       top: auto;
       bottom: calc(var(--frame-bottom) + 88px);
     }
@@ -1648,14 +1730,8 @@
     transform: scale(.62);
     transform-origin: top right;
   }
-  body.ti-mobile #ti-sound {
+  body.ti-mobile #ti-rover-tools {
     right: max(14px, env(safe-area-inset-right));
-    top: calc(var(--frame-top) + 160px);
-    bottom: auto;
-  }
-  body.ti-mobile #ti-field-archive {
-    right: calc(max(14px, env(safe-area-inset-right)) + 78px);
-    left: auto;
     top: calc(var(--frame-top) + 160px);
     bottom: auto;
   }
@@ -1663,6 +1739,9 @@
     right: max(14px, env(safe-area-inset-right));
     top: auto;
     bottom: calc(var(--frame-bottom) + 88px);
+  }
+  body.ti-mobile #ti-drive-mode {
+    display: none;
   }
   body.ti-mobile #universe-id {
     right: max(14px, env(safe-area-inset-right));
@@ -1824,16 +1903,21 @@
 <div class="bar t"></div>
 <div class="bar b"></div>
 <div id="ti-copyright">©2026 KIM GUNWOO. ALL RIGHTS RESERVED.</div>
-<button id="ti-sound" type="button" aria-pressed="false" data-audio-state="start"><svg class="ti-utility-icon" viewBox="0 0 24 24" aria-hidden="true"><path class="speaker" d="M4 10h4l5-4v12l-5-4H4z"/><path class="wave" d="M16 9c1.25 1.55 1.25 4.45 0 6"/><path class="wave" d="M19 6c3 3.25 3 8.75 0 12"/><path class="mute" d="m16 9 5 6m0-6-5 6"/></svg><span class="ti-utility-label" aria-hidden="true">SOUND</span><span class="ti-utility-sr" data-sound-label aria-live="polite">TAP FOR SOUND</span></button>
-<a id="ti-field-archive" href="field-archive.html" aria-label="좌표 기록 아카이브 열기"><svg class="ti-utility-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0 4-4m-4 4-4-4M4 16v4h16v-4"/></svg><span data-field-archive-label>FIELD ARCHIVE</span></a>
+<div id="ti-rover-tools" aria-label="로버 유틸리티">
+  <button id="ti-sound" type="button" aria-pressed="false" data-audio-state="start"><svg class="ti-utility-icon" viewBox="0 0 24 24" aria-hidden="true"><path class="speaker" d="M4 10h4l5-4v12l-5-4H4z"/><path class="wave" d="M16 9c1.25 1.55 1.25 4.45 0 6"/><path class="wave" d="M19 6c3 3.25 3 8.75 0 12"/><path class="mute" d="m16 9 5 6m0-6-5 6"/></svg><span class="ti-utility-label" aria-hidden="true">SOUND</span><span class="ti-utility-sr" data-sound-label aria-live="polite">TAP FOR SOUND</span></button>
+  <button id="ti-light" type="button" aria-pressed="true" aria-label="헤드라이트 끄기" data-light-state="on"><span class="ti-generated-icon" aria-hidden="true"></span><span class="ti-utility-label" aria-hidden="true">LIGHT</span></button>
+  <button id="ti-camera" type="button" aria-label="카메라 시점 이동" data-camera-state="auto"><span class="ti-generated-icon" aria-hidden="true"></span><span class="ti-utility-label" aria-hidden="true">CAMERA</span></button>
+  <a id="ti-field-archive" href="field-archive.html" aria-label="좌표 기록 아카이브 열기"><svg class="ti-utility-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0 4-4m-4 4-4-4M4 16v4h16v-4"/></svg><span data-field-archive-label>FIELD ARCHIVE</span></a>
+</div>
 <button id="ti-green" type="button" aria-pressed="false" aria-label="RAW 색상 사용 중 · 녹색 모니터로 전환" data-green-state="off" data-green-current="raw" disabled><span class="mode" data-green-option="green">GREEN</span><span class="mode" data-green-option="raw">RAW</span></button>
+<button id="ti-drive-mode" type="button" aria-pressed="false" aria-label="자동운행 사용 중 · 수동운행으로 전환" data-drive-state="auto" disabled><span class="mode" data-drive-option="auto">AUTO</span><span class="mode" data-drive-option="manual">MANUAL</span></button>
 <div id="ti-mobile-drive" aria-label="모바일 로버 조작">
   <button id="ti-mobile-tilt" type="button" aria-pressed="false">
     <i id="ti-mobile-signal" aria-hidden="true"></i><span id="ti-mobile-sensor">ENABLE TILT · 기울기 조향</span>
   </button>
   <button id="ti-mobile-steer" type="button" disabled>DRAG STEER<br>좌우 드래그</button>
   <button id="ti-mobile-toggle" type="button" aria-pressed="false">
-    <strong id="ti-mobile-state">STANDBY</strong><small id="ti-mobile-hint">자동 탐사 대기</small>
+    <strong id="ti-mobile-state">AUTO</strong><small id="ti-mobile-hint">자동운행 중 · 탭하여 수동운행</small>
   </button>
 </div>
 
@@ -1856,7 +1940,7 @@
     <button id="ti-start" class="skip desktop-start" type="button" disabled><span>START</span></button>
     <button id="ti-mobile-start" class="skip" type="button" disabled><span>START</span></button>
   </div>
-  <div class="controls"><span class="desktop-controls">OBSERVER BY DEFAULT &nbsp;·&nbsp; <kbd>WASD</kbd> EXPLORE &nbsp;·&nbsp; <kbd>C</kbd> CAMERA &nbsp;·&nbsp; <kbd>SPACE</kbd> OBSERVER</span><span class="mobile-controls">기울이거나 좌우 드래그하여 탐사 · 무입력 시 감상으로 복귀<br>Tilt or drag to explore · Returns to observer</span></div>
+  <div class="controls"><span class="desktop-controls">AUTO DRIVE BY DEFAULT &nbsp;·&nbsp; <kbd>WASD</kbd> MANUAL &nbsp;·&nbsp; <kbd>C</kbd> CAMERA &nbsp;·&nbsp; <kbd>SPACE</kbd> AUTO</span><span class="mobile-controls">초기 자동운행 · AUTO / MANUAL 전환 후 기울이거나 드래그<br>Auto by default · Switch to manual, then tilt or drag</span></div>
 </section>
 
 <script>

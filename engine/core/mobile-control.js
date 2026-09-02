@@ -107,9 +107,7 @@ export class MobileControl {
       stop(e);
       clearTimeout(this.pressTimer);
       if (!this.longPress && !this.toggle?.disabled) {
-        const wasExplorer = this.explorer;
-        this._intent("drive");
-        this.rover.operatorHold = wasExplorer ? !this.rover.operatorHold : false;
+        this._intent("drive-mode");
         this.rover.mobileSteer = 0;
         this.filteredSteer = 0;
       }
@@ -282,8 +280,8 @@ export class MobileControl {
   _syncUi(blocked, missionHold, released) {
     if (!this.active) return;
     const sensor = this.permission === "granted" ? this.calibrating ? "CALIBRATING \xB7 \uC218\uD3C9 \uC720\uC9C0" : "TILT READY \xB7 \uAE30\uC6B8\uC5EC \uC870\uD5A5 / \uC138\uC6B0\uBA74 \uC815\uC9C0" : this.permission === "pending" ? "REQUESTING SENSOR" : this.permission === "denied" ? "DRAG STEER \xB7 \uC13C\uC11C \uAC70\uC808\uB428" : this.permission === "unavailable" ? "DRAG STEER \xB7 \uC13C\uC11C \uBBF8\uC9C0\uC6D0" : "ENABLE TILT \xB7 \uAE30\uC6B8\uAE30 \uC870\uD5A5";
-    const state = blocked ? "LINK SEQUENCE" : missionHold ? "SURVEYING" : !this.explorer ? "OBSERVER" : this.rover.operatorHold ? "HOLD" : this.tiltParked ? "TILT PARK" : released ? "EXPLORER" : "STANDBY";
-    const hint = blocked ? "\uC6D0\uACA9 \uBAB8\uCCB4 \uC5F0\uACB0 \uC911" : missionHold ? "\uC790\uB3D9 \uCE21\uB7C9 \uD6C4 \uC8FC\uD589 \uC7AC\uAC1C" : !this.explorer ? "\uD0ED\uD558\uC5EC \uC9C1\uC811 \uD0D0\uC0AC" : this.rover.operatorHold ? "\uD0ED\uD558\uC5EC \uD0D0\uC0AC \uC7AC\uAC1C" : this.tiltParked ? "\uAE30\uC6B8\uC774\uBA74 \uCD9C\uBC1C" : this.permission === "granted" ? "\uAE30\uC6B8\uC774\uAC70\uB098 \uB4DC\uB798\uADF8 \xB7 \uD0ED\uD558\uC5EC \uC77C\uC2DC \uC815\uC9C0" : "\uC88C\uC6B0 \uB4DC\uB798\uADF8 \uC870\uD5A5 \xB7 \uD0ED\uD558\uC5EC \uC77C\uC2DC \uC815\uC9C0";
+    const state = blocked ? "LINK SEQUENCE" : missionHold ? "SURVEYING" : this.explorer ? "MANUAL" : "AUTO";
+    const hint = blocked ? "\uC6D0\uACA9 \uBAB8\uCCB4 \uC5F0\uACB0 \uC911" : missionHold ? "\uC790\uB3D9 \uCE21\uB7C9 \uD6C4 \uC8FC\uD589 \uC7AC\uAC1C" : this.explorer ? this.tiltParked ? "\uAE30\uC6B8\uC774\uBA74 \uCD9C\uBC1C \xB7 \uD0ED\uD558\uC5EC \uC790\uB3D9" : this.permission === "granted" ? "\uAE30\uC6B8\uC774\uAC70\uB098 \uB4DC\uB798\uADF8 \xB7 \uD0ED\uD558\uC5EC \uC790\uB3D9" : "\uC88C\uC6B0 \uB4DC\uB798\uADF8 \uC870\uD5A5 \xB7 \uD0ED\uD558\uC5EC \uC790\uB3D9" : "\uC790\uB3D9\uC6B4\uD589 \uC911 \xB7 \uD0ED\uD558\uC5EC \uC218\uB3D9\uC6B4\uD589";
     const key = `${sensor}|${state}|${hint}|${blocked}|${missionHold}|${released}`;
     if (key === this.lastUi) return;
     this.lastUi = key;
@@ -292,7 +290,8 @@ export class MobileControl {
     if (this.driveHint) this.driveHint.textContent = hint;
     if (this.toggle) {
       this.toggle.disabled = blocked || missionHold || !released;
-      this.toggle.setAttribute("aria-pressed", String(this.rover.operatorHold));
+      this.toggle.setAttribute("aria-pressed", String(this.explorer));
+      this.toggle.setAttribute("aria-label", this.explorer ? "\uC218\uB3D9\uC6B4\uD589 \uC0AC\uC6A9 \uC911 \xB7 \uC790\uB3D9\uC6B4\uD589\uC73C\uB85C \uC804\uD658" : "\uC790\uB3D9\uC6B4\uD589 \uC0AC\uC6A9 \uC911 \xB7 \uC218\uB3D9\uC6B4\uD589\uC73C\uB85C \uC804\uD658");
     }
     if (this.tilt) {
       this.tilt.setAttribute("aria-pressed", String(this.permission === "granted"));

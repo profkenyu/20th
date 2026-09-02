@@ -211,7 +211,7 @@ async function ui() {
     const body = m[2].replace(/\s/g, "");
     if (body.includes("position:fixed") && !body.includes("pointer-events:none")) blockers.push(m[1]);
   }
-  const allowed = ["gl", "fh-watchdog", "ti-transfer-trigger", "ti-field-archive"];
+  const allowed = ["gl", "fh-watchdog", "ti-transfer-trigger", "ti-field-archive", "ti-rover-tools", "ti-drive-mode"];
   const bad_ = blockers.filter((b) => !allowed.includes(b));
   bad_.length ? bad("overlays swallow the pointer", bad_.join(", ")) : ok("overlays are pointer-transparent", `except ${allowed.join(" and ")}, correctly`);
 }
@@ -223,6 +223,8 @@ async function build() {
   }
   const refs = [...html.matchAll(/(?:src|href)="(https?:\/\/[^"]+)|url\((https?:\/\/[^)]+)/g)];
   refs.length ? bad("built file fetches", refs.map((m) => m[1] ?? m[2]).join(" ")) : ok("built file is self-contained", `${(html.length / 1024).toFixed(0)} KB, 0 external refs`);
+  const generatedIcons = html.match(/data:image\/png;base64,/g) ?? [];
+  generatedIcons.length === 2 ? ok("generated rover utility icons inlined", "camera + light") : bad("generated rover utility icons", `expected 2 inlined PNGs, found ${generatedIcons.length}`);
   const faces = (html.match(/@font-face/g) ?? []).length;
   faces >= 6 ? ok("fonts inlined", `${faces} faces, ${(html.match(/data:font\/woff2/g) ?? []).length} base64`) : bad("fonts inlined", `only ${faces} @font-face`);
   const css = await readFile(`${ROOT}/engine/fonts.css`, "utf8").catch(() => "");
@@ -237,8 +239,8 @@ async function build() {
     bad("field archive output", "missing \u2014 run npm run build");
   } else if (!archive.includes("FIELD ARCHIVE / COORDINATE RECORDS") || !archive.includes("SIGNAL NOT ACQUIRED")) {
     bad("field archive output", "missing coordinate record UI");
-  } else if (!archive.includes("terra-incognita:field-archive:v3") || !archive.includes("RESOLVED POTENTIAL") || !archive.includes('data-role="')) {
-    bad("field archive output", "missing selected-evidence / resolved-potential states");
+  } else if (!archive.includes("terra-incognita:field-archive:v4") || !archive.includes("FISHEYE 8MM") || !archive.includes("RESOLVED POTENTIAL") || !archive.includes('data-role="')) {
+    bad("field archive output", "missing capture profiles or selected-evidence / resolved-potential states");
   } else if (["P01", "P02", "P03"].some((planet, index) => (archive.match(new RegExp(`\\[\\"${planet}-`, "g")) ?? []).length !== [12, 7, 5][index])) {
     bad("field archive output", "expected 12 / 7 / 5 moving-photo records");
   } else if (/id=\"fa-title\"|id=\"fa-location\"|id=\"fa-data\"|id=\"fa-frame\"/.test(archive)) {

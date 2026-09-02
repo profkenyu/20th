@@ -40,9 +40,9 @@
   .empty-ledger { margin:0; padding:0 var(--pad); color:var(--dim); line-height:var(--row); }
   .selection-line { position:fixed; z-index:8; left:12px; right:12px; top:0; height:var(--row); border:1px solid var(--signal); opacity:0; pointer-events:none; }
   .selection-line.on { opacity:1; }
-  .preview { --preview-top:124px; position:fixed; z-index:2; top:var(--preview-top); left:26.4vw; width:47.5vw; opacity:0; visibility:hidden; pointer-events:none; }
+  .preview { --preview-top:124px; --capture-aspect:2.392; position:fixed; z-index:2; top:var(--preview-top); left:26.4vw; width:47.5vw; opacity:0; visibility:hidden; pointer-events:none; }
   .preview.on { opacity:1; visibility:visible; }
-  .frame { position:relative; display:grid; place-items:center; width:100%; aspect-ratio:2.392 / 1; overflow:hidden; background:#0b0b0a; }
+  .frame { position:relative; display:grid; place-items:center; width:100%; aspect-ratio:var(--capture-aspect); overflow:hidden; background:#0b0b0a; }
   .frame.empty { border:1px solid #c9c9c5; background:#f3f3f0; }
   #fa-image { position:absolute; inset:0; display:none; width:100%; height:100%; min-width:0; min-height:0; object-fit:cover; }
   #fa-image.on { display:block; }
@@ -65,7 +65,7 @@
     #fa-ledger { min-height:calc(100dvh - 158px); }
     .record { font-size:11px; line-height:var(--row); }
     .selection-line { left:7px; right:7px; }
-    .preview { top:auto; right:var(--pad); bottom:42px; left:var(--pad); width:auto; max-height:calc(100dvh - 142px); overflow:hidden; z-index:7; }
+    .preview { top:auto; right:auto; bottom:42px; left:50%; width:calc(100vw - var(--pad) * 2); max-height:calc(100dvh - 142px); overflow:hidden; transform:translateX(-50%); z-index:7; }
     .preview.on { box-shadow:0 0 0 5px var(--paper); }
     .footer { bottom:12px; font-size:8px; }
     #fa-footer { display:none; }
@@ -102,7 +102,44 @@
 </main>
 <script>
 (() => {
-  const KEY = "terra-incognita:field-archive:v3";
+  const KEY = "terra-incognita:field-archive:v4";
+  const CAPTURE_PROFILES = Object.freeze({
+    fisheye: Object.freeze({ lens:"FISHEYE 8MM", viewpoint:"MAST / FORWARD", aspect:1, zoom:1.04, focusX:.5, focusY:.52, projection:"fisheye" }),
+    wide: Object.freeze({ lens:"ULTRAWIDE 18MM", viewpoint:"LOW FRONT", aspect:16 / 9, zoom:1.08, focusX:.5, focusY:.56, projection:"rectilinear" }),
+    rear: Object.freeze({ lens:"STANDARD 35MM", viewpoint:"REAR FOLLOW", aspect:3 / 2, zoom:1.28, focusX:.5, focusY:.53, projection:"rectilinear" }),
+    tele: Object.freeze({ lens:"TELEPHOTO 120MM", viewpoint:"MATERIAL FACE", aspect:4 / 3, zoom:2.24, focusX:.53, focusY:.5, projection:"rectilinear" }),
+    macro: Object.freeze({ lens:"MACRO 90MM", viewpoint:"GROUND CLOSE", aspect:4 / 5, zoom:2.82, focusX:.5, focusY:.68, projection:"rectilinear" }),
+    portrait: Object.freeze({ lens:"WIDE 24MM", viewpoint:"LATERAL RISE", aspect:3 / 4, zoom:1.6, focusX:.64, focusY:.5, projection:"rectilinear" }),
+    panorama: Object.freeze({ lens:"PANORAMA 24MM", viewpoint:"HORIZON SWEEP", aspect:2.39, zoom:1.04, focusX:.46, focusY:.5, projection:"rectilinear" })
+  });
+  const CAPTURE_SCHEDULE = Object.freeze({
+    terra: Object.freeze(["fisheye", "wide", "tele", "macro", "rear", "panorama"]),
+    desert: Object.freeze(["wide", "tele", "fisheye", "portrait", "rear", "macro", "panorama"]),
+    granite: Object.freeze(["panorama", "macro", "portrait", "tele", "fisheye"])
+  });
+  const orderOf = (source = {}) => {
+    const explicit = Number(source.order);
+    if (Number.isFinite(explicit)) return Math.max(0, Math.floor(explicit));
+    const match = String(source.id ?? "").match(/-(\d+)$/);
+    return match ? Math.max(0, Number(match[1]) - 1) : 0;
+  };
+  const captureFor = (source = {}) => {
+    const schedule = CAPTURE_SCHEDULE[source.body] ?? CAPTURE_SCHEDULE.terra;
+    const requested = String(source.capture?.profile ?? schedule[orderOf(source) % schedule.length]);
+    const base = CAPTURE_PROFILES[requested] ?? CAPTURE_PROFILES.wide;
+    const capture = source.capture ?? {};
+    const finite = (value, fallback) => Number.isFinite(Number(value)) ? Number(value) : fallback;
+    return {
+      profile: CAPTURE_PROFILES[requested] ? requested : "wide",
+      lens: String(capture.lens ?? base.lens),
+      viewpoint: String(capture.viewpoint ?? base.viewpoint),
+      aspect: Math.max(.5, Math.min(2.5, finite(capture.aspect, base.aspect))),
+      zoom: Math.max(1, Math.min(3.2, finite(capture.zoom, base.zoom))),
+      focusX: Math.max(0, Math.min(1, finite(capture.focusX, base.focusX))),
+      focusY: Math.max(0, Math.min(1, finite(capture.focusY, base.focusY))),
+      projection: capture.projection === "fisheye" ? "fisheye" : "rectilinear"
+    };
+  };
   const FALLBACK = [
     ["P01-001", "terra", "PLANET 01", "SHEAR WORLD", "FE–NI PLATES · FIELD 1", 231.6, 543.4, 0],
     ["P01-002", "terra", "PLANET 01", "SHEAR WORLD", "FE–NI PLATES · FIELD 2", 247, 519, 1],
@@ -134,19 +171,69 @@
     resourceVariant: body === "terra" ? order % 2 : null,
     archiveRole: "unresolved",
     potentialCount: 0,
-    resolved: false
+    resolved: false,
+    capture: captureFor({ id, body, order })
   }));
   const byId = (items) => new Map(items.map((item) => [item.id, item]));
   const escape = (value) => String(value ?? "").replace(/[&<>\"]/g, (char) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "\"":"&quot;" })[char]);
   const read = () => {
     try {
       const current = JSON.parse(sessionStorage.getItem(KEY) || "null");
-      if (current && current.version === 3) return current;
-      const legacy = JSON.parse(sessionStorage.getItem("terra-incognita:field-archive:v2") || "null");
-      return legacy && legacy.version === 2 ? { ...legacy, version: 3 } : { stations: [], records: [] };
+      if (current && current.version === 4) return current;
+      for (const key of ["terra-incognita:field-archive:v3", "terra-incognita:field-archive:v2"]) {
+        const legacy = JSON.parse(sessionStorage.getItem(key) || "null");
+        if (legacy && [2, 3].includes(legacy.version)) return { ...legacy, version: 4 };
+      }
+      return { stations: [], records: [] };
     } catch { return { stations: [], records: [] }; }
   };
-  const source = read();
+  const diagnosticImage = (capture, index) => {
+    const longSide = 360;
+    const width = capture.aspect >= 1 ? longSide : Math.round(longSide * capture.aspect);
+    const height = capture.aspect >= 1 ? Math.round(longSide / capture.aspect) : longSide;
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d", { alpha:false });
+    if (!context) return { image:null, width, height, capture };
+    const sky = context.createLinearGradient(0, 0, 0, height);
+    sky.addColorStop(0, "#51636b");
+    sky.addColorStop(.48, "#262d2f");
+    sky.addColorStop(.49, "#171817");
+    sky.addColorStop(1, "#716652");
+    context.fillStyle = sky;
+    context.fillRect(0, 0, width, height);
+    context.fillStyle = "rgba(231, 220, 180, .58)";
+    context.beginPath();
+    context.arc(width * (.2 + (index % 4) * .17), height * (.25 + (index % 3) * .1), Math.max(9, width * .055), 0, Math.PI * 2);
+    context.fill();
+    context.strokeStyle = "rgba(11, 12, 11, .78)";
+    context.lineWidth = Math.max(1, width * .008);
+    for (let row = 0; row < 7; row++) {
+      context.beginPath();
+      context.moveTo(0, height * (.57 + row * .08));
+      context.quadraticCurveTo(width * .42, height * (.5 + row * .1), width, height * (.58 + row * .06));
+      context.stroke();
+    }
+    return { image:canvas.toDataURL("image/webp", .72), width, height, capture };
+  };
+  const readPreviewFixture = () => {
+    const source = read();
+    if (!location.search.includes("archive-test") || source.records?.length) return source;
+    const stations = FALLBACK.map((station) => ({ ...station, capture:captureFor(station) }));
+    return {
+      version:4,
+      stations,
+      records:stations.map((station, index) => ({
+        ...station,
+        frame:index + 1,
+        capturedAt:index,
+        kind:"camera-return",
+        ...diagnosticImage(station.capture, index)
+      }))
+    };
+  };
+  const source = readPreviewFixture();
   const bodyOrder = ["terra", "desert", "granite"];
   const fallbackById = byId(FALLBACK);
   const storedStations = (source.stations || []).map((station) => ({ ...fallbackById.get(station.id), ...station }));
@@ -178,11 +265,28 @@
       preview.style.setProperty("--preview-top", `${top}px`);
     }
   }
+  function sizePreview(capture) {
+    const aspect = capture?.aspect ?? 2.392;
+    const horizontalPad = Math.max(16, innerWidth * .01875);
+    const maxWidth = innerWidth > 700 ? innerWidth * .475 : innerWidth - horizontalPad * 2;
+    const maxHeight = innerWidth > 700 ? innerHeight - 150 : innerHeight - 142;
+    preview.style.setProperty("--capture-aspect", String(aspect));
+    preview.style.width = `${Math.max(72, Math.floor(Math.min(maxWidth, maxHeight * aspect)))}px`;
+  }
   function select(station, node) {
     selected = station;
     const record = recordsById.get(station.id);
+    const capture = captureFor(record ?? station);
     document.querySelectorAll(".record").forEach((node) => node.setAttribute("aria-pressed", String(node.dataset.id === station.id)));
-    if (record && typeof record.image === "string") { image.src = record.image; image.classList.add("on"); empty.hidden = true; frameSurface.classList.remove("empty"); }
+    sizePreview(capture);
+    frameSurface.dataset.capture = capture.profile;
+    if (record && typeof record.image === "string") {
+      image.alt = `${capture.lens} ${capture.viewpoint} field observation`;
+      image.src = record.image;
+      image.classList.add("on");
+      empty.hidden = true;
+      frameSurface.classList.remove("empty");
+    }
     else {
       image.removeAttribute("src");
       image.classList.remove("on");
@@ -200,6 +304,9 @@
     document.querySelectorAll(".record").forEach((node) => node.setAttribute("aria-pressed", "false"));
     image.removeAttribute("src");
     image.classList.remove("on");
+    preview.style.removeProperty("width");
+    preview.style.removeProperty("--capture-aspect");
+    delete frameSurface.dataset.capture;
     empty.hidden = false;
     preview.classList.remove("on");
     selection.classList.remove("on");
@@ -235,8 +342,12 @@
     document.querySelectorAll(".filter").forEach((button) => button.setAttribute("aria-pressed", String(button === node)));
     render();
   }));
-  addEventListener("resize", () => positionPreview());
+  addEventListener("resize", () => {
+    if (selected) sizePreview(captureFor(recordsById.get(selected.id) ?? selected));
+    positionPreview();
+  });
   addEventListener("scroll", () => positionPreview(), { passive:true });
+  image.addEventListener("load", () => positionPreview());
   image.addEventListener("error", () => { image.classList.remove("on"); empty.hidden = false; frameSurface.classList.add("empty"); });
   render();
 })();

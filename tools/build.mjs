@@ -41,7 +41,13 @@ async function main() {
   const js = out.outputFiles[0].text;
   const fontCss = await readFile(`${ROOT}/engine/fonts.css`, "utf8");
   const inlineFonts = (source) => source.replace('<link rel="stylesheet" href="../../engine/fonts.css">', `<style>\n${fontCss}\n</style>`);
-  const shell = await readFile(`${ROOT}/works/${WORK}/dev.html`, "utf8");
+  let shell = await readFile(`${ROOT}/works/${WORK}/dev.html`, "utf8");
+  if (WORK === "terra_incognita") {
+    for (const asset of ["camera-icon.png", "light-icon.png"]) {
+      const data = await readFile(`${ROOT}/works/${WORK}/assets/${asset}`);
+      shell = shell.replaceAll(`./assets/${asset}`, `data:image/png;base64,${data.toString("base64")}`);
+    }
+  }
   const html = inlineFonts(shell).replace(/\n?\s*<script type="importmap">[\s\S]*?<\/script>/, "").replace(
     /<script type="module" src="\.\/main\.js"><\/script>/,
     `<script type="module">

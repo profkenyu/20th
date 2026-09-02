@@ -217,7 +217,6 @@ export class Rover {
       if (steer === 0) steer = this.autoSteer;
     }
     if (this.mobileMode && this.mobileInputEnabled) {
-      this.auto = true;
       steer = this.operatorHold || this.missionHold ? 0 : this.mobileSteer;
       throttle = this.operatorHold || this.missionHold ? 0 : this.mobileThrottle;
     }
@@ -507,10 +506,6 @@ export class Rover {
   setSignalState(charge = 1, transmitting = false) {
     this.signalPower = charge < 0.3 ? Math.max(0, charge / 0.3) : 1;
     this.signalFast = transmitting;
-    if (this.mobileMode && !transmitting && !this.disabled) {
-      if (charge <= 0.1) this.lamps = false;
-      else if (charge >= 0.14) this.lamps = true;
-    }
   }
   setMobileMode(active) {
     this.mobileMode = !!active;
