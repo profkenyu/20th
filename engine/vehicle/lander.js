@@ -31,8 +31,8 @@ const RESTORATION_PARTS = Object.freeze([
   "SENSOR CROWN",
   "SIGNAL CORE"
 ]);
-const STRUCTURAL_ASSEMBLY_BY_PART = Object.freeze([0, 1, 2, 2, 3, 3, 4, 4]);
-const STRUCTURAL_ASSEMBLY_COUNT = 5;
+const STRUCTURAL_ASSEMBLY_BY_PART = Object.freeze([0, 1, 2, 2, 3, 3, 3, 3]);
+const STRUCTURAL_ASSEMBLY_COUNT = 4;
 function cylinderBetween(a, b, radius, material, radial = 12) {
   const av = new THREE.Vector3(...a), bv = new THREE.Vector3(...b);
   const dir = bv.clone().sub(av), len = dir.length();
@@ -759,7 +759,9 @@ export class Lander {
     return this.restorationLevel;
   }
   restorePart(index, now = performance.now()) {
-    if (index !== this.restorationLevel || index < 0 || index >= this.structureCount) return false;
+    if (index < 0 || index >= this.structureCount) return false;
+    const assembly = this.parts.filter((part) => part.assembly === index);
+    if (!assembly.length || assembly.every((part) => part.state !== "wire")) return false;
     for (const part of this.parts) {
       if (part.assembly !== index) continue;
       part.state = "materialising";
@@ -768,7 +770,9 @@ export class Lander {
       part.wireMaterial.color.setHex(16757276);
       part.wireMaterial.opacity = 0.92;
     }
-    this.restorationLevel = index + 1;
+    this.restorationLevel = new Set(
+      this.parts.filter((part) => part.state !== "wire").map((part) => part.assembly)
+    ).size;
     return true;
   }
   restoreAll(now = performance.now()) {
@@ -785,7 +789,7 @@ export class Lander {
     return true;
   }
   get restorationComplete() {
-    return this.restorationLevel >= this.structureCount;
+    return this.parts.every((part) => part.state !== "wire");
   }
   _updateRestoration(now) {
     for (const part of this.parts) {

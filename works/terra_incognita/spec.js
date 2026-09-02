@@ -132,16 +132,37 @@ export const BH = Object.freeze({
   windowOut: 900,
   start: [234.8, 573.8]
 });
-export const TERRA_SAMPLE_SITES = Object.freeze([
-  Object.freeze({ x: 231.6, z: 543.4, bearing: 0.18 }),
-  Object.freeze({ x: 199.1, z: 516.1, bearing: -0.42 }),
-  Object.freeze({ x: 209.9, z: 471.4, bearing: 0.66 }),
-  Object.freeze({ x: 168.5, z: 445.3, bearing: -0.31 }),
-  Object.freeze({ x: 173.9, z: 391.9, bearing: 0.51 }),
-  Object.freeze({ x: 127.7, z: 352.8, bearing: -0.57 }),
-  Object.freeze({ x: 131.1, z: 294.2, bearing: 0.29 }),
-  Object.freeze({ x: 92.5, z: 247.9, bearing: -0.16 })
+const resourceSite = (item, variant, x, z, bearing, primary = false) => Object.freeze({
+  item,
+  variant,
+  x,
+  z,
+  bearing,
+  primary
+});
+export const TERRA_RESOURCE_SITES = Object.freeze([
+  resourceSite(0, 0, 231.6, 543.4, 0.18, true),
+  resourceSite(0, 1, 247, 519, -0.34),
+  resourceSite(0, 2, 214, 560, 0.72),
+  resourceSite(1, 0, 199.1, 516.1, -0.42, true),
+  resourceSite(1, 1, 185, 536, 0.31),
+  resourceSite(1, 2, 225, 500, -0.68),
+  resourceSite(2, 0, 209.9, 471.4, 0.66, true),
+  resourceSite(2, 1, 190, 484, -0.19),
+  resourceSite(2, 2, 218, 452, 0.43),
+  resourceSite(3, 0, 168.5, 445.3, -0.31, true),
+  resourceSite(3, 1, 151, 466, 0.57),
+  resourceSite(3, 2, 181, 423, -0.74),
+  resourceSite(4, 0, 173.9, 391.9, 0.51, true),
+  resourceSite(4, 1, 153, 403, -0.46),
+  resourceSite(4, 2, 188, 372, 0.27),
+  resourceSite(5, 0, 127.7, 352.8, -0.57, true),
+  resourceSite(5, 1, 111, 371, 0.36),
+  resourceSite(5, 2, 143, 331, -0.22)
 ]);
+export const TERRA_SAMPLE_SITES = Object.freeze(
+  TERRA_RESOURCE_SITES.filter((site) => site.primary)
+);
 export function fbmNorm(oct) {
   let n = 0, a = 0.5;
   for (let i = 0; i < oct; i++) {

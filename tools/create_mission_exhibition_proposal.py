@@ -226,7 +226,7 @@ def cover(c):
     caps(c, "MISSION CHAIN", W - 278, H - 66, 6.2, RED, 0.7)
     route_y = H - 202
     nodes = [
-        (W - 236, route_y, 24, RED, "01", "MATERIAL", "5 + 3"),
+        (W - 236, route_y, 24, RED, "01", "MATERIAL", "4 + 2"),
         (W - 145, route_y - 73, 20, CYAN, "02", "WATER", "H2O"),
         (W - 230, route_y - 160, 26, GREEN, "03", "MEMORY", "3 / 3"),
     ]
@@ -244,7 +244,7 @@ def cover(c):
     rule(c, W - 306, 78, W - M, 78, LINE, 0.55)
     para(c, "핵심 명제", W - 306, 61, 76, 7.2, 10, RED)
     para(c, "관측된 증거가 다음 세계의 조건이 된다.", W - 225, 61, 185, 8.6, 12.5, INK, max_lines=2)
-    caps(c, "2026.08.31 / VERSION 1.1", M, 31, 5.8, DIM, 0.7)
+    caps(c, "2026.09.01 / VERSION 1.2", M, 31, 5.8, DIM, 0.7)
     c.showPage()
 
 
@@ -254,7 +254,7 @@ def mission_map(c):
     positions = [148, 421, 694]
     colors = [RED, CYAN, GREEN]
     data = [
-        ("PLANET 01", "SHEAR WORLD", "구조재 5종 + 자원 3계통", "8 / 8"),
+        ("PLANET 01", "SHEAR WORLD", "구조 자원 4종 + 원료 2종", "6 / 6"),
         ("PLANET 02", "YARDANG FIELD", "수분 등가 신호 확인", "H₂O"),
         ("PLANET 03", "JOINTED GRANITE", "기억 교차 결절 고정", "3 / 3"),
     ]
@@ -273,7 +273,7 @@ def mission_map(c):
     gate_y = 408
     gate_w = 172
     for x, title, copy, accent in [
-        (229, "GATE 01", "8개 서명 완료 + 착륙선 전 부품 면 상태 고정", RED),
+        (229, "GATE 01", "6개 서명 완료 + 착륙선 전 부품 면 상태 고정", RED),
         (502, "GATE 02", "H₂O CONFIRMED + 4.8초 확인 호흡", CYAN),
     ]:
         box(c, x, gate_y, gate_w, 54, BG, accent, 4)
@@ -301,12 +301,12 @@ def mission_map(c):
 
 
 def planet_01(c):
-    page_base(c, 3, "PLANET 01 · SHEAR WORLD", "다음 행성으로 가기 위한 조건은 착륙선 외형 5개와 생존 자원 3개를 하나의 완성 상태로 만드는 것이다.")
+    page_base(c, 3, "PLANET 01 · SHEAR WORLD", "네 가지 구조 자원과 질소·알코올 원료를 여러 장소에서 발견해 착륙선을 하나의 완성 상태로 만든다.")
     mx = M
-    for value, label, accent in [("8", "SEQUENTIAL SITES", RED), ("≤ 2.0 m", "SCAN ENTRY", INK), ("≤ 0.12 m/s", "SPEED", INK), ("3.6 s", "STABLE HOLD", GREEN)]:
+    for value, label, accent in [("18", "DISTRIBUTED FORMS", RED), ("≤ 2.0 m", "SCAN ENTRY", INK), ("≤ 0.12 m/s", "SPEED", INK), ("3.6 s", "STABLE HOLD", GREEN)]:
         metric(c, value, label, mx, 429, 150, accent)
         mx += 162
-    section(c, "EIGHT REQUIRED SIGNATURES", M, 405, 480)
+    section(c, "SIX REQUIRED SIGNATURES", M, 405, 480)
     tx, ty = M, 129
     widths = [36, 135, 145, 146]
     table_row(c, ["NO", "관측 서명", "적용 모듈", "역할"], widths, tx, ty + 225, 25, PANEL_DARK, [MUTED] * 4, [6.5] * 4)
@@ -315,20 +315,18 @@ def planet_01(c):
         ("02", "SILICATE CERAMIC", "LOAD PATHS", "구조"),
         ("03", "CARBON COMPOSITE", "SERVICE / PRESSURE", "구조"),
         ("04", "CONDUCTIVE LATTICE", "TRANSFER / VISOR", "구조"),
-        ("05", "RARE-EARTH CERAMIC", "SENSOR / SIGNAL", "구조"),
-        ("06", "N₂ RESERVE", "ATMOSPHERE BASE", "자원"),
-        ("07", "H₂O RESERVE", "O₂ / POTABLE BASE", "자원"),
-        ("08", "ALCOHOL · C₂H₅OH", "CHEMICAL FEEDSTOCK", "자원"),
+        ("05", "N₂ FEEDSTOCK", "ATMOSPHERE BASE", "원료"),
+        ("06", "ALCOHOL · C₂H₅OH", "CHEMICAL BASE", "원료"),
     ]
     for i, row in enumerate(rows):
         y = ty + 197 - i * 28
         fill = BG if i % 2 == 0 else PANEL
-        color = RED if i < 5 else GREEN
+        color = RED if i < 4 else GREEN
         table_row(c, list(row), widths, tx, y, 28, fill, [color, INK, MUTED, color], [6.6, 7.2, 6.7, 6.7])
     rx = 555
     section(c, "MISSION LOGIC", rx, 405, W - M - rx)
     stages = [
-        ("APPROACH", "다음 서명 지점의 2.0 m 이내 접근"),
+        ("APPROACH", "아직 회수하지 않은 임의 후보의 2.0 m 이내 접근"),
         ("SETTLE", "절대 속도 0.12 m/s 이하 유지"),
         ("COMMIT", "3.6초 뒤 현재 항목을 상태에 기록"),
         ("FIX", "약 5.4초 시각 사건 종료 후 다음 항목 활성화"),
@@ -344,9 +342,9 @@ def planet_01(c):
         yy -= 52
     box(c, rx, 79, W - M - rx, 86, BG, RED, 4)
     caps(c, "NEXT PLANET GATE", rx + 13, 142, 6.4, RED, 0.75)
-    para(c, "SHELL 5/5 + RESERVE 3/3 + 착륙선 모든 부품이 SOLID", rx + 13, 120, W - M - rx - 26, 8.3, 12.5, INK, max_lines=2)
+    para(c, "SHELL 4/4 + RAW 2/2 + 착륙선 모든 부품이 SOLID", rx + 13, 120, W - M - rx - 26, 8.3, 12.5, INK, max_lines=2)
     para(c, "조건 충족 → 5.4초 완성 장면 → 자동 격납 → PLANET 02", rx + 13, 91, W - M - rx - 26, 7.2, 10.5, MUTED, max_lines=2)
-    footer(c, 3, "PLANET 01 / FIVE STRUCTURES + THREE RESERVES")
+    footer(c, 3, "PLANET 01 / FOUR STRUCTURES + TWO RAW MATERIALS")
     c.showPage()
 
 
@@ -420,7 +418,7 @@ def planet_03(c):
     gap = 14
     bw = (W - M * 2 - gap * 2) / 3
     labels = [
-        ("01 MATERIAL PHASE", "8개 회수 서명", RED),
+        ("01 MATERIAL PHASE", "6개 회수 물질 서명", RED),
         ("02 HYDRATION PHASE", "수분 흡수·열 기록", CYAN),
         ("03 PRODUCT FIELD", "위상 일치도", GREEN),
     ]
@@ -442,7 +440,7 @@ def planet_03(c):
         c.circle(cx, cy, 5, fill=0, stroke=1)
     section(c, "THREE CONCORDANCE NODES", M, 202, 480)
     nodes = [
-        ("01", "MATERIAL PHASE", "8개 광물 조화 정렬"),
+        ("01", "MATERIAL PHASE", "6개 물질 조화 정렬"),
         ("02", "HYDRATION PHASE", "1.9 μm 수분 위상 분해"),
         ("03", "CONCORDANCE", "두 기록의 교차점 고정"),
     ]
@@ -655,7 +653,7 @@ def priorities(c):
         table_row(c, list(row), widths, x, y + 150 - i * 30, 30, fill, colors, [7, 7.1, 6.9, 6.7])
     section(c, "FINAL CHECK", M, 165, W - M * 2)
     checks = [
-        ("MISSION", "8/8 → H₂O → 3/3가 실제 빌드에서 끝까지 이어지는가"),
+        ("MISSION", "6/6 → H₂O → 3/3가 실제 빌드에서 끝까지 이어지는가"),
         ("OPENING", "수동 START는 3.6초 암전·수신기 복구를 거치고, 자동 진입은 8초 뒤 별도 경로를 유지하는가"),
         ("DISPLAY", "프로젝터에서 검은 레벨·와이어·면 재질이 구분되는가"),
         ("DEVICE", "외부 링크 첫 진입·새로고침·BFCache·iPhone/iPad·실제 WebGPU 화면을 각각 확인했는가"),

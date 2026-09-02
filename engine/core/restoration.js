@@ -22,7 +22,9 @@ export const RESTORATION_ITEMS = Object.freeze([
     sample: "FE\u2013NI ALLOY",
     module: "FOUNDATION",
     color: 14189621,
-    sign: "METALLIC REFLECTANCE"
+    sign: "METALLIC REFLECTANCE",
+    form: "plates",
+    grammar: "shear-alignment"
   }),
   Object.freeze({
     at: 58,
@@ -31,7 +33,9 @@ export const RESTORATION_ITEMS = Object.freeze([
     sample: "SILICATE CERAMIC",
     module: "LOAD PATHS",
     color: 13219211,
-    sign: "SPECTRAL SPLIT"
+    sign: "SPECTRAL SPLIT",
+    form: "prisms",
+    grammar: "spectral-split"
   }),
   Object.freeze({
     at: 96,
@@ -40,7 +44,9 @@ export const RESTORATION_ITEMS = Object.freeze([
     sample: "CARBON COMPOSITE",
     module: "SERVICE / PRESSURE",
     color: 9414317,
-    sign: "LOW ALBEDO DENSITY"
+    sign: "LOW ALBEDO DENSITY",
+    form: "nodules",
+    grammar: "signal-absorption"
   }),
   Object.freeze({
     at: 138,
@@ -49,50 +55,37 @@ export const RESTORATION_ITEMS = Object.freeze([
     sample: "CONDUCTIVE LATTICE",
     module: "TRANSFER / VISOR",
     color: 14854475,
-    sign: "METALLIC LATTICE"
+    sign: "METALLIC LATTICE",
+    form: "lattice",
+    grammar: "phase-lock"
   }),
   Object.freeze({
     at: 184,
-    kind: "structure",
-    structure: 4,
-    sample: "RARE-EARTH CERAMIC",
-    module: "SENSOR / SIGNAL",
-    color: 13677677,
-    sign: "SPECULAR BANDING"
+    kind: "raw",
+    raw: 0,
+    sample: "N\u2082 FEEDSTOCK",
+    module: "ATMOSPHERIC FEEDSTOCK",
+    gauge: "N\u2082",
+    color: 12175812,
+    sign: "RAMAN N\u2082 BAND",
+    form: "frost",
+    grammar: "molecular-dispersion"
   }),
   Object.freeze({
     at: 234,
-    kind: "reserve",
-    reserve: 0,
-    sample: "N\u2082 RESERVE",
-    module: "ATMOSPHERE BASE",
-    gauge: "N\u2082",
-    color: 12175812,
-    sign: "RAMAN N\u2082 BAND"
-  }),
-  Object.freeze({
-    at: 288,
-    kind: "reserve",
-    reserve: 1,
-    sample: "H\u2082O RESERVE",
-    module: "O\u2082 / POTABLE BASE",
-    gauge: "H\u2082O",
-    color: 11130850,
-    sign: "O\u2013H ABSORPTION"
-  }),
-  Object.freeze({
-    at: 346,
-    kind: "reserve",
-    reserve: 2,
-    sample: "ALCOHOL \xB7 C\u2082H\u2085OH",
+    kind: "raw",
+    raw: 1,
+    sample: "ALCOHOL FEEDSTOCK \xB7 C\u2082H\u2085OH",
     module: "CHEMICAL FEEDSTOCK",
     gauge: "EtOH",
     color: 16757276,
-    sign: "C\u2013O / O\u2013H SPECTRUM"
+    sign: "C\u2013O / O\u2013H SPECTRUM",
+    form: "crystals",
+    grammar: "dual-band"
   })
 ]);
-export const STRUCTURAL_MATERIAL_COUNT = 5;
-export const RESERVE_GAUGE_COUNT = 3;
+export const STRUCTURAL_MATERIAL_COUNT = 4;
+export const RAW_MATERIAL_COUNT = 2;
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
 const DETECT_RADIUS = 12;
 const HOLD_RADIUS = 1.95;
@@ -101,7 +94,8 @@ const CANCEL_RADIUS = 2.85;
 const SCAN_SPEED = 0.12;
 const SCAN_MS = 3600;
 const EVENT_MS = 5400;
-const RESERVE_FILL_MS = 1600;
+const RAW_FILL_MS = 1600;
+const FIELD_SUBTRACTION_MS = 1800;
 const COMPLETION_GAUGE_START = 0.08;
 const COMPLETION_GAUGE_END = 0.58;
 const smoothstep = (value) => {
@@ -126,6 +120,14 @@ function reflectiveMaterial(hex, roughness = 0.3) {
   })();
   return material;
 }
+function resourceGeometry(form) {
+  if (form === "plates") return new THREE.BoxGeometry(0.34, 0.07, 0.24);
+  if (form === "prisms") return new THREE.CylinderGeometry(0.1, 0.17, 0.46, 6);
+  if (form === "lattice") return new THREE.TetrahedronGeometry(0.24, 0);
+  if (form === "frost") return new THREE.OctahedronGeometry(0.2, 0);
+  if (form === "crystals") return new THREE.ConeGeometry(0.16, 0.52, 5);
+  return new THREE.IcosahedronGeometry(0.18, 0);
+}
 export class Restoration {
   constructor(lander, heightAt = () => 0, sites = []) {
     installDotMatrixStyles();
@@ -134,9 +136,12 @@ export class Restoration {
     this.siteData = sites;
     this.items = RESTORATION_ITEMS;
     this.count = 0;
-    this.gaugeValues = new Float32Array(RESERVE_GAUGE_COUNT);
-    this.gaugeDisplayValues = new Float32Array(RESERVE_GAUGE_COUNT);
+    this.acquiredItems = new Uint8Array(this.items.length);
+    this.gaugeValues = new Float32Array(RAW_MATERIAL_COUNT);
+    this.gaugeDisplayValues = new Float32Array(RAW_MATERIAL_COUNT);
     this.event = null;
+    this.subtraction = null;
+    this.acquisitions = [];
     this.holdUntil = 0;
     this.state = "approach";
     this.lastDistance = Infinity;
@@ -144,12 +149,12 @@ export class Restoration {
     this.progress = document.getElementById("ti-restoration-progress");
     this.label = document.getElementById("ti-restoration-label");
     this.cells = [...document.querySelectorAll("#ti-restoration-cells i")];
-    this.gaugeElements = [...document.querySelectorAll("#ti-reserve-gauges .reserve-gauge")];
+    this.gaugeElements = [...document.querySelectorAll("#ti-raw-material-gauges .raw-material-gauge")];
     this.registrationPhase = document.getElementById("ti-registration-phase");
     this.registrationSample = document.getElementById("ti-registration-sample");
     this.registrationModule = document.getElementById("ti-registration-module");
     this.registrationFixedCode = document.getElementById("ti-registration-fixed-code");
-    renderDotMatrix(this.registrationFixedCode, "05/05", { label: "5 / 5 structures restored" });
+    renderDotMatrix(this.registrationFixedCode, "04/04", { label: "4 / 4 structures restored" });
     this.registrationReduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
     this.registrationReadoutKey = "";
     this._buildRegistrationCells();
@@ -203,71 +208,101 @@ export class Restoration {
     this.reset(0);
   }
   _buildSites() {
-    const shardGeometry = new THREE.IcosahedronGeometry(0.18, 0);
     const ringGeometry = new THREE.RingGeometry(0.48, 0.5, 64);
     const shadowGeometry = new THREE.CircleGeometry(1.25, 40);
-    for (let index = 0; index < this.items.length; index++) {
+    const traceGeometry = new THREE.BufferGeometry();
+    traceGeometry.setAttribute("position", new THREE.Float32BufferAttribute([
+      -0.34, 0, 0, 0.34, 0, 0,
+      0, 0, -0.34, 0, 0, 0.34
+    ], 3));
+    for (let index = 0; index < this.siteData.length; index++) {
       const data = this.siteData[index];
       if (!data) continue;
-      const item = this.items[index], root = new THREE.Group();
+      const itemIndex = Math.max(0, Math.min(this.items.length - 1, Math.floor(data.item ?? index)));
+      const item = this.items[itemIndex], root = new THREE.Group();
+      const matter = new THREE.Group();
+      const shards = [];
+      const shardGeometry = resourceGeometry(item.form);
       const y = this.heightAt(data.x, data.z);
       root.position.set(data.x, y + 0.018, data.z);
       root.rotation.y = data.bearing ?? 0;
+      root.userData.resource = { item: itemIndex, variant: data.variant ?? 0, form: item.form, grammar: item.grammar };
+      root.add(matter);
       const cool = new THREE.Mesh(shadowGeometry, new THREE.MeshBasicMaterial({
-        color: index === 6 ? 6984616 : 1516842,
+        color: itemIndex === 4 ? 6984616 : 1516842,
         transparent: true,
-        opacity: index === 6 ? 0.18 : 0.07,
+        opacity: itemIndex === 4 ? 0.18 : 0.07,
         depthWrite: false
       }));
       cool.rotation.x = -Math.PI / 2;
       cool.scale.set(1.25, 0.55 + hash(index * 23) * 0.32, 1);
-      root.add(cool);
-      const metal = reflectiveMaterial(item.color, index === 0 || index === 3 ? 0.16 : 0.34);
+      matter.add(cool);
+      const metal = reflectiveMaterial(item.color, itemIndex === 0 || itemIndex === 3 ? 0.16 : 0.34);
       for (let j = 0; j < 7; j++) {
         const a = hash(index * 71 + j * 13) * Math.PI * 2;
         const r = 0.16 + hash(index * 89 + j * 17) * 0.72;
         const shard = new THREE.Mesh(shardGeometry, metal);
         shard.position.set(Math.cos(a) * r, 0.06 + hash(j * 31 + index) * 0.15, Math.sin(a) * r * 0.62);
-        shard.scale.set(0.45 + hash(j * 37) * 1.2, 0.16 + hash(j * 41) * 0.42, 0.35 + hash(j * 43) * 0.9);
+        const variantScale = 0.9 + (data.variant ?? 0) * 0.12;
+        shard.scale.set(
+          (0.45 + hash(j * 37) * 1.2) * variantScale,
+          (0.16 + hash(j * 41) * (item.form === "crystals" ? 1.1 : 0.42)) * variantScale,
+          (0.35 + hash(j * 43) * 0.9) / variantScale
+        );
         shard.rotation.set(hash(j * 47) * 2, a, hash(j * 53) * 2);
-        root.add(shard);
+        shard.userData.basePosition = shard.position.clone();
+        shard.userData.baseRotation = shard.rotation.clone();
+        matter.add(shard);
+        shards.push(shard);
       }
       const spectra = [];
       for (let j = 0; j < 3; j++) {
         const ring = new THREE.Mesh(ringGeometry, new THREE.MeshBasicMaterial({
           color: [item.color, 9086392, 12588330][j],
           transparent: true,
-          opacity: 0.07 + (index === 1 || index === 7 ? 0.06 : 0),
+          opacity: 0.07 + (itemIndex === 1 || itemIndex === 5 ? 0.06 : 0),
           depthWrite: false,
           blending: THREE.AdditiveBlending
         }));
         ring.rotation.x = -Math.PI / 2;
         ring.scale.setScalar(0.82 + j * 0.42);
         ring.position.y = 0.012 + j * 6e-3;
-        root.add(ring);
+        matter.add(ring);
         spectra.push(ring);
       }
-      const count = 26 + index * 4, positions = new Float32Array(count * 3);
+      const count = 24 + itemIndex * 4 + (data.variant ?? 0) * 3;
+      const positions = new Float32Array(count * 3);
       for (let j = 0; j < count; j++) {
         const a = hash(index * 131 + j * 19) * Math.PI * 2;
         const r = 0.25 + hash(index * 151 + j * 29) * 1.15;
         positions[j * 3] = Math.cos(a) * r;
-        positions[j * 3 + 1] = 0.04 + hash(index * 173 + j * 31) * (index === 5 ? 0.75 : 0.3);
+        positions[j * 3 + 1] = 0.04 + hash(index * 173 + j * 31) * (itemIndex === 4 ? 0.75 : 0.3);
         positions[j * 3 + 2] = Math.sin(a) * r * 0.7;
       }
       const pg = new THREE.BufferGeometry();
       pg.setAttribute("position", new THREE.BufferAttribute(positions, 3));
       const particles = new THREE.Points(pg, new THREE.PointsMaterial({
         color: item.color,
-        size: index === 5 ? 0.042 : 0.026,
+        size: itemIndex === 4 ? 0.042 : 0.026,
         sizeAttenuation: true,
         transparent: true,
-        opacity: index === 5 ? 0.42 : 0.18,
+        opacity: itemIndex === 4 ? 0.42 : 0.18,
         depthWrite: false
       }));
-      root.add(particles);
+      matter.add(particles);
+      const traceMaterial = new THREE.LineBasicMaterial({
+        color: item.color,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false
+      });
+      const trace = new THREE.LineSegments(traceGeometry, traceMaterial);
+      trace.position.y = 0.035;
+      trace.rotation.y = -(data.bearing ?? 0);
+      trace.visible = false;
+      root.add(trace);
       this.siteGroup.add(root);
-      this.sites.push({ root, spectra, particles, data, acquired: false });
+      this.sites.push({ root, matter, cool, shards, spectra, particles, trace, data, itemIndex, acquired: false });
     }
   }
   get complete() {
@@ -277,22 +312,37 @@ export class Restoration {
     return this.count / this.items.length;
   }
   get structuralCount() {
-    return Math.min(this.count, STRUCTURAL_MATERIAL_COUNT);
+    let count = 0;
+    for (let index = 0; index < STRUCTURAL_MATERIAL_COUNT; index++) count += this.acquiredItems[index];
+    return count;
   }
   get structureComplete() {
     return this.structuralCount >= STRUCTURAL_MATERIAL_COUNT;
   }
-  get reserveCount() {
-    return Math.max(0, this.count - STRUCTURAL_MATERIAL_COUNT);
+  get rawCount() {
+    let count = 0;
+    for (let index = STRUCTURAL_MATERIAL_COUNT; index < this.items.length; index++) count += this.acquiredItems[index];
+    return count;
   }
-  get gauges() {
+  get rawMaterials() {
     return this.items.slice(STRUCTURAL_MATERIAL_COUNT).map((item, index) => ({
       code: item.gauge,
       label: item.module,
       sample: item.sample,
       value: Number(this.gaugeValues[index] ?? 0),
-      acquired: this.reserveCount > index
+      acquired: !!this.acquiredItems[STRUCTURAL_MATERIAL_COUNT + index]
     }));
+  }
+  get acquiredSites() {
+    return this.items.map((_item, itemIndex) => this.sites.find(
+      (site) => site.itemIndex === itemIndex && site.acquired
+    )).filter(Boolean);
+  }
+  get subtractionProgress() {
+    return this.subtraction?.progress ?? (this.complete ? 1 : 0);
+  }
+  consumeAcquisitions() {
+    return this.acquisitions.splice(0);
   }
   get scanning() {
     return !!this.event && !this.event.committed;
@@ -301,14 +351,30 @@ export class Restoration {
     return !!this.event && now < this.holdUntil;
   }
   shouldHold(probe) {
-    if (this.complete || !probe || !this.target) return false;
-    return Math.hypot(probe.x - this.target.x, probe.z - this.target.z) <= HOLD_RADIUS;
+    if (this.complete || !probe) return false;
+    const site = this._nearestAvailableSite(probe);
+    return !!site && Math.hypot(probe.x - site.data.x, probe.z - site.data.z) <= HOLD_RADIUS;
   }
   get target() {
-    return this.sites[this.count]?.data ?? null;
+    const itemIndex = this.acquiredItems.findIndex((acquired) => !acquired);
+    if (itemIndex < 0) return null;
+    return this.sites.find((site) => site.itemIndex === itemIndex && site.data.primary)?.data ??
+      this.sites.find((site) => site.itemIndex === itemIndex)?.data ?? null;
   }
   get scanFocus() {
     return this.event ? this.sites[this.event.index]?.data ?? null : null;
+  }
+  _nearestAvailableSite(probe) {
+    let nearest = null;
+    let distance = Infinity;
+    for (const site of this.sites) {
+      if (this.acquiredItems[site.itemIndex]) continue;
+      const nextDistance = Math.hypot(probe.x - site.data.x, probe.z - site.data.z);
+      if (nextDistance >= distance) continue;
+      nearest = site;
+      distance = nextDistance;
+    }
+    return nearest;
   }
   snapshot() {
     return {
@@ -320,10 +386,18 @@ export class Restoration {
         total: STRUCTURAL_MATERIAL_COUNT,
         complete: this.structureComplete
       },
-      reserves: {
-        count: this.reserveCount,
-        total: RESERVE_GAUGE_COUNT,
-        gauges: this.gauges
+      rawMaterials: {
+        count: this.rawCount,
+        total: RAW_MATERIAL_COUNT,
+        gauges: this.rawMaterials
+      },
+      fieldSubtraction: {
+        active: !!this.subtraction && !this.subtraction.complete,
+        complete: !!this.subtraction?.complete,
+        progress: this.subtractionProgress,
+        traces: this.sites.reduce((count, site) => count + (site.acquired ? 1 : 0), 0),
+        potentials: this.subtraction?.complete ? 0 : this.sites.reduce((count, site) => count + (!!this.acquiredItems[site.itemIndex] && !site.acquired ? 1 : 0), 0),
+        subtracted: this.subtraction?.complete ? this.sites.reduce((count, site) => count + (!!this.acquiredItems[site.itemIndex] && !site.acquired ? 1 : 0), 0) : 0
       },
       distance: this.lastDistance,
       scanning: this.scanning,
@@ -337,7 +411,7 @@ export class Restoration {
         phase: this.registrationPhase?.textContent ?? "",
         sample: this.registrationSample?.textContent ?? "",
         module: this.registrationModule?.textContent ?? "",
-        resources: this.gauges.map((resource, index) => ({
+        resources: this.rawMaterials.map((resource, index) => ({
           ...resource,
           displayedValue: Number(this.gaugeDisplayValues[index] ?? 0)
         })),
@@ -346,11 +420,11 @@ export class Restoration {
     };
   }
   _syncUi(message = "") {
-    if (this.progress) this.progress.textContent = `SHELL ${this.structuralCount} / ${STRUCTURAL_MATERIAL_COUNT} \xB7 RESERVE ${this.reserveCount} / ${RESERVE_GAUGE_COUNT}`;
+    if (this.progress) this.progress.textContent = `SHELL ${this.structuralCount} / ${STRUCTURAL_MATERIAL_COUNT} \xB7 RAW ${this.rawCount} / ${RAW_MATERIAL_COUNT}`;
     for (let i = 0; i < this.cells.length; i++)
-      this.cells[i].classList.toggle("on", i < this.structuralCount);
+      this.cells[i].classList.toggle("on", !!this.acquiredItems[i]);
     this._syncGauges();
-    if (this.label) this.label.textContent = message || (this.complete ? "LANDER + RESERVE STATE \xB7 COMPLETE" : this.structureComplete ? `LANDER FIXED \xB7 RESERVE ${this.reserveCount} / ${RESERVE_GAUGE_COUNT}` : this.count ? `${this.items[this.count - 1].module} \xB7 MATERIAL FIXED` : "WIRE STATE \xB7 5 STRUCTURES + 3 RESERVES REQUIRED");
+    if (this.label) this.label.textContent = message || (this.complete ? "LANDER + RAW MATERIALS \xB7 COMPLETE" : this.structureComplete ? `LANDER FIXED \xB7 RAW ${this.rawCount} / ${RAW_MATERIAL_COUNT}` : this.count ? "FIELD MATERIAL \xB7 REGISTERED" : "WIRE STATE \xB7 4 STRUCTURES + 2 RAW MATERIALS REQUIRED");
     this.root?.classList.toggle("complete", this.complete);
   }
   _syncGauges(values = this.gaugeValues, completionCharge = false) {
@@ -358,9 +432,9 @@ export class Restoration {
       const value = clamp01(values[index] ?? 0);
       this.gaugeDisplayValues[index] = value;
       const percent = Math.round(value * 100);
-      element.style.setProperty("--reserve-level", value.toFixed(3));
+      element.style.setProperty("--raw-material-level", value.toFixed(3));
       element.classList.toggle("on", value >= 0.999);
-      element.classList.toggle("active", completionCharge || (this.event?.item?.kind === "reserve" && this.event.item.reserve === index));
+      element.classList.toggle("active", completionCharge || (this.event?.item?.kind === "raw" && this.event.item.raw === index));
       const output = element.querySelector("small");
       if (output) output.textContent = `${String(percent).padStart(3, "0")}%`;
       const meter = element.querySelector('[role="meter"]');
@@ -394,7 +468,7 @@ export class Restoration {
       code.textContent = item.gauge;
       label.textContent = item.module;
       value.textContent = "000%";
-      meter.className = "reserve-track";
+      meter.className = "raw-material-track";
       meter.setAttribute("role", "meter");
       meter.setAttribute("aria-label", `${item.gauge} ${item.module}`);
       meter.setAttribute("aria-valuemin", "0");
@@ -429,7 +503,7 @@ export class Restoration {
       (COMPLETION_GAUGE_END - COMPLETION_GAUGE_START)
     );
     this._syncGauges(
-      [completionGaugeLevel, completionGaugeLevel, completionGaugeLevel],
+      new Array(RAW_MATERIAL_COUNT).fill(completionGaugeLevel),
       completionGaugeLevel > 0 && completionGaugeLevel < 0.999
     );
     const allSolid = this.lander.parts.every((part) => part.state === "solid");
@@ -458,14 +532,124 @@ export class Restoration {
     if (key === this.registrationReadoutKey) return;
     this.registrationReadoutKey = key;
     if (fixed) {
-      if (this.registrationPhase) this.registrationPhase.textContent = "PLANNED 05 \u2192 OBSERVED 05";
+      if (this.registrationPhase) this.registrationPhase.textContent = "PLANNED 04 \u2192 OBSERVED 04";
       if (this.registrationSample) this.registrationSample.textContent = "LANDER / STRUCTURE FIXED";
-      if (this.registrationModule) this.registrationModule.textContent = "\uAD00\uCE21 \uC644\uB8CC \xB7 \uC678\uBD80 \uAD6C\uC870\uC7AC 5\uC885 \uACE0\uC815 \xB7 \uC790\uC6D0 3\uACC4\uD1B5 \uCDA9\uC804";
+      if (this.registrationModule) this.registrationModule.textContent = "\uAD00\uCE21 \uC644\uB8CC \xB7 \uC678\uBD80 \uAD6C\uC870\uC7AC 4\uC885 \uACE0\uC815 \xB7 \uC6D0\uB8CC 2\uC885 \uCDA9\uC804";
     } else {
-      if (this.registrationPhase) this.registrationPhase.textContent = `REGISTRATION PASS \xB7 ${String(registered).padStart(2, "0")} / 05`;
+      if (this.registrationPhase) this.registrationPhase.textContent = `REGISTRATION PASS \xB7 ${String(registered).padStart(2, "0")} / 04`;
       if (this.registrationSample) this.registrationSample.textContent = item.sample;
       if (this.registrationModule) this.registrationModule.textContent = `${item.sign} \u2192 ${item.module}`;
     }
+  }
+  _beginFieldSubtraction(now) {
+    this.subtraction = { t0: now, progress: 0, complete: false };
+  }
+  _updateFieldSubtraction(now) {
+    if (!this.subtraction || this.subtraction.complete) return;
+    this.subtraction.progress = smoothstep((now - this.subtraction.t0) / FIELD_SUBTRACTION_MS);
+    this.subtraction.complete = this.subtraction.progress >= 0.999;
+  }
+  _animateSiteGrammar(site, now, index) {
+    const t = now * 0.001;
+    const phase = t + index * 0.73;
+    const pulse = 0.5 + Math.sin(phase * 1.1) * 0.5;
+    const targetGain = site.data === this.target ? 1 : 0.55;
+    site.matter.rotation.set(0, 0, 0);
+    site.matter.scale.setScalar(1);
+    site.particles.scale.setScalar(1);
+    site.cool.material.opacity = site.itemIndex === 4 ? 0.18 : 0.07;
+    for (let i = 0; i < site.shards.length; i++) {
+      const shard = site.shards[i];
+      const position = shard.userData.basePosition;
+      const rotation = shard.userData.baseRotation;
+      shard.position.copy(position);
+      shard.rotation.copy(rotation);
+    }
+    site.spectra.forEach((ring, ringIndex) => {
+      ring.scale.setScalar(0.82 + ringIndex * 0.42);
+      ring.material.opacity = (ringIndex < 2 ? 0.055 : 0.032) * targetGain;
+    });
+    site.particles.material.opacity = (site.itemIndex === 4 ? 0.38 : 0.14) * targetGain;
+
+    if (site.itemIndex === 0) {
+      const alignment = 0.58 + pulse * 0.3;
+      site.matter.scale.z = 0.72;
+      site.shards.forEach((shard, shardIndex) => {
+        const base = shard.userData.baseRotation;
+        shard.rotation.x = base.x * (1 - alignment);
+        shard.rotation.y = base.y * 0.16 + (shardIndex % 2 ? 0.035 : -0.035);
+        shard.rotation.z = base.z * (1 - alignment);
+      });
+    } else if (site.itemIndex === 1) {
+      const split = Math.sin(phase * 1.45) * 0.12;
+      site.spectra.forEach((ring, ringIndex) => {
+        const base = 0.82 + ringIndex * 0.42;
+        ring.scale.set(base * (1 + split * (ringIndex + 1)), base * (1 - split), 1);
+        ring.material.opacity = (0.075 + ringIndex * 0.025) * targetGain;
+      });
+      site.shards.forEach((shard, shardIndex) => {
+        shard.position.y += (shardIndex % 2 ? 1 : -1) * split * 0.18;
+      });
+    } else if (site.itemIndex === 2) {
+      const absorption = 0.9 - pulse * 0.1;
+      site.matter.scale.setScalar(absorption);
+      site.spectra.forEach((ring) => { ring.material.opacity = 0.012 * targetGain; });
+      site.particles.material.opacity = 0.035 * targetGain;
+      site.shards.forEach((shard) => { shard.position.y *= 0.68; });
+    } else if (site.itemIndex === 3) {
+      const locked = Math.floor((phase * 0.42 % 1) * 4) * Math.PI * 0.5;
+      site.matter.rotation.y = locked * 0.08;
+      site.shards.forEach((shard, shardIndex) => {
+        shard.rotation.x = Math.round(shard.userData.baseRotation.x / (Math.PI * 0.5)) * Math.PI * 0.5;
+        shard.rotation.y = shardIndex % 4 * Math.PI * 0.5;
+        shard.rotation.z = 0;
+      });
+      site.spectra.forEach((ring) => { ring.material.opacity = (0.055 + pulse * 0.055) * targetGain; });
+    } else if (site.itemIndex === 4) {
+      const dispersion = (phase * 0.28) % 1;
+      site.particles.scale.set(0.72 + dispersion * 0.95, 0.8 + dispersion * 1.35, 0.72 + dispersion * 0.95);
+      site.particles.material.opacity = (1 - dispersion) * 0.48 * targetGain;
+      site.shards.forEach((shard, shardIndex) => {
+        shard.position.y += Math.sin(phase * 1.25 + shardIndex) * 0.04 + dispersion * 0.05;
+      });
+    } else {
+      site.spectra.forEach((ring, ringIndex) => {
+        const band = ringIndex < 2 ? 0.5 + Math.sin(phase * (ringIndex ? 1.72 : 1.08) + ringIndex * 1.6) * 0.5 : 0;
+        const base = 0.86 + ringIndex * 0.48;
+        ring.scale.setScalar(base + band * 0.16);
+        ring.material.opacity = (ringIndex < 2 ? 0.055 + band * 0.13 : 0.008) * targetGain;
+      });
+      site.shards.forEach((shard, shardIndex) => {
+        shard.rotation.y += (shardIndex % 2 ? 1 : -1) * Math.sin(phase * 0.72) * 0.18;
+      });
+    }
+  }
+  _syncSiteState(site, now, index) {
+    this._animateSiteGrammar(site, now, index);
+    const itemResolved = !!this.acquiredItems[site.itemIndex];
+    const selected = itemResolved && site.acquired;
+    const potential = itemResolved && !selected;
+    const subtraction = this.subtractionProgress;
+    site.trace.visible = selected;
+    site.trace.material.opacity = selected ? 0.26 + subtraction * 0.22 : 0;
+    site.trace.scale.setScalar(0.86 + Math.sin(now * 7e-4 + index) * 0.035);
+    if (selected) {
+      site.matter.visible = false;
+      site.root.visible = true;
+      return;
+    }
+    if (potential) {
+      const remainder = this.complete ? 1 - subtraction : 1;
+      site.matter.visible = remainder > 0.001;
+      site.root.visible = site.matter.visible;
+      site.matter.scale.multiplyScalar((0.24 + Math.sin(now * 8e-4 + index) * 0.015) * remainder);
+      site.cool.material.opacity *= 0.18 * remainder;
+      site.particles.material.opacity *= 0.16 * remainder;
+      site.spectra.forEach((ring) => { ring.material.opacity *= 0.22 * remainder; });
+      return;
+    }
+    site.matter.visible = true;
+    site.root.visible = true;
   }
   _seedParticles(index) {
     for (let i = 0; i < this.particleCount; i++) {
@@ -479,9 +663,9 @@ export class Restoration {
       this.velocities[p + 2] = Math.sin(angle) * (0.1 + hash(i * 23 + index) * 0.34);
     }
   }
-  _begin(v, now) {
-    const index = this.count, item = this.items[index];
-    const site = this.sites[index];
+  _begin(v, now, siteIndex) {
+    const site = this.sites[siteIndex];
+    const item = this.items[site.itemIndex];
     this.sampleBaseY = this.heightAt(site.data.x, site.data.z) + 0.24;
     this.sample.position.set(site.data.x, this.sampleBaseY, site.data.z);
     this.ring.position.set(site.data.x, this.heightAt(site.data.x, site.data.z) + 0.04, site.data.z);
@@ -491,11 +675,11 @@ export class Restoration {
     this.sampleMaterial.userData.baseColor.value.setHex(item.color);
     this.ringMaterial.color.setHex(item.color);
     this.particleMaterial.color.setHex(item.color);
-    this._seedParticles(index);
-    this.event = { index, item, t0: now, committed: false };
+    this._seedParticles(siteIndex);
+    this.event = { index: siteIndex, itemIndex: site.itemIndex, item, t0: now, committed: false };
     this.state = "scanning";
     this.holdUntil = now + EVENT_MS;
-    this._syncUi(`CONTACT SCAN \xB7 ${item.sign}`);
+    this._syncUi(`SIGNAL LOCK \xB7 ${item.sign}`);
     this.root?.classList.add("active");
   }
   acquireAll(v, now = performance.now()) {
@@ -514,21 +698,37 @@ export class Restoration {
     this.sampleMaterial.userData.baseColor.value.setHex(16757276);
     this.ringMaterial.color.setHex(16757276);
     this.particleMaterial.color.setHex(16757276);
-    this._seedParticles(8);
+    this._seedParticles(this.items.length);
     this.event = {
-      index: 7,
-      item: { sample: "5 STRUCTURES + 3 RESERVES", module: "MISSION LOADOUT" },
+      index: 0,
+      itemIndex: 0,
+      item: { sample: "4 STRUCTURES + 2 RAW MATERIALS", module: "MISSION LOADOUT" },
       t0: now,
       committed: true,
       all: true
     };
     this.count = this.items.length;
+    this.acquiredItems.fill(1);
+    for (const site of this.sites) site.acquired = false;
+    for (let itemIndex = 0; itemIndex < this.items.length; itemIndex++) {
+      const primary = this.sites.find((site) => site.itemIndex === itemIndex && site.data.primary) ??
+        this.sites.find((site) => site.itemIndex === itemIndex);
+      if (primary) {
+        primary.acquired = true;
+        this.acquisitions.push({
+          itemIndex,
+          siteIndex: this.sites.indexOf(primary),
+          at: now
+        });
+      }
+    }
+    this._beginFieldSubtraction(now);
     this.gaugeValues.fill(1);
     this.holdUntil = now + EVENT_MS;
     this.state = "acquired";
     this.group.visible = true;
     this.root?.classList.add("active");
-    this._syncUi("5 STRUCTURES + 3 RESERVES \xB7 ACQUIRED");
+    this._syncUi("4 STRUCTURES + 2 RAW MATERIALS \xB7 ACQUIRED");
     return true;
   }
   _animate(now) {
@@ -554,23 +754,19 @@ export class Restoration {
   update(v, now, active = true) {
     this.group.visible = active;
     if (!active) return;
-    for (let i = 0; i < this.sites.length; i++) {
-      const site2 = this.sites[i], breathe = 0.78 + Math.sin(now * 12e-4 + i * 1.7) * 0.22;
-      site2.root.visible = i >= this.count;
-      for (const ring of site2.spectra) ring.material.opacity = (i === this.count ? 0.1 : 0.035) * breathe;
-      site2.particles.material.opacity = (i === 5 ? 0.38 : 0.14) * breathe;
-    }
+    this._updateFieldSubtraction(now);
+    for (let i = 0; i < this.sites.length; i++) this._syncSiteState(this.sites[i], now, i);
     if (!this.event) {
-      const target = this.target;
-      this.lastDistance = target ? Math.hypot(v.x - target.x, v.z - target.z) : Infinity;
+      const site = this._nearestAvailableSite(v);
+      this.lastDistance = site ? Math.hypot(v.x - site.data.x, v.z - site.data.z) : Infinity;
       if (this.complete) {
         this.state = "complete";
-      } else if (target) {
+      } else if (site) {
         this.state = this.lastDistance <= SCAN_RADIUS ? "settling" : this.lastDistance <= DETECT_RADIUS ? "detected" : "approach";
         if (this.lastDistance <= SCAN_RADIUS && Math.abs(v.speed) <= SCAN_SPEED) {
-          this._begin(v, now);
+          this._begin(v, now, this.sites.indexOf(site));
         } else if (this.lastDistance <= HOLD_RADIUS) {
-          this._syncUi(`HOLD CONTACT \xB7 ${this.items[this.count].sign}`);
+          this._syncUi(`HOLD CONTACT \xB7 ${this.items[site.itemIndex].sign}`);
         }
       }
       return;
@@ -584,15 +780,15 @@ export class Restoration {
         this.state = "complete";
         this.sample.visible = this.ring.visible = this.particles.visible = false;
         this.root?.classList.remove("active");
-        this._syncUi("LANDER FIXED \xB7 THREE RESERVES CHARGED");
+        this._syncUi("LANDER FIXED \xB7 TWO RAW MATERIALS CHARGED");
       }
       return;
     }
     const site = this.sites[this.event.index];
     this.lastDistance = site ? Math.hypot(v.x - site.data.x, v.z - site.data.z) : Infinity;
     if (!site || this.lastDistance > CANCEL_RADIUS || Math.abs(v.speed) > 0.18) {
-      if (this.event.committed && this.event.item.kind === "reserve")
-        this.gaugeValues[this.event.item.reserve] = 1;
+      if (this.event.committed && this.event.item.kind === "raw")
+        this.gaugeValues[this.event.item.raw] = 1;
       this.event = null;
       this.holdUntil = 0;
       this.root?.classList.remove("active");
@@ -602,9 +798,9 @@ export class Restoration {
       return;
     }
     this._animate(now);
-    if (this.event.committed && this.event.item.kind === "reserve") {
-      const gaugeIndex = this.event.item.reserve;
-      const value = smoothstep((now - this.event.committedAt) / RESERVE_FILL_MS);
+    if (this.event.committed && this.event.item.kind === "raw") {
+      const gaugeIndex = this.event.item.raw;
+      const value = smoothstep((now - this.event.committedAt) / RAW_FILL_MS);
       if (value !== this.gaugeValues[gaugeIndex]) {
         this.gaugeValues[gaugeIndex] = value;
         this._syncGauges();
@@ -617,29 +813,40 @@ export class Restoration {
         this.event.committed = true;
         this.event.committedAt = now;
         this.state = "acquired";
-        this.count = this.event.index + 1;
+        this.acquiredItems[this.event.itemIndex] = 1;
+        this.count++;
         site.acquired = true;
-        this._syncUi(`SAMPLE ACQUIRED \xB7 ${this.event.item.sample}`);
+        this.acquisitions.push({ itemIndex: this.event.itemIndex, siteIndex: this.event.index, at: now });
+        if (this.complete) {
+          this._beginFieldSubtraction(now);
+          this._syncUi("FIELD SUBTRACTION \xB7 SIX COORDINATE TRACES");
+        } else {
+          this._syncUi(`SAMPLE ACQUIRED \xB7 ${this.event.item.sample}`);
+        }
       }
     }
     if (ageMs >= EVENT_MS) {
       const module = this.event.item.module;
-      if (this.event.item.kind === "reserve")
-        this.gaugeValues[this.event.item.reserve] = 1;
+      if (this.event.item.kind === "raw")
+        this.gaugeValues[this.event.item.raw] = 1;
       this.event = null;
       this.holdUntil = 0;
       this.state = this.complete ? "complete" : "approach";
       this.sample.visible = this.ring.visible = this.particles.visible = false;
       this.root?.classList.remove("active");
-      this._syncUi(`${module} \xB7 MATERIAL FIXED`);
+      this._syncUi(this.complete ? "FIELD SUBTRACTION \xB7 06 TRACES REMAIN" : `${module} \xB7 MATERIAL FIXED`);
     }
   }
   reset(level = 0) {
     this.count = Math.max(0, Math.min(this.items.length, Math.floor(level)));
+    this.acquiredItems.fill(0);
+    for (let index = 0; index < this.count; index++) this.acquiredItems[index] = 1;
     for (let i = 0; i < this.gaugeValues.length; i++)
-      this.gaugeValues[i] = this.count > STRUCTURAL_MATERIAL_COUNT + i ? 1 : 0;
+      this.gaugeValues[i] = this.acquiredItems[STRUCTURAL_MATERIAL_COUNT + i] ? 1 : 0;
     this.gaugeDisplayValues.set(this.gaugeValues);
     this.event = null;
+    this.subtraction = null;
+    this.acquisitions.length = 0;
     this.holdUntil = 0;
     this.state = this.complete ? "complete" : "approach";
     this.lastDistance = Infinity;
@@ -647,11 +854,18 @@ export class Restoration {
     this.sample.visible = this.ring.visible = this.particles.visible = false;
     this.root?.classList.remove("active");
     this.setCompletionRegistration(null);
-    this.lander.setRestorationLevel(Math.min(this.count, STRUCTURAL_MATERIAL_COUNT));
-    for (let i = 0; i < this.sites.length; i++) {
-      this.sites[i].acquired = i < this.count;
-      this.sites[i].root.visible = i >= this.count;
+    this.lander.setRestorationLevel(this.structuralCount);
+    for (const site of this.sites) {
+      site.acquired = false;
+      site.root.visible = !this.acquiredItems[site.itemIndex];
     }
+    for (let itemIndex = 0; itemIndex < this.acquiredItems.length; itemIndex++) {
+      if (!this.acquiredItems[itemIndex]) continue;
+      const primary = this.sites.find((site) => site.itemIndex === itemIndex && site.data.primary) ??
+        this.sites.find((site) => site.itemIndex === itemIndex);
+      if (primary) primary.acquired = true;
+    }
+    if (this.complete) this.subtraction = { t0: 0, progress: 1, complete: true };
     this._syncUi();
   }
 }

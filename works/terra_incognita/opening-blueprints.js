@@ -204,7 +204,7 @@ body.ti-prologue-out #ti-opening-blueprints.bp-residual-title {
   color: #aeb3b9;
 }
 #ti-opening-blueprints .bp-head span:last-child {
-  color: #85f2a8;
+  color: #c0152a;
   text-align: right;
 }
 #ti-opening-blueprints .bp-work {
@@ -529,12 +529,11 @@ const LANDER_CALLOUTS = Object.freeze([
   { name: "FOUNDATION", detail: "TERRAIN DATUM + BAY FLOOR" },
   { name: "LOAD PATHS", detail: "6-POINT FORCE DISTRIBUTION" },
   { name: "SERVICE / PRESSURE", detail: "THERMAL + PRESSURE SHELL" },
-  { name: "VISOR / BRIDGE", detail: "FORWARD SENSE + TRANSFER" },
-  { name: "CROWN / SIGNAL", detail: "NAVIGATION + TELEMETRY" }
+  { name: "VISOR / BRIDGE / SIGNAL", detail: "FORWARD SENSE + TRANSFER + TELEMETRY" }
 ]);
 const ROVER_PARTS = ROVER_CALLOUTS.map((part) => part.name);
 const LANDER_PARTS = LANDER_CALLOUTS.map((part) => part.name);
-const LANDER_ASSEMBLY_BY_PART = Object.freeze([0, 1, 2, 2, 3, 3, 4, 4]);
+const LANDER_ASSEMBLY_BY_PART = Object.freeze([0, 1, 2, 2, 3, 3, 3, 3]);
 export class OpeningBlueprintSequence {
   constructor({ rover, lander, tier = "mid" }) {
     installDotMatrixStyles();
@@ -799,12 +798,12 @@ export class OpeningBlueprintSequence {
       ["Load paths", "6 articulated / pad centres \xD8 11.10 m"],
       ["Receiving bay", "3.02 W \xD7 4.58 D \xD7 2.82 H m"],
       ["Ramp", "3.14 W \xD7 4.90 L m"],
-      ["Restoration", `5 systems / ${model.segments} lines`]
+      ["Restoration", `4 structural systems / ${model.segments} lines`]
     ];
     this.counter.textContent = rover ? "PLATE 01 / 02 \xB7 ROVER" : "PLATE 02 / 02 \xB7 LANDER";
     this.index.textContent = rover ? "SURFACE EXPLORATION UNIT / RVR\u201301" : "AUTONOMOUS DESCENT HABITAT / LDR\u201301";
     this.title.textContent = rover ? "Rover Blueprint" : "Lander Blueprint";
-    this.summary.textContent = rover ? "Eight terrain contacts, the hinged solar field and the optical mast are resolved from the machine that continues into the mission." : "Six terrain-fitted load paths and five structural systems are resolved after landing-site placement; no mission state is restored for display.";
+    this.summary.textContent = rover ? "Eight terrain contacts, the hinged solar field and the optical mast are resolved from the machine that continues into the mission." : "Six terrain-fitted load paths and four structural systems are resolved after landing-site placement; no mission state is restored for display.";
     this.metrics.innerHTML = rows.map(([term, value]) => `<div><dt>${term}</dt><dd>${value}</dd></div>`).join("");
     this.parts.textContent = (rover ? ROVER_PARTS : LANDER_PARTS).join(" \xB7 ");
     renderDotMatrix(

@@ -26,7 +26,7 @@
     const camera = new THREE.PerspectiveCamera(46, 1.7, 0.1, 2200);
     const scene = new THREE.Scene();
     if (MODE === "work") {
-      const { T, BH, TERRA_SAMPLE_SITES, BODY02_WATER_SITE } = await step("import work spec", () => import("../works/terra_incognita/spec.js"));
+      const { T, BH, TERRA_RESOURCE_SITES, TERRA_SAMPLE_SITES, BODY02_WATER_SITE } = await step("import work spec", () => import("../works/terra_incognita/spec.js"));
       const S = await step("import work surface", () => import("../works/terra_incognita/surface.js"));
       const { MiniMap } = await step("import local survey atlas", () => import("../engine/core/survey.js"));
       await step("configure(work)", () => {
@@ -157,7 +157,7 @@
       const rover = await step("new Rover     (8 wheels, sprung, hinged lid)", () => new E.Rover(camera, document.getElementById("gl"), S.heightCPU));
       const lander = await step("new Lander    (clear bay + six load paths)", () => new E.Lander(S.heightCPU));
       await step("BODY 01 SCAN \xB7 real contact, full stop, 3.6 s integration", () => {
-        const recovery = new E.Restoration(lander, S.heightCPU, TERRA_SAMPLE_SITES);
+        const recovery = new E.Restoration(lander, S.heightCPU, TERRA_RESOURCE_SITES);
         const site = TERRA_SAMPLE_SITES[0], t0 = performance.now() + 1e3;
         const probe = (distance, speed) => ({
           x: site.x + distance,
@@ -182,6 +182,103 @@
         recovery.reset(0);
         return "d\u22642.0 m \xB7 |v|\u22640.12 m/s \xB7 continuous 3.6 s";
       });
+      await step("BODY 01 MANUAL \xB7 alternative sites support out-of-order recovery", () => {
+        const recovery = new E.Restoration(lander, S.heightCPU, TERRA_RESOURCE_SITES);
+        const site = TERRA_RESOURCE_SITES.find((entry) => entry.item === 4 && entry.variant === 2);
+        const t0 = performance.now() + 1e3;
+        const probe = {
+          x: site.x,
+          z: site.z,
+          speed: 0,
+          heading: 0,
+          ground: S.heightCPU(site.x, site.z)
+        };
+        recovery.update(probe, t0, true);
+        recovery.update(probe, t0 + 3610, true);
+        if (recovery.count !== 1 || !recovery.acquiredItems[4] || recovery.structuralCount !== 0)
+          throw new Error("manual alternative did not acquire the selected raw material out of sequence");
+        recovery.update(probe, t0 + 4410, true);
+        if (recovery.gaugeValues[0] <= 0 || recovery.target?.item !== 0)
+          throw new Error("raw gauge or autonomous fallback target did not remain coherent");
+        recovery.reset(0);
+        return "18 manifestations \xB7 arbitrary resource order \xB7 deterministic auto fallback";
+      });
+      await step("BODY 01 GRAMMAR \xB7 six behaviours, six traces, field subtraction", () => {
+        const recovery = new E.Restoration(lander, S.heightCPU, TERRA_RESOURCE_SITES);
+        const grammars = new Set(recovery.sites.map((site) => site.root.userData.resource.grammar));
+        if (grammars.size !== 6) throw new Error(`expected six material grammars, got ${grammars.size}`);
+        const site = TERRA_SAMPLE_SITES[0], t0 = performance.now() + 1e3;
+        const probe = {
+          x: site.x,
+          z: site.z,
+          speed: 0,
+          heading: 0,
+          ground: S.heightCPU(site.x, site.z)
+        };
+        if (!recovery.acquireAll(probe, t0)) throw new Error("test acquisition did not begin");
+        const opening = recovery.snapshot().fieldSubtraction;
+        if (!opening.active || opening.traces !== 6 || opening.potentials !== 12)
+          throw new Error(`subtraction did not begin with 6/12 split: ${JSON.stringify(opening)}`);
+        recovery.update(probe, t0 + 1900, true);
+        const final = recovery.snapshot().fieldSubtraction;
+        const visibleTraces = recovery.sites.filter((entry) => entry.trace.visible).length;
+        const visiblePotentials = recovery.sites.filter((entry) => !entry.acquired && entry.matter.visible).length;
+        if (!final.complete || final.progress < 0.999 || visibleTraces !== 6 || visiblePotentials !== 0)
+          throw new Error(`field subtraction did not leave six traces: ${JSON.stringify({ final, visibleTraces, visiblePotentials })}`);
+        recovery.reset(0);
+        return `${grammars.size} behaviours \xB7 18 manifestations \u2192 6 coordinate traces`;
+      });
+      await step("FIELD ARCHIVE \xB7 selected evidence and resolved potential", () => {
+        const storage = {
+          value: null,
+          getItem() { return this.value; },
+          setItem(_key, value) { this.value = value; },
+          removeItem() { this.value = null; }
+        };
+        const archive = new E.FieldArchive({ storage, key: "harness:field-archive" });
+        archive.registerStations(TERRA_RESOURCE_SITES.filter((site) => site.item === 0 && site.variant < 2).map((site, order) => ({
+          id: `P01-${String(order + 1).padStart(3, "0")}`,
+          body: "terra",
+          planet: "PLANET 01",
+          world: "SHEAR WORLD",
+          label: `FE\u2013NI PLATES \xB7 FIELD ${site.variant + 1}`,
+          x: site.x,
+          z: site.z,
+          radius: 13,
+          order,
+          resourceItem: site.item,
+          resourceVariant: site.variant,
+          archiveRole: "unresolved"
+        })));
+        const selected = TERRA_RESOURCE_SITES.find((site) => site.item === 0 && site.variant === 2);
+        archive.resolveResource({
+          itemIndex: 0,
+          site: { ...selected, label: "FE\u2013NI PLATES" },
+          alternatives: TERRA_RESOURCE_SITES,
+          rover: { heading: 0 },
+          shot: "DETAIL",
+          now: 4200,
+          image: "data:image/webp;base64,AA=="
+        });
+        const snapshot = archive.snapshot();
+        const evidence = snapshot.stations.find((station) => station.archiveRole === "evidence");
+        const potential = snapshot.stations.find((station) => station.archiveRole === "potential");
+        if (!evidence || !potential || potential.potentialCount !== 2 || snapshot.records.length !== 1 || snapshot.records[0].kind !== "resource-evidence")
+          throw new Error(`archive resolution failed: ${JSON.stringify(snapshot)}`);
+        const legacyValues = new Map([["terra-incognita:field-archive:v2", JSON.stringify({
+          version: 2,
+          stations: [{ id: "P02-001", body: "desert", order: 0 }],
+          records: [{ id: "P02-001", body: "desert", image: "data:image/webp;base64,AA==" }]
+        })]]);
+        const migrated = new E.FieldArchive({ storage: {
+          getItem: (key) => legacyValues.get(key) ?? null,
+          setItem: (key, value) => legacyValues.set(key, value),
+          removeItem: (key) => legacyValues.delete(key)
+        } }).snapshot();
+        if (migrated.version !== 3 || migrated.records.length !== 1 || !legacyValues.has("terra-incognita:field-archive:v3"))
+          throw new Error(`v2 archive did not migrate: ${JSON.stringify(migrated)}`);
+        return "1 evidence image \xB7 2 unchosen sites \xB7 v2 records migrated to v3";
+      });
       await step("scene.add all", () => {
         scene.add(sky, ground.mesh, ...scat.meshes, rover.group, lander.group);
         return scene.children.length + " children";
@@ -195,7 +292,7 @@
           }
         }, key: "harness:memory" });
         memory.recordSamples({
-          count: 8,
+          count: 6,
           items: E.RESTORATION_ITEMS,
           sites: TERRA_SAMPLE_SITES
         });
@@ -208,7 +305,7 @@
           throw new Error(`geological compute buffers incomplete: ${JSON.stringify(state.gpu)}`);
         scene.add(geological.group);
         window.__geologicalMemory = geological;
-        return `5 structure + 3 reserves + H\u2082O \u2192 ${state.total} nodes \xB7 ${state.gpu.particles} GPU particles`;
+        return `4 structure + 2 raw materials + H\u2082O \u2192 ${state.total} nodes \xB7 ${state.gpu.particles} GPU particles`;
       });
       await step("new Hud / Captions / Kiosk / Ambient", () => {
         new E.Hud([["A", [["x", "X"]]]]);
@@ -702,7 +799,7 @@
         return "BODY 01/02/03 \u2192 rear \xB7 intro/scans/transit retain authored priority";
       });
       await step("LANDER \xB7 bay is dark, empty and supports the full wheelbase", () => {
-        lander.setRestorationLevel(5);
+        lander.setRestorationLevel(lander.structureCount);
         lander.setRamp(1);
         lander.group.visible = true;
         lander.group.updateMatrixWorld(true);

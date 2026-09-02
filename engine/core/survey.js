@@ -246,10 +246,9 @@ export class MiniMap {
   drawRestoration(now) {
     const c = this.ctx, W = this.canvas.width, H = this.canvas.height;
     const source = this.restoration, count = source?.count ?? 0;
-    const structural = source?.structuralCount ?? Math.min(count, 5);
-    const active = source?.event?.index ?? -1;
-    const activeStructure = active >= 0 && active < 5 ? active : -1;
-    const gauges = source?.gauges ?? [];
+    const acquired = source?.acquiredItems ?? [];
+    const activeStructure = source?.event?.item?.kind === "structure" ? source.event.item.structure : -1;
+    const gauges = source?.rawMaterials ?? [];
     const reducedPulse = REDUCED_MOTION ? 0.62 : 0.5 + Math.sin(now * 52e-4) * 0.18;
     const scale = 1 - this.transfer * 0.84, alpha = 1 - this.transfer * 0.9;
     const cx = W * 0.5, cy = 174;
@@ -267,8 +266,8 @@ export class MiniMap {
     });
     c.font = "10px DM Mono, monospace";
     c.fillStyle = phosphor("mid", 0.34);
-    c.fillText("ARK\u201301 \xB7 5 STRUCTURES / 3 RESERVES", 12, 39);
-    drawSevenSegment(c, `${count}/8`, W - 74, 8, {
+    c.fillText("ARK\u201301 \xB7 4 STRUCTURES / 2 RAW MATERIALS", 12, 39);
+    drawSevenSegment(c, `${count}/${source?.items?.length ?? 6}`, W - 74, 8, {
       width: 17,
       height: 30,
       thickness: 3,
@@ -342,10 +341,10 @@ export class MiniMap {
         ]
       }
     ];
-    const assemblyByModule = [0, 1, 2, 2, 3, 3, 4, 4];
+    const assemblyByModule = [0, 1, 2, 2, 3, 3, 3, 3];
     const drawPolygon = (points, moduleIndex, fill) => {
       const assembly = assemblyByModule[moduleIndex];
-      const restored = assembly < structural;
+      const restored = !!acquired[assembly];
       const materialising = assembly === activeStructure;
       c.beginPath();
       c.moveTo(points[0][0], points[0][1]);
@@ -378,15 +377,15 @@ export class MiniMap {
       for (const path of modules[index].paths) drawPolygon(path, index, modules[index].fill);
     c.restore();
     c.globalAlpha = 1;
-    const next = source?.items?.[Math.min(count, 7)];
-    const status = source?.complete ? "LANDER FIXED \xB7 RESERVES CHARGED" : source?.event ? `ACQUIRED \xB7 ${source.event.item.sample}` : `NEXT \xB7 ${next?.sample ?? "RECOVERY KEY"}`;
+    const next = source?.items?.[source?.target?.item ?? -1];
+    const status = source?.complete ? "LANDER FIXED \xB7 RAW MATERIALS CHARGED" : source?.event ? `ACQUIRED \xB7 ${source.event.item.sample}` : `NEXT \xB7 ${next?.sample ?? "RECOVERY KEY"}`;
     c.font = "10px DM Mono, monospace";
-    c.fillStyle = phosphor("mid", 0.48);
+    c.fillStyle = !source?.complete && !source?.event ? "rgba(226,168,88,.82)" : phosphor("mid", 0.48);
     c.fillText(status, 12, 315);
     const structureX = 12, structureGap = 3, slotW = 18;
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 4; i++) {
       const x = structureX + i * (slotW + structureGap);
-      const done = i < structural, current = i === activeStructure;
+      const done = !!acquired[i], current = i === activeStructure;
       c.fillStyle = phosphor("black", 0.92);
       c.fillRect(x, 324, slotW, 20);
       const dot = 3, dotGap = 2;
@@ -399,12 +398,12 @@ export class MiniMap {
       c.strokeStyle = current ? phosphor("hot", 0.46 + reducedPulse * 0.3) : done ? phosphor("bright", 0.26) : phosphor("dim", 0.12);
       c.strokeRect(x + 0.5, 324.5, slotW - 1, 19);
     }
-    const gaugeX = 122, gaugeGap = 4, gaugeW = (W - gaugeX - 12 - gaugeGap * 2) / 3;
-    for (let i = 0; i < 3; i++) {
-      const gauge = gauges[i] ?? { code: ["N\u2082", "H\u2082O", "EtOH"][i], value: 0 };
+    const gaugeX = 105, gaugeGap = 4, gaugeW = (W - gaugeX - 12 - gaugeGap) / 2;
+    for (let i = 0; i < 2; i++) {
+      const gauge = gauges[i] ?? { code: ["N\u2082", "EtOH"][i], value: 0 };
       const x = gaugeX + i * (gaugeW + gaugeGap);
       const value = Math.max(0, Math.min(1, Number(gauge.value) || 0));
-      const current = source?.event?.item?.kind === "reserve" && source.event.item.reserve === i;
+      const current = source?.event?.item?.kind === "raw" && source.event.item.raw === i;
       c.fillStyle = phosphor("black", 0.92);
       c.fillRect(x, 324, gaugeW, 20);
       c.font = "7px DM Mono, monospace";

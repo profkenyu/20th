@@ -237,6 +237,8 @@ async function build() {
     bad("field archive output", "missing \u2014 run npm run build");
   } else if (!archive.includes("FIELD ARCHIVE / COORDINATE RECORDS") || !archive.includes("SIGNAL NOT ACQUIRED")) {
     bad("field archive output", "missing coordinate record UI");
+  } else if (!archive.includes("terra-incognita:field-archive:v3") || !archive.includes("RESOLVED POTENTIAL") || !archive.includes('data-role="')) {
+    bad("field archive output", "missing selected-evidence / resolved-potential states");
   } else if (["P01", "P02", "P03"].some((planet, index) => (archive.match(new RegExp(`\\[\\"${planet}-`, "g")) ?? []).length !== [12, 7, 5][index])) {
     bad("field archive output", "expected 12 / 7 / 5 moving-photo records");
   } else if (/id=\"fa-title\"|id=\"fa-location\"|id=\"fa-data\"|id=\"fa-frame\"/.test(archive)) {

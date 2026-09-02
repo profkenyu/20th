@@ -42,12 +42,12 @@ export {
   Restoration,
   RESTORATION_ITEMS,
   STRUCTURAL_MATERIAL_COUNT,
-  RESERVE_GAUGE_COUNT
+  RAW_MATERIAL_COUNT
 } from "./core/restoration.js";
 export { DockingSequence } from "./core/docking.js";
 export { VoyageSequence } from "./core/voyage.js";
 export { WaterMission } from "./core/water-mission.js";
-export { MissionMemory, MISSION_MEMORY_VERSION } from "./core/mission-memory.js";
+export { MissionMemory, MISSION_MEMORY_VERSION, REQUIRED_BODY01_SAMPLE_COUNT } from "./core/mission-memory.js";
 export {
   FieldArchive,
   FIELD_ARCHIVE_VERSION,

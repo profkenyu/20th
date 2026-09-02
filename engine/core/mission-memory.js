@@ -1,5 +1,6 @@
-export const MISSION_MEMORY_VERSION = 2;
-export const DEFAULT_MEMORY_KEY = "terra-incognita:mission-memory:v2";
+export const MISSION_MEMORY_VERSION = 3;
+export const REQUIRED_BODY01_SAMPLE_COUNT = 6;
+export const DEFAULT_MEMORY_KEY = "terra-incognita:mission-memory:v3";
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
 const fract = (value) => value - Math.floor(value);
 const textHash = (value) => {
@@ -132,7 +133,7 @@ function chooseSites(model, start) {
   }
   selected.sort((a, b) => a.radius - b.radius);
   const objectives = [
-    ["MATERIAL PHASE", "ALIGN EIGHT RECOVERED MINERAL HARMONICS"],
+    ["MATERIAL PHASE", "ALIGN SIX RECOVERED MATERIAL HARMONICS"],
     ["HYDRATION PHASE", "RESOLVE 1.9 \xB5M ABSORPTION IN GRANITE"],
     ["CONCORDANCE", "FIX THE GEOLOGICAL MEMORY INTERSECTION"]
   ];
@@ -155,7 +156,7 @@ export class MissionMemory {
     this.load();
   }
   get samplesReady() {
-    return this.data.samples.length === 8;
+    return this.data.samples.length === REQUIRED_BODY01_SAMPLE_COUNT;
   }
   get waterReady() {
     return !!this.data.water?.confirmed;
@@ -168,7 +169,7 @@ export class MissionMemory {
     try {
       const parsed = JSON.parse(this.storage.getItem(this.key) ?? "null");
       if (parsed?.version !== MISSION_MEMORY_VERSION) return this.snapshot();
-      this.data.samples = (parsed.samples ?? []).slice(0, 8).map(cleanSample);
+      this.data.samples = (parsed.samples ?? []).slice(0, REQUIRED_BODY01_SAMPLE_COUNT).map(cleanSample);
       this.data.water = cleanWater(parsed.water);
     } catch {
     }
@@ -183,7 +184,7 @@ export class MissionMemory {
   recordSamples(input) {
     const raw = Array.isArray(input) ? input : input?.items ?? [];
     const sites = Array.isArray(input?.sites) ? input.sites : [];
-    const count = Math.min(8, Math.max(0, Math.floor(input?.count ?? raw.length)));
+    const count = Math.min(REQUIRED_BODY01_SAMPLE_COUNT, Math.max(0, Math.floor(input?.count ?? raw.length)));
     this.data.samples = raw.slice(0, count).map((sample, index) => cleanSample({
       ...sample,
       site: sample.site ?? sites[index]?.data ?? sites[index]

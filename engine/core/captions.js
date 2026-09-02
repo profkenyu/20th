@@ -41,6 +41,10 @@ const CSS = `
   color: #6d737b;
   text-transform: uppercase;
 }
+#fh-cap-line.amber .ko,
+#fh-cap-line.amber .en {
+  color: #e2a858;
+}
 #fh-cap-line .bar {
   display: block;
   width: 34px;
@@ -76,8 +80,11 @@ export class Captions {
     document.body.appendChild(this.el);
     this.fired = new Set();
     this.hideAt = 0;
+    this.forcedUntil = 0;
   }
   update(r, now) {
+    if (this.forcedUntil > now) return;
+    this.forcedUntil = 0;
     for (const line of this.lines) {
       if (this.fired.has(line.r) || r > line.r) continue;
       this.fired.add(line.r);
@@ -92,13 +99,17 @@ export class Captions {
   rearm() {
     this.fired.clear();
     this.hideAt = 0;
+    this.forcedUntil = 0;
+    this.el.classList.remove("amber");
     this.el.classList.remove("on");
   }
   force(line, now = performance.now(), hold = 14e3) {
     this.show(line, now);
+    this.forcedUntil = now + hold;
     this.hideAt = now + hold;
   }
   show(line, now) {
+    this.el.classList.toggle("amber", line.tone === "amber");
     this.el.innerHTML = `<span class="ko">${line.ko}</span><span class="en">${line.en}</span><span class="bar"></span>`;
     this.el.classList.add("on");
     this.hideAt = now + 9200;

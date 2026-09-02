@@ -5,12 +5,12 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const TARGET = `file://${ROOT}/index.html?embed`;
 const requestedCase = process.argv[2];
 const cases = [
-  { name: "desktop", viewport: { width: 1600, height: 900 }, quality: "high", columns: 5 },
+  { name: "desktop", viewport: { width: 1600, height: 900 }, quality: "high", columns: 4 },
   {
     name: "portrait",
     viewport: { width: 390, height: 844 },
     quality: "low",
-    columns: 5,
+    columns: 4,
     mobile: true,
     safe: [44, 34]
   },
@@ -18,7 +18,7 @@ const cases = [
     name: "landscape-reduced",
     viewport: { width: 844, height: 390 },
     quality: "low",
-    columns: 5,
+    columns: 4,
     mobile: true,
     reduced: true,
     safe: [20, 20]
@@ -57,7 +57,7 @@ for (const test of cases) {
   await page.keyboard.press("Equal");
   await page.waitForFunction(() => {
     const state = window.TI_SEQUENCE?.();
-    return state?.restoration === 8 && state?.simultaneous === true;
+    return state?.restoration === 6 && state?.simultaneous === true;
   }, null, { timeout: 2500 });
   const simultaneous = await page.evaluate(() => window.TI_SEQUENCE?.().simultaneous === true);
   await page.waitForFunction(
@@ -140,10 +140,10 @@ for (const test of cases) {
   const noCaptionOverlap = !overlap(visible.rect, visible.caption);
   const lifecycle = hidden.state?.suspended && Math.abs((hidden.state?.progress ?? 0) - (before?.progress ?? 0)) < 0.02 && !resumed.state?.suspended && resumed.state?.active && Math.abs((resumed.state?.progress ?? 0) - (before?.progress ?? 0)) < 0.07;
   const completionGaugePass = initial.state?.resources?.every((resource) => resource.displayedValue <= 0.001) && visible.state?.resources?.every((resource) => resource.displayedValue > 0.01 && resource.displayedValue < 0.99) && fixed.state?.resources?.every((resource) => resource.displayedValue >= 0.999);
-  const fixedPass = fixed.state?.fixed && fixed.state?.registered === 5 && fixed.state?.phase === "PLANNED 05 \u2192 OBSERVED 05" && fixed.state?.sample === "LANDER / STRUCTURE FIXED" && fixed.state?.resources?.length === 3 && fixed.state.resources.every((resource) => resource.value >= 0.999);
+  const fixedPass = fixed.state?.fixed && fixed.state?.registered === 4 && fixed.state?.phase === "PLANNED 04 \u2192 OBSERVED 04" && fixed.state?.sample === "LANDER / STRUCTURE FIXED" && fixed.state?.resources?.length === 2 && fixed.state.resources.every((resource) => resource.value >= 0.999);
   const handoffPass = !handedOff.state?.active && handedOff.sequence?.tableau === "idle" && handedOff.sequence?.docking !== "idle" && !handedOff.body.includes("ti-completion-tableau");
   const pass = simultaneous && visible.state?.active && inside && noCaptionOverlap && visible.pointerEvents === "none" && visible.opacity > 0.96 && visible.columns === test.columns && visible.captionWordBreak === "keep-all" && visible.soundOpacity < 0.02 && visible.monitorOpacity < 0.02 && lifecycle && completionGaugePass && fixedPass && handoffPass && errors.length === 0;
-  console.log(`  ${pass ? "\u2713" : "\u2717"} ${test.name.padEnd(18)} ${Math.round(visible.rect?.width ?? 0)}\xD7${Math.round(visible.rect?.height ?? 0)} \xB7 ${visible.columns} cols \xB7 gauges 0\u2192${Math.round((visible.state?.resources?.[0]?.displayedValue ?? 0) * 100)}\u2192100% \xB7 fixed ${fixed.state?.registered ?? 0}/5 \xB7 handoff ${handoffPass ? handedOff.sequence?.docking : "failed"} \xB7 lifecycle ${lifecycle ? "held" : "failed"}`);
+  console.log(`  ${pass ? "\u2713" : "\u2717"} ${test.name.padEnd(18)} ${Math.round(visible.rect?.width ?? 0)}\xD7${Math.round(visible.rect?.height ?? 0)} \xB7 ${visible.columns} cols \xB7 gauges 0\u2192${Math.round((visible.state?.resources?.[0]?.displayedValue ?? 0) * 100)}\u2192100% \xB7 fixed ${fixed.state?.registered ?? 0}/4 \xB7 handoff ${handoffPass ? handedOff.sequence?.docking : "failed"} \xB7 lifecycle ${lifecycle ? "held" : "failed"}`);
   if (!pass) failures.push({
     name: test.name,
     simultaneous,

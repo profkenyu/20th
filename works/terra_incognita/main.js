@@ -43,7 +43,7 @@ import {
   nuRatioCPU,
   uLampPower
 } from "../../engine/index.js";
-import { T, BH, TERRA_SAMPLE_SITES, BODY02_WATER_SITE } from "./spec.js";
+import { T, BH, TERRA_RESOURCE_SITES, BODY02_WATER_SITE } from "./spec.js";
 import {
   heightGPU,
   heightCPU,
@@ -189,7 +189,7 @@ const GRANITE_LINES = [
   { r: 190, ko: "\uD48D\uD654 \uAD6C\uC870 \uAC80\uCD9C", en: "WEATHERING \xB7 EXFOLIATION DOMES / TORS" }
 ];
 const DOCKING_LINES = Object.freeze({
-  recall: { r: 0, ko: "\uAD6C\uC870\uC7AC 5/5 \xB7 \uC790\uC6D0 3/3 \xB7 \uADC0\uD658 \uC88C\uD45C \uC555\uCD95", en: "STRUCTURE 5/5 \xB7 RESERVES 3/3 \xB7 COORDINATE RECALL" },
+  recall: { r: 0, ko: "\uAD6C\uC870\uC7AC 4/4 \xB7 \uC6D0\uB8CC 2/2 \xB7 \uADC0\uD658 \uC88C\uD45C \uC555\uCD95", en: "STRUCTURE 4/4 \xB7 RAW MATERIALS 2/2 \xB7 COORDINATE RECALL" },
   ramp: { r: 0, ko: "\uCC29\uB959\uC120 \uACA9\uB0A9 \uACBD\uB85C \uAC1C\uBC29", en: "LANDER \xB7 STOW PATH OPENING" },
   approach: { r: 0, ko: "\uC2E4\uC811\uC9C0 \uADC0\uD658 \xB7 8\uB95C \uAD6C\uB3D9 \uC720\uC9C0", en: "FINAL APPROACH \xB7 EIGHT CONTACTS LIVE" },
   secure: { r: 0, ko: "\uACA9\uB0A9 \uC704\uCE58 \uACE0\uC815 \xB7 \uAD6C\uC870\uAD11 \uC18C\uAC70", en: "ROVER SECURED \xB7 LOCATORS FALL SILENT" },
@@ -254,20 +254,20 @@ const PLANETS = Object.freeze({
   })
 });
 const FIELD_ARCHIVE_STATIONS = Object.freeze({
-  terra: Object.freeze([
-    Object.freeze({ id: "P01-001", body: "terra", planet: "PLANET 01", world: "SHEAR WORLD", label: "DEPARTURE FRAME", x: 233.2, z: 558.5, radius: 12, order: 0 }),
-    Object.freeze({ id: "P01-002", body: "terra", planet: "PLANET 01", world: "SHEAR WORLD", label: "SHEAR LAMINAE", x: TERRA_SAMPLE_SITES[0].x, z: TERRA_SAMPLE_SITES[0].z, radius: 13, order: 1 }),
-    Object.freeze({ id: "P01-003", body: "terra", planet: "PLANET 01", world: "SHEAR WORLD", label: "CERAMIC APPROACH", x: 216, z: 530, radius: 14, order: 2 }),
-    Object.freeze({ id: "P01-004", body: "terra", planet: "PLANET 01", world: "SHEAR WORLD", label: "SPECTRAL SPLIT", x: TERRA_SAMPLE_SITES[1].x, z: TERRA_SAMPLE_SITES[1].z, radius: 13, order: 3 }),
-    Object.freeze({ id: "P01-005", body: "terra", planet: "PLANET 01", world: "SHEAR WORLD", label: "CARBON TRANSIT", x: 205, z: 493, radius: 14, order: 4 }),
-    Object.freeze({ id: "P01-006", body: "terra", planet: "PLANET 01", world: "SHEAR WORLD", label: "LOW ALBEDO CARBON", x: TERRA_SAMPLE_SITES[2].x, z: TERRA_SAMPLE_SITES[2].z, radius: 13, order: 5 }),
-    Object.freeze({ id: "P01-007", body: "terra", planet: "PLANET 01", world: "SHEAR WORLD", label: "PRESSURE RIDGE", x: 188, z: 458, radius: 14, order: 6 }),
-    Object.freeze({ id: "P01-008", body: "terra", planet: "PLANET 01", world: "SHEAR WORLD", label: "SERVICE / PRESSURE", x: TERRA_SAMPLE_SITES[3].x, z: TERRA_SAMPLE_SITES[3].z, radius: 13, order: 7 }),
-    Object.freeze({ id: "P01-009", body: "terra", planet: "PLANET 01", world: "SHEAR WORLD", label: "SPECULAR BANDING", x: TERRA_SAMPLE_SITES[4].x, z: TERRA_SAMPLE_SITES[4].z, radius: 13, order: 8 }),
-    Object.freeze({ id: "P01-010", body: "terra", planet: "PLANET 01", world: "SHEAR WORLD", label: "LATTICE DESCENT", x: TERRA_SAMPLE_SITES[5].x, z: TERRA_SAMPLE_SITES[5].z, radius: 13, order: 9 }),
-    Object.freeze({ id: "P01-011", body: "terra", planet: "PLANET 01", world: "SHEAR WORLD", label: "RARE-EARTH RETURN", x: TERRA_SAMPLE_SITES[6].x, z: TERRA_SAMPLE_SITES[6].z, radius: 13, order: 10 }),
-    Object.freeze({ id: "P01-012", body: "terra", planet: "PLANET 01", world: "SHEAR WORLD", label: "RESERVE EGRESS", x: TERRA_SAMPLE_SITES[7].x, z: TERRA_SAMPLE_SITES[7].z, radius: 13, order: 11 })
-  ]),
+  terra: Object.freeze(TERRA_RESOURCE_SITES.filter((site) => site.variant < 2).map((site, order) => Object.freeze({
+    id: `P01-${String(order + 1).padStart(3, "0")}`,
+    body: "terra",
+    planet: "PLANET 01",
+    world: "SHEAR WORLD",
+    label: `${["FE–NI PLATES", "SILICATE PRISMS", "CARBON NODULES", "CONDUCTIVE LATTICE", "N₂ FROST FIELD", "ALCOHOL CRYSTALS"][site.item]} · FIELD ${site.variant + 1}`,
+    x: site.x,
+    z: site.z,
+    radius: 13,
+    order,
+    resourceItem: site.item,
+    resourceVariant: site.variant,
+    archiveRole: "unresolved"
+  }))),
   desert: Object.freeze([
     Object.freeze({ id: "P02-001", body: "desert", planet: "PLANET 02", world: "YARDANG FIELD", label: "LANDING DATUM", x: DESERT_START[0], z: DESERT_START[1], radius: 14, order: 0 }),
     Object.freeze({ id: "P02-002", body: "desert", planet: "PLANET 02", world: "YARDANG FIELD", label: "YARDANG INGRESS", x: 88, z: 503, radius: 13, order: 1 }),
@@ -281,8 +281,8 @@ const FIELD_ARCHIVE_STATIONS = Object.freeze({
 const COMPLETION_TABLEAU_MS = 5400;
 const COMPLETION_CAPTION = Object.freeze({
   r: 0,
-  ko: "\uCC29\uB959\uC120 \uC678\uBD80 \uAD6C\uC131 \uC644\uB8CC \xB7 \uAD6C\uC870\uC7AC 5\uC885 \xB7 \uC790\uC6D0 \uAC8C\uC774\uC9C0 3\uACC4\uD1B5 \uCDA9\uC804",
-  en: "LANDER SHELL FIXED \xB7 FIVE STRUCTURES \xB7 THREE RESERVES CHARGED"
+  ko: "\uCC29\uB959\uC120 \uC678\uBD80 \uAD6C\uC131 \uC644\uB8CC \xB7 \uAD6C\uC870\uC7AC 4\uC885 \xB7 \uC6D0\uB8CC 2\uC885 \uCDA9\uC804",
+  en: "LANDER SHELL FIXED \xB7 FOUR STRUCTURES \xB7 TWO RAW MATERIALS CHARGED"
 });
 const OPENING_CAMERA_MS = 6e3;
 const BLUEPRINT_BREATH_MS = 1200;
@@ -385,7 +385,7 @@ let scene, hud, captions, ambient, kiosk, ground, field, wake, dust, graniteFiel
 let world = "terra";
 let landerPresent = true;
 let archiveMode = false, greenMonitorManual = false, rawMonitorManual = false;
-let lastArchiveFrame = 0, archiveCueTimer = 0;
+let lastArchiveFrame = 0, archiveCueTimer = 0, archiveRecordTimer = 0, resourceSignalAt = 0;
 let openingShot = null;
 let completionTableau = null;
 let failureResetAt = 0;
@@ -396,7 +396,7 @@ let experienceMode = "observer", lastExplorerIntent = -Infinity;
 let released = false;
 let prologuePhase = "blueprints";
 let entryRevealRequested = false;
-let soundControl = null, greenControl = null, desktopStart = null;
+let soundControl = null, fieldArchiveControl = null, greenControl = null, desktopStart = null;
 let running = false, hasTimestamp = false;
 let rafId = 0, loopGeneration = 0, frameInFlight = false;
 let tPrev = 0, tStamp = 0, tProbe = 0, frames = 0, acc = 0;
@@ -411,6 +411,7 @@ try {
   soundControl.disabled = !location.search.includes("embed");
   soundControl.setAttribute("aria-hidden", String(soundControl.disabled));
   ambient.bindControl(soundControl);
+  fieldArchiveControl = document.getElementById("ti-field-archive");
   greenControl = document.getElementById("ti-green");
   greenControl?.addEventListener("pointerdown", (event) => event.stopPropagation());
   greenControl?.addEventListener("click", (event) => {
@@ -457,7 +458,7 @@ try {
   mobileControl = new MobileControl(rover);
   if (mobileControl.active) document.body.classList.add("ti-handheld-crt");
   lander = new Lander(heightCPU);
-  restoration = new Restoration(lander, heightCPU, TERRA_SAMPLE_SITES);
+  restoration = new Restoration(lander, heightCPU, TERRA_RESOURCE_SITES);
   missionMemory = new MissionMemory();
   fieldArchive = new FieldArchive();
   fieldArchive.registerStations([
@@ -637,8 +638,8 @@ addEventListener("keydown", (e) => {
         rover.flashAcquisition(now2);
         captions.force({
           r: 0,
-          ko: "\uAD6C\uC870\uC7AC 5\uC885 \xB7 \uC790\uC6D0 3\uACC4\uD1B5 \uB3D9\uC2DC \uD68D\uB4DD",
-          en: "FIVE STRUCTURES \xB7 THREE RESERVES ACQUIRED"
+          ko: "\uAD6C\uC870\uC7AC 4\uC885 \xB7 \uC6D0\uB8CC 2\uC885 \uB3D9\uC2DC \uD68D\uB4DD",
+          en: "FOUR STRUCTURES \xB7 TWO RAW MATERIALS ACQUIRED"
         }, now2, 5200);
         kiosk.last = now2;
       }
@@ -795,10 +796,14 @@ window.TI_EXPERIENCE = () => ({
 });
 window.TI_ANOMALIES = () => restoration.sites.map((site, index) => ({
   index,
+  item: site.itemIndex,
+  variant: site.data.variant,
   x: site.data.x,
   y: site.root.position.y,
   z: site.data.z,
-  state: index < restoration.count ? "acquired" : restoration.event?.index === index ? "scanning" : index === restoration.count ? "target" : "latent",
+  state: site.acquired ? "trace" : restoration.acquiredItems[site.itemIndex]
+    ? restoration.subtraction?.complete ? "subtracted" : "potential"
+    : restoration.event?.index === index ? "scanning" : site.data === restoration.target ? "target" : "latent",
   distance: Math.hypot(rover.pos.x - site.data.x, rover.pos.z - site.data.z)
 }));
 window.TI_WATER = () => ({
@@ -822,7 +827,7 @@ window.TI_SEQUENCE = () => ({
   planets: Object.keys(PLANETS).length,
   restoration: restoration.count,
   structure: restoration.structuralCount,
-  reserves: restoration.reserveCount,
+  rawMaterials: restoration.rawCount,
   simultaneous: !!restoration.event?.all,
   prologue: prologuePhase,
   mission: world === "granite" ? geologicalMemory.state : PLANETS[world].mission,
@@ -1263,6 +1268,15 @@ async function frame() {
   });
   const v = rover.update(dt);
   restoration.update(v, now, world === "terra");
+  if (world === "terra" && restoration.event && !restoration.event.all && restoration.event.t0 !== resourceSignalAt) {
+    resourceSignalAt = restoration.event.t0;
+    captions.force({
+      r: 0,
+      ko: `신호 잠금 · ${restoration.event.item.sample}`,
+      en: `SIGNAL LOCK · ${restoration.event.item.sample}`,
+      tone: "amber"
+    }, now, 1600);
+  }
   waterMission.update(v, now, world === "desert");
   await geologicalMemory.update(v, now, world === "granite");
   if (world === "desert" && waterMission.complete && now - waterMission.confirmedAt >= WATER_CONFIRM_BREATH_MS && !docking.started) {
@@ -1272,7 +1286,7 @@ async function frame() {
     missionMemory.recordSamples({
       count: restoration.count,
       items: restoration.items,
-      sites: restoration.sites
+      sites: restoration.acquiredSites
     });
     beginCompletionTableau(now);
   }
@@ -1326,7 +1340,7 @@ async function frame() {
   else kiosk.last = now;
   if (adaptive.sample(frameMs, now) === "critical") activateArchive("measured");
   const pw = power.update(dt, { ...v, radius: PLANETS[world].metric ? v.radius : 1e7, lamps: rover.lamps });
-  const objective = world === "terra" ? restoration.structureComplete ? `RESERVE BANK \xB7 ${restoration.reserveCount} / 3` : `LANDER SHELL \xB7 ${restoration.structuralCount} / 5` : world === "desert" ? `H\u2082O EVIDENCE \xB7 ${waterMission.complete ? "CONFIRMED" : waterMission.state.toUpperCase()}` : `MEMORY CONCORDANCE \xB7 ${geologicalMemory.current} / ${geologicalMemory.model?.sites?.length ?? 3}`;
+  const objective = world === "terra" ? restoration.structureComplete ? `RAW MATERIALS \xB7 ${restoration.rawCount} / 2` : `LANDER SHELL \xB7 ${restoration.structuralCount} / 4` : world === "desert" ? `H\u2082O EVIDENCE \xB7 ${waterMission.complete ? "CONFIRMED" : waterMission.state.toUpperCase()}` : `MEMORY CONCORDANCE \xB7 ${geologicalMemory.current} / ${geologicalMemory.model?.sites?.length ?? 3}`;
   hud.setMission({
     body: `${PLANETS[world].id} \xB7 ${PLANETS[world].label}`,
     objective,
@@ -1389,7 +1403,7 @@ async function frame() {
       pw.dead ? "\u2014" : pw.endurance === Infinity ? `charging +${pw.net.toFixed(2)} %/s` : `${Math.floor(pw.endurance / 60)}m ${Math.round(pw.endurance % 60)}s`,
       pw.endurance < 90
     );
-    hud.set("recon", world === "terra" ? `${restoration.structuralCount}/5 shell \xB7 ${restoration.reserveCount}/3 reserve` : world === "desert" ? `H\u2082O \xB7 ${waterMission.complete ? "confirmed" : waterMission.state}` : `memory nodes \xB7 ${geologicalMemory.current} / ${geologicalMemory.model?.sites?.length ?? 3}`);
+    hud.set("recon", world === "terra" ? `${restoration.structuralCount}/4 shell \xB7 ${restoration.rawCount}/2 raw` : world === "desert" ? `H\u2082O \xB7 ${waterMission.complete ? "confirmed" : waterMission.state}` : `memory nodes \xB7 ${geologicalMemory.current} / ${geologicalMemory.model?.sites?.length ?? 3}`);
     hud.set("r", PLANETS[world].metric ? `${v.radius.toFixed(1)} m \xB7 ${(v.radius / BH.rs).toFixed(2)} rs` : `${v.radius.toFixed(1)} m \xB7 ${world === "granite" ? "jointed granite" : "yardang field"}`);
     hud.set("region", regionOf(v.radius), v.radius < BH.rs * 1.5);
     hud.set("lapse", PLANETS[world].metric ? v.lapse.toFixed(4) : "1.0000");
@@ -1431,6 +1445,17 @@ function showArchiveCue() {
     cue.setAttribute("aria-hidden", "true");
   }, 3600);
 }
+function flashArchiveRecord() {
+  if (!fieldArchiveControl) return;
+  const label = fieldArchiveControl.querySelector("[data-field-archive-label]");
+  fieldArchiveControl.dataset.archiveState = "recording";
+  if (label) label.textContent = "NEW FRAME";
+  clearTimeout(archiveRecordTimer);
+  archiveRecordTimer = setTimeout(() => {
+    delete fieldArchiveControl.dataset.archiveState;
+    if (label) label.textContent = "FIELD ARCHIVE";
+  }, 1200);
+}
 function syncGreenMonitor() {
   const forcedGreen = archiveMode || mobileControl?.active && released;
   const active = !rawMonitorManual && (forcedGreen || greenMonitorManual);
@@ -1438,12 +1463,12 @@ function syncGreenMonitor() {
   document.body.classList.toggle("ti-raw-monitor", rawMonitorManual && forcedGreen);
   if (greenControl) {
     greenControl.dataset.greenState = active ? "on" : "off";
+    greenControl.dataset.greenCurrent = active ? "green" : "raw";
     greenControl.setAttribute("aria-pressed", String(active));
     greenControl.disabled = !released;
     greenControl.setAttribute("aria-disabled", String(greenControl.disabled));
     greenControl.setAttribute("aria-hidden", String(!released && !location.search.includes("embed")));
-    greenControl.textContent = active ? "RAW" : "GREEN";
-    greenControl.setAttribute("aria-label", active ? "\uC6D0\uB798 \uC0C9\uC0C1\uC73C\uB85C \uBCF4\uAE30" : "\uB179\uC0C9 \uBAA8\uB2C8\uD130\uB85C \uBCF4\uAE30");
+    greenControl.setAttribute("aria-label", active ? "녹색 모니터 사용 중 · RAW 색상으로 전환" : "RAW 색상 사용 중 · 녹색 모니터로 전환");
   }
   hud?.set("mode", archiveMode ? active ? "ARCHIVAL \xB7 PHOSPHOR" : "ARCHIVAL \xB7 RAW COLOUR" : active ? "GREEN MONITOR \xB7 MANUAL" : "CINEMATIC \xB7 FULL COLOUR");
 }
@@ -1496,6 +1521,24 @@ function captureArchiveFrame() {
 }
 function captureFieldArchiveObservation(now, missionEnding) {
   if (!released || pendingArrival || completionTableau || docking.started || voyage.active || missionEnding) return;
+  const resourceEvents = restoration.consumeAcquisitions();
+  for (const acquisition of resourceEvents) {
+    const selected = restoration.sites[acquisition.siteIndex];
+    if (!selected) continue;
+    const resolved = fieldArchive.resolveResource({
+      itemIndex: acquisition.itemIndex,
+      site: {
+        ...selected.data,
+        label: restoration.items[acquisition.itemIndex]?.sample ?? "FIELD MATERIAL"
+      },
+      alternatives: restoration.sites.map((site) => site.data),
+      rover,
+      shot: shotDirector.rendered,
+      now: acquisition.at,
+      image: captureArchiveFrame
+    });
+    if (resolved) flashArchiveRecord();
+  }
   const stations = fieldArchiveStationsFor();
   if (!stations.length) return;
   const record = fieldArchive.observe({
@@ -1507,7 +1550,10 @@ function captureFieldArchiveObservation(now, missionEnding) {
     image: captureArchiveFrame,
     minSpeed: 0.035
   });
-  if (record) hud.flash();
+  if (record) {
+    hud.flash();
+    flashArchiveRecord();
+  }
 }
 function orbitEase(p) {
   const t = Math.max(0, Math.min(1, p));
@@ -1588,7 +1634,7 @@ async function prepareVoyageDestination(destination) {
   rover.group.visible = false;
   rover.setViewMode("cinematic", { yaw: 0.18, pitch: 0.22, dist: 13 });
   lander.place(planet.start[0], planet.start[1], heading, true);
-  restoration.reset(8);
+  restoration.reset(restoration.items.length);
   restoration.group.visible = false;
   shotDirector.mission = world === "granite" ? geologicalMemory : waterMission;
   shotDirector.clearManual();

@@ -27,11 +27,16 @@
   #fa-ledger { position:relative; min-height:calc(100dvh - 150px); }
   .record { position:relative; z-index:4; width:100%; height:var(--row); margin:0; padding-block:0; overflow:visible; background:transparent; color:var(--dim); line-height:var(--row); text-align:left; white-space:nowrap; cursor:pointer; }
   .record:hover, .record:focus-visible, .record[aria-pressed="true"] { color:#fff; outline:none; mix-blend-mode:difference; }
+  .record[data-role="evidence"] { color:var(--ink); }
+  .record[data-role="potential"] { opacity:.36; }
+  .record[data-role="potential"]:hover, .record[data-role="potential"]:focus-visible, .record[data-role="potential"][aria-pressed="true"] { opacity:1; }
   .record > span { min-width:0; overflow:hidden; text-overflow:ellipsis; }
   .record-number { grid-column:1; }
   .record-planet { grid-column:2; }
   .record-label { grid-column:3; }
   .status { grid-column:4; }
+  .status.evidence { color:var(--signal); }
+  .status.potential { color:var(--green); }
   .empty-ledger { margin:0; padding:0 var(--pad); color:var(--dim); line-height:var(--row); }
   .selection-line { position:fixed; z-index:8; left:12px; right:12px; top:0; height:var(--row); border:1px solid var(--signal); opacity:0; pointer-events:none; }
   .selection-line.on { opacity:1; }
@@ -97,20 +102,20 @@
 </main>
 <script>
 (() => {
-  const KEY = "terra-incognita:field-archive:v2";
+  const KEY = "terra-incognita:field-archive:v3";
   const FALLBACK = [
-    ["P01-001", "terra", "PLANET 01", "SHEAR WORLD", "DEPARTURE FRAME", 233.2, 558.5, 0],
-    ["P01-002", "terra", "PLANET 01", "SHEAR WORLD", "SHEAR LAMINAE", 231.6, 543.4, 1],
-    ["P01-003", "terra", "PLANET 01", "SHEAR WORLD", "CERAMIC APPROACH", 216, 530, 2],
-    ["P01-004", "terra", "PLANET 01", "SHEAR WORLD", "SPECTRAL SPLIT", 199.1, 516.1, 3],
-    ["P01-005", "terra", "PLANET 01", "SHEAR WORLD", "CARBON TRANSIT", 205, 493, 4],
-    ["P01-006", "terra", "PLANET 01", "SHEAR WORLD", "LOW ALBEDO CARBON", 209.9, 471.4, 5],
-    ["P01-007", "terra", "PLANET 01", "SHEAR WORLD", "PRESSURE RIDGE", 188, 458, 6],
-    ["P01-008", "terra", "PLANET 01", "SHEAR WORLD", "SERVICE / PRESSURE", 168.5, 445.3, 7],
-    ["P01-009", "terra", "PLANET 01", "SHEAR WORLD", "SPECULAR BANDING", 173.9, 391.9, 8],
-    ["P01-010", "terra", "PLANET 01", "SHEAR WORLD", "LATTICE DESCENT", 127.7, 352.8, 9],
-    ["P01-011", "terra", "PLANET 01", "SHEAR WORLD", "RARE-EARTH RETURN", 131.1, 294.2, 10],
-    ["P01-012", "terra", "PLANET 01", "SHEAR WORLD", "RESERVE EGRESS", 92.5, 247.9, 11],
+    ["P01-001", "terra", "PLANET 01", "SHEAR WORLD", "FE–NI PLATES · FIELD 1", 231.6, 543.4, 0],
+    ["P01-002", "terra", "PLANET 01", "SHEAR WORLD", "FE–NI PLATES · FIELD 2", 247, 519, 1],
+    ["P01-003", "terra", "PLANET 01", "SHEAR WORLD", "SILICATE PRISMS · FIELD 1", 199.1, 516.1, 2],
+    ["P01-004", "terra", "PLANET 01", "SHEAR WORLD", "SILICATE PRISMS · FIELD 2", 185, 536, 3],
+    ["P01-005", "terra", "PLANET 01", "SHEAR WORLD", "CARBON NODULES · FIELD 1", 209.9, 471.4, 4],
+    ["P01-006", "terra", "PLANET 01", "SHEAR WORLD", "CARBON NODULES · FIELD 2", 190, 484, 5],
+    ["P01-007", "terra", "PLANET 01", "SHEAR WORLD", "CONDUCTIVE LATTICE · FIELD 1", 168.5, 445.3, 6],
+    ["P01-008", "terra", "PLANET 01", "SHEAR WORLD", "CONDUCTIVE LATTICE · FIELD 2", 151, 466, 7],
+    ["P01-009", "terra", "PLANET 01", "SHEAR WORLD", "N₂ FROST FIELD · FIELD 1", 173.9, 391.9, 8],
+    ["P01-010", "terra", "PLANET 01", "SHEAR WORLD", "N₂ FROST FIELD · FIELD 2", 153, 403, 9],
+    ["P01-011", "terra", "PLANET 01", "SHEAR WORLD", "ALCOHOL CRYSTALS · FIELD 1", 127.7, 352.8, 10],
+    ["P01-012", "terra", "PLANET 01", "SHEAR WORLD", "ALCOHOL CRYSTALS · FIELD 2", 111, 371, 11],
     ["P02-001", "desert", "PLANET 02", "YARDANG FIELD", "LANDING DATUM", 96, 520, 0],
     ["P02-002", "desert", "PLANET 02", "YARDANG FIELD", "YARDANG INGRESS", 88, 503, 1],
     ["P02-003", "desert", "PLANET 02", "YARDANG FIELD", "SINTERED PASSAGE", 79, 486, 2],
@@ -123,23 +128,36 @@
     ["P03-003", "granite", "PLANET 03", "JOINTED GRANITE", "MEMORY TRANSIT", 124, 402, 2],
     ["P03-004", "granite", "PLANET 03", "JOINTED GRANITE", "HYDRATION PHASE", 150, 383, 3],
     ["P03-005", "granite", "PLANET 03", "JOINTED GRANITE", "CONCORDANCE", 170, 345, 4]
-  ].map(([id, body, planet, world, label, x, z, order]) => ({ id, body, planet, world, label, x, z, order }));
+  ].map(([id, body, planet, world, label, x, z, order]) => ({
+    id, body, planet, world, label, x, z, order,
+    resourceItem: body === "terra" ? Math.floor(order / 2) : null,
+    resourceVariant: body === "terra" ? order % 2 : null,
+    archiveRole: "unresolved",
+    potentialCount: 0,
+    resolved: false
+  }));
   const byId = (items) => new Map(items.map((item) => [item.id, item]));
   const escape = (value) => String(value ?? "").replace(/[&<>\"]/g, (char) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "\"":"&quot;" })[char]);
   const read = () => {
     try {
-      const data = JSON.parse(sessionStorage.getItem(KEY) || "null");
-      return data && data.version === 2 ? data : { stations: [], records: [] };
+      const current = JSON.parse(sessionStorage.getItem(KEY) || "null");
+      if (current && current.version === 3) return current;
+      const legacy = JSON.parse(sessionStorage.getItem("terra-incognita:field-archive:v2") || "null");
+      return legacy && legacy.version === 2 ? { ...legacy, version: 3 } : { stations: [], records: [] };
     } catch { return { stations: [], records: [] }; }
   };
   const source = read();
   const bodyOrder = ["terra", "desert", "granite"];
-  const stations = [...byId([...FALLBACK, ...(source.stations || [])]).values()].sort((a, b) => bodyOrder.indexOf(a.body) - bodyOrder.indexOf(b.body) || a.order - b.order);
+  const fallbackById = byId(FALLBACK);
+  const storedStations = (source.stations || []).map((station) => ({ ...fallbackById.get(station.id), ...station }));
+  const stations = [...byId([...FALLBACK, ...storedStations]).values()].sort((a, b) => bodyOrder.indexOf(a.body) - bodyOrder.indexOf(b.body) || a.order - b.order);
   const records = (source.records || []).filter((record) => stations.some((station) => station.id === record.id));
   const recordsById = byId(records);
   const ledger = document.getElementById("fa-ledger");
   const image = document.getElementById("fa-image");
   const empty = document.getElementById("fa-empty");
+  const emptyTitle = empty.querySelector("b");
+  const emptyStatus = empty.querySelector("span");
   const count = document.getElementById("fa-count");
   const preview = document.getElementById("fa-preview");
   const frameSurface = preview.querySelector(".frame");
@@ -165,7 +183,15 @@
     const record = recordsById.get(station.id);
     document.querySelectorAll(".record").forEach((node) => node.setAttribute("aria-pressed", String(node.dataset.id === station.id)));
     if (record && typeof record.image === "string") { image.src = record.image; image.classList.add("on"); empty.hidden = true; frameSurface.classList.remove("empty"); }
-    else { image.removeAttribute("src"); image.classList.remove("on"); empty.hidden = false; frameSurface.classList.add("empty"); }
+    else {
+      image.removeAttribute("src");
+      image.classList.remove("on");
+      empty.hidden = false;
+      frameSurface.classList.add("empty");
+      const potential = station.archiveRole === "potential";
+      emptyTitle.textContent = potential ? "RESOLVED POTENTIAL" : "NO IMAGE";
+      emptyStatus.textContent = potential ? "FIELD SUBTRACTED" : "SIGNAL NOT ACQUIRED";
+    }
     preview.classList.add("on");
     positionPreview(node);
   }
@@ -183,9 +209,11 @@
     if (!visible.some((station) => station.id === selected?.id)) selected = null;
     ledger.innerHTML = visible.map((station) => {
       const acquired = recordsById.has(station.id);
+      const role = station.archiveRole === "evidence" ? "evidence" : station.archiveRole === "potential" ? "potential" : "unresolved";
       const number = String(stations.indexOf(station)).padStart(3, "0");
-      const status = acquired ? "ACQUIRED" : "—";
-      return `<button class="record" type="button" data-id="${escape(station.id)}" aria-label="${escape(`${number} ${station.planet} ${station.label} ${coord(station)} ${acquired ? "acquired" : "signal not acquired"}`)}" aria-pressed="false"><span class="record-number">${number}</span><span class="record-planet">${escape(station.planet)}</span><span class="record-label">${escape(station.label)}</span><span class="status ${acquired ? "acquired" : ""}">${status}</span></button>`;
+      const status = role === "evidence" ? "EVIDENCE" : role === "potential" ? "POTENTIAL" : acquired ? "ACQUIRED" : "—";
+      const spoken = role === "evidence" ? "selected evidence" : role === "potential" ? `resolved potential ${station.potentialCount || 0}` : acquired ? "acquired" : "signal not acquired";
+      return `<button class="record" type="button" data-id="${escape(station.id)}" data-role="${role}" aria-label="${escape(`${number} ${station.planet} ${station.label} ${coord(station)} ${spoken}`)}" aria-pressed="false"><span class="record-number">${number}</span><span class="record-planet">${escape(station.planet)}</span><span class="record-label">${escape(station.label)}</span><span class="status ${role}">${status}</span></button>`;
     }).join("") || `<p class="empty-ledger">NO COORDINATE RECORDS</p>`;
     ledger.querySelectorAll(".record").forEach((node) => {
       const station = stations.find((item) => item.id === node.dataset.id);

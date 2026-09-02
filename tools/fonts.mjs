@@ -44,9 +44,7 @@ const all = [
   ...await faces("family=Space+Mono:wght@400;700&display=swap"),
   ...await faces("family=Noto+Sans+KR:wght@400&display=swap", ko)
 ];
-const header = `
-
-`;
+const header = `/* SUBSET: ${ko} */\n\n`;
 await writeFile(`${ROOT}/engine/fonts.css`, header + all.map((f) => f.css).join("\n") + "\n");
 const kb = (await stat(`${ROOT}/engine/fonts.css`)).size / 1024;
 console.log(`\u2713 engine/fonts.css \u2014 ${all.length} faces, ${ko.length} hangul, ${kb.toFixed(1)} KB`);

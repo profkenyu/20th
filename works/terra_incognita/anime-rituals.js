@@ -8,7 +8,7 @@ export class AnimeRituals {
   constructor() {
     this.root = document.getElementById("ti-prologue");
     this.cells = [...document.querySelectorAll(
-      "#ti-restoration-cells i,#ti-reserve-gauges .reserve-gauge"
+      "#ti-restoration-cells i,#ti-raw-material-gauges .raw-material-gauge"
     )];
     this.readout = document.getElementById("ti-registration-module");
     this.reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;

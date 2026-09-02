@@ -352,10 +352,10 @@ def lander_diagram(c, x, y, w, h):
     callout(c, 4, "센서 크라운", cx, ground + 6.5 * s, x + w - 10, y + 40, "right")
 
 def panel_lander(c):
-    header(c, 2, "착륙선 설계도", "LANDER RESTORATION BLUEPRINT", "여덟 물질 서명이 FOUNDATION에서 SIGNAL CORE까지 구조를 순차 복원한다.")
+    header(c, 2, "착륙선 설계도", "LANDER RESTORATION BLUEPRINT", "네 구조 서명과 두 원료 서명이 착륙선의 복원 상태를 만든다.")
     lander_diagram(c, M, 288, W - 2 * M, H - M - 430)
     info_block(c, "ENVELOPE", [("STAGE", "diameter 6.10 m"), ("FOOTPRINT", "11.10 m"), ("RAMP", "3.14 x 4.90 m")], M, 154, (W - 2 * M - 18) / 2)
-    info_block(c, "RESTORATION", [("SHELL", "5 structural materials"), ("RESERVE", "N2 / H2O / EtOH"), ("PORTAL", "clear rover volume")], M + (W - 2 * M + 18) / 2, 154, (W - 2 * M - 18) / 2, AMBER)
+    info_block(c, "RESTORATION", [("SHELL", "4 structural materials"), ("RAW", "N2 / EtOH"), ("PORTAL", "clear rover volume")], M + (W - 2 * M + 18) / 2, 154, (W - 2 * M - 18) / 2, AMBER)
     para(c, "FOUNDATION - LOAD PATHS - SERVICE CELLS - PRESSURE HULL - SENSOR VISOR - TRANSFER BRIDGE - SENSOR CROWN - SIGNAL CORE", M, 126, W - 2 * M, 8.2, 13, MUTED)
     footer(c, 2)
 
@@ -398,7 +398,7 @@ def panel_planet_01(c):
     c.setFillColor(MUTED)
     c.drawString(px, y + h - 34, "M = 20 m   L = 88 m   r_s = 40 m   depth = 260 m")
     info_block(c, "ACCURATE", [("MODEL", "G = c = 1"), ("EXTREMA", "74.23 / 312.97 m"), ("FIELD", "divergence-free curl")], M, 292, (W - 2 * M - 18) / 2)
-    info_block(c, "MISSION", [("SHELL", "5 structural signatures"), ("RESERVE", "3 resource gauges"), ("RESULT", "lander loadout")], M + (W - 2 * M + 18) / 2, 292, (W - 2 * M - 18) / 2, CRIMSON)
+    info_block(c, "MISSION", [("SHELL", "4 structural signatures"), ("RAW", "2 material gauges"), ("RESULT", "lander loadout")], M + (W - 2 * M + 18) / 2, 292, (W - 2 * M - 18) / 2, CRIMSON)
     para(c, "수치 근사: 유효 퍼텐셜을 2D 높이장으로 변환한다. 예술적 해석: 중력 장벽을 행성 지형과 물질 층리로 번역한다. 사건지평선 내부의 외부 관측자 물리는 주장하지 않는다.", M, 260, W - 2 * M, 9, 14, MUTED)
     footer(c, 3, "PLANET 01 / MATHEMATICS GENERATES THE ROUTE")
 
@@ -497,7 +497,7 @@ def panel_planet_03(c):
         for rr in (5, 11, 18):
             c.setStrokeColor(Color(0.75, 0.08, 0.16, alpha=0.75 / (rr / 5)))
             c.circle(bx + nx * bw, by + ny * bh, rr, fill=0, stroke=1)
-    info_block(c, "SOURCE", [("PLANET 01", "5 structure + 3 reserves"), ("PLANET 02", "hydration spectrum"), ("MEMORY", "persistent mission ledger")], M, 272, (W - 2 * M - 18) / 2)
+    info_block(c, "SOURCE", [("PLANET 01", "4 structure + 2 raw"), ("PLANET 02", "hydration spectrum"), ("MEMORY", "persistent mission ledger")], M, 272, (W - 2 * M - 18) / 2)
     info_block(c, "OUTPUT", [("NODES", "3 concordance sites"), ("GEOLOGY", "two joint families"), ("EVENT", "cross-planet alignment")], M + (W - 2 * M + 18) / 2, 272, (W - 2 * M - 18) / 2, GREEN)
     para(c, "과학적으로 정확한 부분은 위상장과 곱의 계산이다. 실시간 GPU 격자는 수치 근사다. 서로 다른 행성의 증거가 지질 기억으로 재출현한다는 서사는 예술적 해석이다.", M, 240, W - 2 * M, 9, 14, MUTED)
     footer(c, 5, "PLANET 03 / THE PRIOR WORLDS BECOME STRUCTURE")
@@ -625,7 +625,7 @@ def panel_guide(c):
     
     section_label(c, "WHAT TO WATCH", x, 266, w)
     observations = [
-        ("01", "PLANET 01", "구조재 5종과 자원 3계통의 순차 회수"),
+        ("01", "PLANET 01", "구조 자원 4종과 원료 2종의 분산 회수"),
         ("02", "PLANET 02", "표면 웅덩이가 아닌 수분 등가 관측 신호"),
         ("03", "PLANET 03", "앞선 두 기록이 세 기억 결절로 재출현"),
     ]
