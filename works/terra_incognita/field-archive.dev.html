@@ -85,7 +85,7 @@
       <button class="filter" type="button" data-filter="granite" aria-pressed="false">Planet 03</button>
     </nav>
     <span id="fa-count" class="sr-only" aria-live="polite">00 / 00 signals acquired</span>
-    <a class="back" href="index.html">Return</a>
+    <a class="back" href="index.html" data-return>Return</a>
   </header>
   <section class="archive" aria-label="좌표 관측 기록">
     <div class="ledger-head" aria-hidden="true"><span>N.</span><span>P.</span><span>C.</span><span>S.</span></div>
@@ -328,6 +328,11 @@
   addEventListener("scroll", () => positionPreview(), { passive:true });
   image.addEventListener("load", () => positionPreview());
   image.addEventListener("error", () => { image.classList.remove("on"); empty.hidden = false; frameSurface.classList.add("empty"); });
+  document.querySelector("[data-return]")?.addEventListener("click", (event) => {
+    if (history.length <= 1 || !document.referrer) return;
+    event.preventDefault();
+    history.back();
+  });
   render();
 })();
 </script>

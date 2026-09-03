@@ -6,10 +6,7 @@ export class MobileControl {
     this.start = document.getElementById("ti-mobile-start");
     this.tilt = document.getElementById("ti-mobile-tilt");
     this.steer = document.getElementById("ti-mobile-steer");
-    this.toggle = document.getElementById("ti-mobile-toggle");
     this.sensorLabel = document.getElementById("ti-mobile-sensor");
-    this.driveLabel = document.getElementById("ti-mobile-state");
-    this.driveHint = document.getElementById("ti-mobile-hint");
     this.signal = document.getElementById("ti-mobile-signal");
     this.permission = "idle";
     this.listening = false;
@@ -23,8 +20,6 @@ export class MobileControl {
     this.tiltParked = false;
     this.lastSample = -Infinity;
     this.lastUi = "";
-    this.longPress = false;
-    this.pressTimer = 0;
     this.explorer = false;
     this.dragging = false;
     this.dragSteer = 0;
@@ -94,31 +89,6 @@ export class MobileControl {
     };
     this.steer?.addEventListener("pointerup", endDrag);
     this.steer?.addEventListener("pointercancel", endDrag);
-    this.toggle?.addEventListener("pointerdown", (e) => {
-      stop(e);
-      this.longPress = false;
-      clearTimeout(this.pressTimer);
-      this.pressTimer = setTimeout(() => {
-        this.longPress = true;
-        if (this.permission === "granted") this.recalibrate();
-      }, 700);
-    });
-    const finish = (e) => {
-      stop(e);
-      clearTimeout(this.pressTimer);
-      if (!this.longPress && !this.toggle?.disabled) {
-        this._intent("drive-mode");
-        this.rover.mobileSteer = 0;
-        this.filteredSteer = 0;
-      }
-      this.longPress = false;
-    };
-    this.toggle?.addEventListener("pointerup", finish);
-    this.toggle?.addEventListener("pointercancel", (e) => {
-      stop(e);
-      clearTimeout(this.pressTimer);
-      this.longPress = false;
-    });
   }
   _intent(kind) {
     this.onIntent?.(kind, performance.now());
@@ -280,19 +250,10 @@ export class MobileControl {
   _syncUi(blocked, missionHold, released) {
     if (!this.active) return;
     const sensor = this.permission === "granted" ? this.calibrating ? "CALIBRATING \xB7 \uC218\uD3C9 \uC720\uC9C0" : "TILT READY \xB7 \uAE30\uC6B8\uC5EC \uC870\uD5A5 / \uC138\uC6B0\uBA74 \uC815\uC9C0" : this.permission === "pending" ? "REQUESTING SENSOR" : this.permission === "denied" ? "DRAG STEER \xB7 \uC13C\uC11C \uAC70\uC808\uB428" : this.permission === "unavailable" ? "DRAG STEER \xB7 \uC13C\uC11C \uBBF8\uC9C0\uC6D0" : "ENABLE TILT \xB7 \uAE30\uC6B8\uAE30 \uC870\uD5A5";
-    const state = blocked ? "LINK SEQUENCE" : missionHold ? "SURVEYING" : this.explorer ? "MANUAL" : "AUTO";
-    const hint = blocked ? "\uC6D0\uACA9 \uBAB8\uCCB4 \uC5F0\uACB0 \uC911" : missionHold ? "\uC790\uB3D9 \uCE21\uB7C9 \uD6C4 \uC8FC\uD589 \uC7AC\uAC1C" : this.explorer ? this.tiltParked ? "\uAE30\uC6B8\uC774\uBA74 \uCD9C\uBC1C \xB7 \uD0ED\uD558\uC5EC \uC790\uB3D9" : this.permission === "granted" ? "\uAE30\uC6B8\uC774\uAC70\uB098 \uB4DC\uB798\uADF8 \xB7 \uD0ED\uD558\uC5EC \uC790\uB3D9" : "\uC88C\uC6B0 \uB4DC\uB798\uADF8 \uC870\uD5A5 \xB7 \uD0ED\uD558\uC5EC \uC790\uB3D9" : "\uC790\uB3D9\uC6B4\uD589 \uC911 \xB7 \uD0ED\uD558\uC5EC \uC218\uB3D9\uC6B4\uD589";
-    const key = `${sensor}|${state}|${hint}|${blocked}|${missionHold}|${released}`;
+    const key = `${sensor}|${blocked}|${missionHold}|${released}|${this.explorer}`;
     if (key === this.lastUi) return;
     this.lastUi = key;
     if (this.sensorLabel) this.sensorLabel.textContent = sensor;
-    if (this.driveLabel) this.driveLabel.textContent = state;
-    if (this.driveHint) this.driveHint.textContent = hint;
-    if (this.toggle) {
-      this.toggle.disabled = blocked || missionHold || !released;
-      this.toggle.setAttribute("aria-pressed", String(this.explorer));
-      this.toggle.setAttribute("aria-label", this.explorer ? "\uC218\uB3D9\uC6B4\uD589 \uC0AC\uC6A9 \uC911 \xB7 \uC790\uB3D9\uC6B4\uD589\uC73C\uB85C \uC804\uD658" : "\uC790\uB3D9\uC6B4\uD589 \uC0AC\uC6A9 \uC911 \xB7 \uC218\uB3D9\uC6B4\uD589\uC73C\uB85C \uC804\uD658");
-    }
     if (this.tilt) {
       this.tilt.setAttribute("aria-pressed", String(this.permission === "granted"));
       this.tilt.disabled = this.permission === "pending";

@@ -241,6 +241,8 @@ async function build() {
     bad("field archive output", "missing coordinate record UI");
   } else if (!archive.includes("terra-incognita:field-archive:v4") || !archive.includes("FISHEYE 8MM") || !archive.includes("RESOLVED POTENTIAL") || !archive.includes('data-role="')) {
     bad("field archive output", "missing capture profiles or selected-evidence / resolved-potential states");
+  } else if (!archive.includes("history.back()") || !archive.includes("data-return")) {
+    bad("field archive output", "RETURN does not prefer the previous screen");
   } else if (["P01", "P02", "P03"].some((planet, index) => (archive.match(new RegExp(`\\[\\"${planet}-`, "g")) ?? []).length !== [12, 7, 5][index])) {
     bad("field archive output", "expected 12 / 7 / 5 moving-photo records");
   } else if (/id=\"fa-title\"|id=\"fa-location\"|id=\"fa-data\"|id=\"fa-frame\"/.test(archive)) {

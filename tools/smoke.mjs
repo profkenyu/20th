@@ -247,13 +247,17 @@ const readRoverTools = () => page.evaluate(() => {
   const monitor = document.getElementById("ti-monitor")?.getBoundingClientRect();
   const buttons = [...document.querySelectorAll("#ti-rover-tools > *")];
   const rects = buttons.map((button) => button.getBoundingClientRect());
+  const mobile = document.body.classList.contains("ti-mobile");
   const light = document.getElementById("ti-light");
   const camera = document.getElementById("ti-camera");
   const overlap = (a, b) => !!a && !!b && a.width > 0 && b.width > 0 && !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom);
   return {
+    mobile,
     order: buttons.map((button) => button.id),
-    visible: !!root && root.width >= 186 && root.width <= 194 && root.height >= 42,
+    visible: !!root && (mobile ? root.width >= 46 && root.width <= 50 && root.height >= 142 : root.width >= 186 && root.width <= 194 && root.height >= 42),
     equalWidths: rects.length === 4 && Math.max(...rects.map((rect) => rect.width)) - Math.min(...rects.map((rect) => rect.width)) <= 1,
+    vertical: mobile && rects.length === 4 && rects.every((rect, index) => Math.abs(rect.left - rects[0].left) <= 1 && (!index || rect.top >= rects[index - 1].bottom - 1)),
+    horizontal: !mobile && rects.length === 4 && rects.every((rect, index) => Math.abs(rect.top - rects[0].top) <= 1 && (!index || rect.left >= rects[index - 1].right - 1)),
     belowMonitor: !!root && !!monitor && root.top >= monitor.bottom + 4,
     alignedMonitor: !!root && !!monitor && Math.abs(root.right - monitor.right) <= 2,
     overlapMonitor: overlap(root, monitor),
@@ -347,11 +351,23 @@ if (MOBILE) {
     null,
     { timeout: 12e3 }
   );
+  const readMobileDriveMode = () => page.evaluate(() => {
+    const button = document.getElementById("ti-drive-mode");
+    return {
+      experience: window.TI_EXPERIENCE?.() ?? null,
+      pressed: button?.getAttribute("aria-pressed") === "true",
+      state: button?.dataset.driveState ?? "",
+      label: button?.getAttribute("aria-label") ?? "",
+      visible: !!button && button.getBoundingClientRect().width > 0
+    };
+  });
+  const initialDriveMode = await readMobileDriveMode();
   mobileControl = await page.evaluate(() => {
     const root = document.getElementById("ti-mobile-drive")?.getBoundingClientRect();
     const steer = document.getElementById("ti-mobile-steer")?.getBoundingClientRect();
     const sound = document.getElementById("ti-sound")?.getBoundingClientRect();
     const green2 = document.getElementById("ti-green")?.getBoundingClientRect();
+    const driveMode = document.getElementById("ti-drive-mode")?.getBoundingClientRect();
     const archive = document.getElementById("ti-field-archive")?.getBoundingClientRect();
     const monitor = document.getElementById("ti-monitor")?.getBoundingClientRect();
     const mission = document.getElementById("fh-mission")?.getBoundingClientRect();
@@ -359,18 +375,27 @@ if (MOBILE) {
     const driveButtons = [...document.querySelectorAll("#ti-mobile-drive button")].map((button) => button.getBoundingClientRect());
     const utilityHeights = [sound, archive].filter(Boolean).map((rect) => rect.height);
     const driveHeights = driveButtons.map((rect) => rect.height);
+    const safeRight = Math.max(0, innerWidth - (document.querySelector(".bar.b")?.getBoundingClientRect().right ?? innerWidth));
+    const frameBottom = document.querySelector(".bar.b")?.getBoundingClientRect().height ?? 0;
+    const compactLandscape = matchMedia("(pointer: coarse) and (orientation: landscape) and (max-height: 520px)").matches;
+    const greenRight = compactLandscape ? Math.max(68, safeRight + 64) : Math.max(14, safeRight);
     const overlap = (a, b) => !!a && !!b && a.width > 0 && b.width > 0 && !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom);
     return {
       rootVisible: !!root && root.width > 0 && root.height >= 48,
       steerVisible: !!steer && steer.width > 60 && steer.height >= 44,
       soundVisible: !!sound && sound.width >= 42 && sound.width <= 52 && sound.height >= 42 && sound.height <= 46,
       greenVisible: !!green2 && green2.width >= 88 && green2.width <= 96 && green2.height >= 26 && green2.height <= 30,
+      greenRightAligned: !!green2 && Math.abs(innerWidth - green2.right - greenRight) <= 2,
+      greenNearBottom: !!green2 && innerHeight - green2.bottom <= frameBottom + 14,
+      driveModeVisible: !!driveMode && driveMode.width >= 88 && driveMode.width <= 96 && driveMode.height >= 26 && driveMode.height <= 30,
       archiveVisible: !!archive && archive.width >= 42 && archive.width <= 52 && archive.height >= 42 && archive.height <= 46,
       balancedButtons: utilityHeights.length === 2 && Math.max(...utilityHeights) - Math.min(...utilityHeights) <= 1,
-      balancedDriveButtons: driveHeights.length === 3 && Math.max(...driveHeights) - Math.min(...driveHeights) <= 1,
+      balancedDriveButtons: driveHeights.length === 2 && Math.max(...driveHeights) - Math.min(...driveHeights) <= 1,
       overlapSoundControl: overlap(sound, root),
       overlapSoundMonitor: overlap(sound, monitor),
       overlapGreenControl: overlap(green2, root),
+      overlapDriveControl: overlap(driveMode, root),
+      overlapDriveGreen: overlap(driveMode, green2),
       overlapGreenMonitor: overlap(green2, monitor),
       overlapGreenSound: overlap(green2, sound),
       overlapArchiveControl: overlap(archive, root),
@@ -412,28 +437,19 @@ if (MOBILE) {
       clientY: y
     }));
   }, { x: mobileControl.steerX, y: mobileControl.steerY });
-  const readMobileDriveMode = () => page.evaluate(() => {
-    const button = document.getElementById("ti-mobile-toggle");
-    return {
-      experience: window.TI_EXPERIENCE?.() ?? null,
-      pressed: button?.getAttribute("aria-pressed") === "true",
-      state: document.getElementById("ti-mobile-state")?.textContent ?? "",
-      label: button?.getAttribute("aria-label") ?? ""
-    };
-  });
   await page.waitForFunction(
-    () => document.getElementById("ti-mobile-toggle")?.disabled === false,
+    () => document.getElementById("ti-drive-mode")?.disabled === false,
     null,
     { timeout: 12e3 }
   );
   const manual = await readMobileDriveMode();
-  await page.click("#ti-mobile-toggle");
+  await page.click("#ti-drive-mode");
   await page.waitForFunction(() => window.TI_EXPERIENCE?.().driveMode === "auto");
   const auto = await readMobileDriveMode();
-  await page.click("#ti-mobile-toggle");
+  await page.click("#ti-drive-mode");
   await page.waitForFunction(() => window.TI_EXPERIENCE?.().driveMode === "manual");
   const restoredManual = await readMobileDriveMode();
-  mobileControl.modeCycle = { manual, auto, restoredManual };
+  mobileControl.modeCycle = { initial: initialDriveMode, manual, auto, restoredManual };
   await page.click("#ti-sound");
   const off = await page.evaluate(() => window.TI_AUDIO?.() ?? null);
   await page.click("#ti-sound");
@@ -449,8 +465,8 @@ if (MOBILE) {
   const restored = await readGreenMode();
   greenMode = { green, raw, restored };
   const modeCycle = mobileControl.modeCycle;
-  const utilityFailed = roverTools.before.order.join("|") !== "ti-sound|ti-light|ti-camera|ti-field-archive" || !roverTools.before.visible || !roverTools.before.equalWidths || !roverTools.before.belowMonitor || !roverTools.restored.alignedMonitor || roverTools.before.overlapMonitor || roverTools.before.overflow || roverTools.before.light.state !== "on" || !roverTools.before.light.pressed || roverTools.lightOff.light.state !== "off" || roverTools.lightOff.light.pressed || roverTools.lightOn.light.state !== "on" || !roverTools.lightOn.light.pressed || roverTools.cameraMoved.shot?.shot === roverTools.before.shot?.shot || roverTools.cameraMoved.shot?.source !== "manual" || roverTools.restored.experience?.driveMode !== "auto";
-  const failed = !mobileIntro?.visible || !mobileIntro?.insideViewport || !blueprintLayout?.visible || blueprintLayout.current !== "lander" || !blueprintLayout.sectionInsideFrame || !blueprintLayout.frameInsideViewport || !blueprintLayout.drawingVisible || !blueprintLayout.specVisible || blueprintLayout.specOverflow || !blueprintLayout.gridConfinedToDrawing || !blueprintLayout.canvasReady || blueprintLayout.horizontalOverflow || blueprintLayout.annotationCount !== 4 || Math.abs(blueprintLayout.scan - 0.5) > 0.01 || blueprintLayout.scanDirection !== 0 || blueprintLayout.scanSpeed !== 0 || blueprintObserved?.active || blueprintObserved?.current !== "complete" || !blueprintObserved?.shown?.includes("rover") || !blueprintObserved?.shown?.includes("lander") || blueprintObserved?.models?.rover?.segments < 700 || blueprintObserved?.models?.lander?.segments < 700 || !preReleaseInput.soundDisabled || preReleaseInput.soundOwnsPoint || !preReleaseInput.greenDisabled || preReleaseInput.greenOwnsPoint || preReleaseInput.driveVisible || preReleaseInput.controlsReady || !blueprintInput.soundDisabled || blueprintInput.soundOwnsPoint || !blueprintInput.greenDisabled || blueprintInput.greenOwnsPoint || blueprintInput.driveVisible || blueprintInput.controlsReady || mobileIntro?.label !== "START" || !mobileIntro?.circular || !mobileIntro?.prologueInsideViewport || !mobileIntro?.innerInsideFrame || mobileIntro?.innerOverflow || mobileIntro?.overlapsControls || !mobileIntro?.viewportReady || utilityFailed || !mobileControl.rootVisible || !mobileControl.steerVisible || !mobileControl.soundVisible || !mobileControl.greenVisible || !mobileControl.archiveVisible || !mobileControl.balancedButtons || !mobileControl.balancedDriveButtons || mobileControl.overlapSoundControl || mobileControl.overlapSoundMonitor || mobileControl.overlapGreenControl || mobileControl.overlapGreenMonitor || mobileControl.overlapGreenSound || mobileControl.overlapArchiveControl || mobileControl.overlapArchiveMonitor || mobileControl.overlapArchiveMission || mobileControl.overlapArchiveSound || mobileControl.overlapArchiveGreen || mobileControl.overlapCueControl || mobileControl.overlapCueSound || !mobileControl.audio?.graphReady || !mobileControl.audio?.unlocked || mobileControl.audio?.state !== "running" || mobileControl.audio?.ui !== "on" || !soundCycle.off?.muted || soundCycle.off?.ui !== "off" || soundCycle.on?.muted || soundCycle.on?.state !== "running" || soundCycle.on?.ui !== "on" || greenMode.green?.current !== "green" || !greenMode.green?.visible || !greenMode.green?.pressed || greenMode.green?.disabled || greenMode.green?.state !== "on" || !greenMode.green?.terminal || !greenMode.green?.screenVisible || !greenMode.green?.render?.archive || !greenMode.green?.canvasFilter?.includes("grayscale(1)") || greenMode.raw?.current !== "raw" || greenMode.raw?.pressed || greenMode.raw?.disabled || greenMode.raw?.state !== "off" || greenMode.raw?.screenVisible || !greenMode.raw?.render?.archive || greenMode.restored?.current !== "green" || !greenMode.restored?.pressed || !greenMode.restored?.screenVisible || !greenMode.restored?.canvasFilter?.includes("grayscale(1)") || !mobileControl.dispatched || mobileControl.dragExperience !== "explorer" || modeCycle?.manual?.experience?.driveMode !== "manual" || modeCycle.manual.experience.auto || !modeCycle.manual.pressed || modeCycle.manual.state !== "MANUAL" || modeCycle?.auto?.experience?.driveMode !== "auto" || !modeCycle.auto.experience.auto || modeCycle.auto.pressed || modeCycle.auto.state !== "AUTO" || modeCycle?.restoredManual?.experience?.driveMode !== "manual" || modeCycle.restoredManual.experience.auto || !modeCycle.restoredManual.pressed || modeCycle.restoredManual.state !== "MANUAL" || errors.length > 0;
+  const utilityFailed = roverTools.before.order.join("|") !== "ti-sound|ti-light|ti-camera|ti-field-archive" || !roverTools.before.visible || !roverTools.before.equalWidths || (roverTools.before.mobile ? !roverTools.before.vertical : !roverTools.before.horizontal) || !roverTools.before.belowMonitor || !roverTools.restored.alignedMonitor || roverTools.before.overlapMonitor || roverTools.before.overflow || roverTools.before.light.state !== "on" || !roverTools.before.light.pressed || roverTools.lightOff.light.state !== "off" || roverTools.lightOff.light.pressed || roverTools.lightOn.light.state !== "on" || !roverTools.lightOn.light.pressed || roverTools.cameraMoved.shot?.shot === roverTools.before.shot?.shot || roverTools.cameraMoved.shot?.source !== "manual" || roverTools.restored.experience?.driveMode !== "auto";
+  const failed = !mobileIntro?.visible || !mobileIntro?.insideViewport || !blueprintLayout?.visible || blueprintLayout.current !== "lander" || !blueprintLayout.sectionInsideFrame || !blueprintLayout.frameInsideViewport || !blueprintLayout.drawingVisible || !blueprintLayout.specVisible || blueprintLayout.specOverflow || !blueprintLayout.gridConfinedToDrawing || !blueprintLayout.canvasReady || blueprintLayout.horizontalOverflow || blueprintLayout.annotationCount !== 4 || Math.abs(blueprintLayout.scan - 0.5) > 0.01 || blueprintLayout.scanDirection !== 0 || blueprintLayout.scanSpeed !== 0 || blueprintObserved?.active || blueprintObserved?.current !== "complete" || !blueprintObserved?.shown?.includes("rover") || !blueprintObserved?.shown?.includes("lander") || blueprintObserved?.models?.rover?.segments < 700 || blueprintObserved?.models?.lander?.segments < 700 || !preReleaseInput.soundDisabled || preReleaseInput.soundOwnsPoint || !preReleaseInput.greenDisabled || preReleaseInput.greenOwnsPoint || preReleaseInput.driveVisible || preReleaseInput.controlsReady || !blueprintInput.soundDisabled || blueprintInput.soundOwnsPoint || !blueprintInput.greenDisabled || blueprintInput.greenOwnsPoint || blueprintInput.driveVisible || blueprintInput.controlsReady || mobileIntro?.label !== "START" || !mobileIntro?.circular || !mobileIntro?.prologueInsideViewport || !mobileIntro?.innerInsideFrame || mobileIntro?.innerOverflow || mobileIntro?.overlapsControls || !mobileIntro?.viewportReady || utilityFailed || !mobileControl.rootVisible || !mobileControl.steerVisible || !mobileControl.soundVisible || !mobileControl.greenVisible || !mobileControl.greenRightAligned || !mobileControl.greenNearBottom || !mobileControl.driveModeVisible || !mobileControl.archiveVisible || !mobileControl.balancedButtons || !mobileControl.balancedDriveButtons || mobileControl.overlapSoundControl || mobileControl.overlapSoundMonitor || mobileControl.overlapGreenControl || mobileControl.overlapDriveControl || mobileControl.overlapDriveGreen || mobileControl.overlapGreenMonitor || mobileControl.overlapGreenSound || mobileControl.overlapArchiveControl || mobileControl.overlapArchiveMonitor || mobileControl.overlapArchiveMission || mobileControl.overlapArchiveSound || mobileControl.overlapArchiveGreen || mobileControl.overlapCueControl || mobileControl.overlapCueSound || !mobileControl.audio?.graphReady || !mobileControl.audio?.unlocked || mobileControl.audio?.state !== "running" || mobileControl.audio?.ui !== "on" || !soundCycle.off?.muted || soundCycle.off?.ui !== "off" || soundCycle.on?.muted || soundCycle.on?.state !== "running" || soundCycle.on?.ui !== "on" || greenMode.green?.current !== "green" || !greenMode.green?.visible || !greenMode.green?.pressed || greenMode.green?.disabled || greenMode.green?.state !== "on" || !greenMode.green?.terminal || !greenMode.green?.screenVisible || !greenMode.green?.render?.archive || !greenMode.green?.canvasFilter?.includes("grayscale(1)") || greenMode.raw?.current !== "raw" || greenMode.raw?.pressed || greenMode.raw?.disabled || greenMode.raw?.state !== "off" || greenMode.raw?.screenVisible || !greenMode.raw?.render?.archive || greenMode.restored?.current !== "green" || !greenMode.restored?.pressed || !greenMode.restored?.screenVisible || !greenMode.restored?.canvasFilter?.includes("grayscale(1)") || modeCycle?.initial?.experience?.driveMode !== "auto" || !modeCycle.initial.experience.auto || modeCycle.initial.pressed || modeCycle.initial.state !== "auto" || !modeCycle.initial.visible || !mobileControl.dispatched || mobileControl.dragExperience !== "explorer" || modeCycle?.manual?.experience?.driveMode !== "manual" || modeCycle.manual.experience.auto || !modeCycle.manual.pressed || modeCycle.manual.state !== "manual" || modeCycle?.auto?.experience?.driveMode !== "auto" || !modeCycle.auto.experience.auto || modeCycle.auto.pressed || modeCycle.auto.state !== "auto" || modeCycle?.restoredManual?.experience?.driveMode !== "manual" || modeCycle.restoredManual.experience.auto || !modeCycle.restoredManual.pressed || modeCycle.restoredManual.state !== "manual" || errors.length > 0;
   console.log(`
   mobile intro CTA       ${JSON.stringify(mobileIntro)}`);
   console.log(`  blueprint safe frame   ${JSON.stringify(blueprintLayout)}`);
@@ -658,10 +674,10 @@ if (!report.audio?.graphReady || !report.audio?.unlocked || report.audio?.state 
 if (!MOBILE && (!greenMode?.before?.visible || !greenMode.before.driveVisible || !greenMode.before.driveMatches || greenMode.before.current !== "raw" || greenMode.before.pressed || greenMode.before.disabled || greenMode.before.state !== "off" || !greenMode.before.sound || !greenMode.before.monitor || !greenMode.before.universe || greenMode.before.sound.top < greenMode.before.monitor.bottom + 4 || greenMode.before.universe.bottom > greenMode.before.monitor.top || !greenMode?.on?.visible || greenMode.on.current !== "green" || !greenMode.on.pressed || greenMode.on.disabled || greenMode.on.state !== "on" || !greenMode.on.classActive || !greenMode.on.screenVisible || !greenMode.on.canvasFilter?.includes("grayscale(1)") || greenMode.on.render?.archive || !greenMode.on.render?.green || !greenMode.on.render?.greenManual || greenMode.off.current !== "raw" || greenMode.off.pressed || greenMode.off.disabled || greenMode.off.state !== "off" || greenMode.off.classActive || greenMode.off.screenVisible || greenMode.off.canvasFilter !== greenMode.before.canvasFilter || greenMode.off.render?.archive || greenMode.off.render?.green || greenMode.off.render?.greenManual)) {
   fatal.push(`GREEN monitor toggle did not preserve the high-tier renderer: ${JSON.stringify(greenMode)}`);
 }
-if (roverTools?.before?.order?.join("|") !== "ti-sound|ti-light|ti-camera|ti-field-archive" || !roverTools.before.visible || !roverTools.before.equalWidths || !roverTools.before.belowMonitor || !roverTools.restored.alignedMonitor || roverTools.before.overlapMonitor || roverTools.before.overflow || roverTools.before.light.state !== "on" || !roverTools.before.light.pressed || roverTools.lightOff.light.state !== "off" || roverTools.lightOff.light.pressed || roverTools.lightOn.light.state !== "on" || !roverTools.lightOn.light.pressed || roverTools.cameraMoved.shot?.shot === roverTools.before.shot?.shot || roverTools.cameraMoved.shot?.source !== "manual" || roverTools.restored.experience?.driveMode !== "auto") {
+if (roverTools?.before?.order?.join("|") !== "ti-sound|ti-light|ti-camera|ti-field-archive" || !roverTools.before.visible || !roverTools.before.equalWidths || (roverTools.before.mobile ? !roverTools.before.vertical : !roverTools.before.horizontal) || !roverTools.before.belowMonitor || !roverTools.restored.alignedMonitor || roverTools.before.overlapMonitor || roverTools.before.overflow || roverTools.before.light.state !== "on" || !roverTools.before.light.pressed || roverTools.lightOff.light.state !== "off" || roverTools.lightOff.light.pressed || roverTools.lightOn.light.state !== "on" || !roverTools.lightOn.light.pressed || roverTools.cameraMoved.shot?.shot === roverTools.before.shot?.shot || roverTools.cameraMoved.shot?.source !== "manual" || roverTools.restored.experience?.driveMode !== "auto") {
   fatal.push(`rover utility order or light/camera function failed: ${JSON.stringify(roverTools)}`);
 }
-if (MOBILE && (!mobileIntro?.visible || mobileIntro?.label !== "START" || !mobileIntro?.circular || !mobileControl?.rootVisible || !mobileControl?.steerVisible || !mobileControl?.soundVisible || !mobileControl?.archiveVisible || !mobileControl?.balancedButtons || !mobileControl?.balancedDriveButtons || mobileControl?.overlapArchiveMission || mobileControl?.dragExperience !== "explorer")) {
+if (MOBILE && (!mobileIntro?.visible || mobileIntro?.label !== "START" || !mobileIntro?.circular || !mobileControl?.rootVisible || !mobileControl?.steerVisible || !mobileControl?.soundVisible || !mobileControl?.greenRightAligned || !mobileControl?.greenNearBottom || !mobileControl?.driveModeVisible || !mobileControl?.archiveVisible || !mobileControl?.balancedButtons || !mobileControl?.balancedDriveButtons || mobileControl?.overlapArchiveMission || mobileControl?.modeCycle?.initial?.experience?.driveMode !== "auto" || mobileControl?.dragExperience !== "explorer")) {
   fatal.push(`mobile CTA/drag/sound contract failed: ${JSON.stringify({ mobileIntro, mobileControl })}`);
 }
 if (!["wide", "rear", "mast", "macro", "tele", "return", "ascent"].includes(report.camera?.shot))

@@ -1364,7 +1364,7 @@
     bottom: calc(var(--frame-bottom) + 12px);
     transform: translateX(-50%);
     width: min(480px, calc(100vw - max(28px, env(safe-area-inset-left)) - max(28px, env(safe-area-inset-right))));
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 5px;
     padding: 5px;
     border: 1px solid rgba(217, 221, 226, .15);
@@ -1425,31 +1425,6 @@
     opacity: .18;
     transform: scale(.88);
     transform-origin: center;
-  }
-  #ti-mobile-toggle {
-    border-left: 1px solid rgba(192, 21, 42, .45) !important;
-    text-align: center !important;
-  }
-  #ti-mobile-toggle[aria-pressed=true] {
-    border-color: rgba(217, 221, 226, .72) !important;
-    background: rgba(23, 24, 27, .88);
-  }
-  #ti-mobile-state {
-    display: block;
-    color: #f0f1f2;
-    font:
-      700 9px/1.4 "Space Mono",
-      ui-monospace,
-      monospace;
-    letter-spacing: .15em;
-  }
-  #ti-mobile-hint {
-    display: block;
-    margin-top: 3px;
-    color: #666d76;
-    font-size: 7px;
-    font-weight: 400;
-    letter-spacing: .06em;
   }
   #fh-watchdog {
     position: fixed;
@@ -1734,14 +1709,28 @@
     right: max(14px, env(safe-area-inset-right));
     top: calc(var(--frame-top) + 160px);
     bottom: auto;
+    width: 48px;
+    height: auto;
+    grid-template-columns: 1fr;
+    grid-template-rows: repeat(4, var(--utility-button-height));
+  }
+  body.ti-mobile #ti-rover-tools > button,
+  body.ti-mobile #ti-rover-tools > a {
+    width: 48px;
   }
   body.ti-mobile #ti-green {
     right: max(14px, env(safe-area-inset-right));
     top: auto;
-    bottom: calc(var(--frame-bottom) + 88px);
+    bottom: calc(var(--frame-bottom) + 12px);
   }
   body.ti-mobile #ti-drive-mode {
-    display: none;
+    display: grid;
+    right: calc(max(14px, env(safe-area-inset-right)) + 98px);
+    top: auto;
+    bottom: calc(var(--frame-bottom) + 12px);
+  }
+  body.ti-mobile #ti-mobile-drive {
+    bottom: calc(var(--frame-bottom) + 52px);
   }
   body.ti-mobile #universe-id {
     right: max(14px, env(safe-area-inset-right));
@@ -1763,10 +1752,24 @@
     transform: translate(-50%, 0);
   }
   @media (pointer: coarse) and (orientation: landscape) and (max-height: 520px) {
+    body.ti-mobile #ti-rover-tools {
+      grid-template-rows: repeat(4, 36px);
+    }
+    body.ti-mobile #ti-rover-tools > button,
+    body.ti-mobile #ti-rover-tools > a {
+      height: 36px;
+      min-height: 36px;
+    }
+    body.ti-mobile #ti-mobile-drive {
+      left: max(14px, env(safe-area-inset-left));
+      width: min(480px, calc(100vw - max(28px, env(safe-area-inset-left)) - max(72px, env(safe-area-inset-right))));
+      transform: none;
+    }
     body.ti-mobile #ti-green {
-      right: max(132px, calc(var(--safe-right) + 128px));
-      top: auto;
-      bottom: calc(var(--frame-bottom) + 88px);
+      right: max(68px, calc(var(--safe-right) + 64px));
+    }
+    body.ti-mobile #ti-drive-mode {
+      right: max(166px, calc(var(--safe-right) + 162px));
     }
     body.ti-mobile #ti-prologue {
       place-items: center start;
@@ -1916,9 +1919,6 @@
     <i id="ti-mobile-signal" aria-hidden="true"></i><span id="ti-mobile-sensor">ENABLE TILT · 기울기 조향</span>
   </button>
   <button id="ti-mobile-steer" type="button" disabled>DRAG STEER<br>좌우 드래그</button>
-  <button id="ti-mobile-toggle" type="button" aria-pressed="false">
-    <strong id="ti-mobile-state">AUTO</strong><small id="ti-mobile-hint">자동운행 중 · 탭하여 수동운행</small>
-  </button>
 </div>
 
 <div id="fh-watchdog">
