@@ -487,13 +487,15 @@ body.ti-prologue-out #ti-opening-blueprints.bp-residual-title {
   #ti-opening-blueprints .bp-summary {
     display: none;
   }
+  #ti-opening-blueprints h2 {
+    margin: 4px 0;
+    font-size: 10px;
+  }
   #ti-opening-blueprints dl div {
-    padding: 4px 0;
+    padding: 3px 0;
   }
   #ti-opening-blueprints .bp-parts {
-    padding-top: 5px;
-    font-size: 4.8px;
-    line-height: 1.35;
+    display: none;
   }
   #ti-opening-blueprints .bp-foot {
     min-height: 23px;

@@ -16,9 +16,9 @@
   .site-header { position:fixed; z-index:20; inset:0 0 auto; height:56px; display:grid; grid-template-columns:var(--columns); align-items:start; padding:16px var(--pad) 0; background:rgba(251,251,250,.96); }
   .monogram { grid-column:1 / 3; display:grid; grid-template-columns:4.06vw 1fr; margin:0; font-size:inherit; font-weight:400; line-height:20px; }
   .filters { grid-column:3 / 5; display:flex; gap:0; min-width:0; white-space:nowrap; }
-  .filter { padding:0 5px 0 0; background:transparent; color:var(--dim); line-height:20px; cursor:pointer; }
-  .filter:not(:first-child)::before { content:" "; }
+  .filter { position:relative; padding:0 12px 4px 0; background:transparent; color:var(--dim); line-height:20px; cursor:pointer; }
   .filter:hover, .filter:focus-visible, .filter[aria-pressed="true"] { color:var(--ink); outline:none; }
+  .filter[aria-pressed="true"]::after { content:""; position:absolute; right:12px; bottom:0; left:0; height:1px; background:var(--signal); }
   .back { position:absolute; top:16px; right:var(--pad); color:var(--dim); line-height:20px; text-decoration:none; }
   .back:hover, .back:focus-visible { color:var(--ink); outline:none; }
   .archive { min-height:100dvh; padding-top:64px; }
@@ -79,16 +79,16 @@
   <header class="site-header">
     <h1 class="monogram" aria-label="Field Archive / Coordinate Records"><span>F.</span><span>A.</span><span class="sr-only">Field Archive / Coordinate Records</span></h1>
     <nav class="filters" aria-label="행성별 기록 필터">
-      <button class="filter" type="button" data-filter="all" aria-pressed="true">All,</button>
-      <button class="filter" type="button" data-filter="terra" aria-pressed="false">Planet 01,</button>
-      <button class="filter" type="button" data-filter="desert" aria-pressed="false">Planet 02,</button>
+      <button class="filter" type="button" data-filter="all" aria-pressed="true">All</button>
+      <button class="filter" type="button" data-filter="terra" aria-pressed="false">Planet 01</button>
+      <button class="filter" type="button" data-filter="desert" aria-pressed="false">Planet 02</button>
       <button class="filter" type="button" data-filter="granite" aria-pressed="false">Planet 03</button>
     </nav>
     <span id="fa-count" class="sr-only" aria-live="polite">00 / 00 signals acquired</span>
-    <a class="back" href="index.html" data-return>Return</a>
+    <a class="back" href="index.html" data-return>Return to Mission</a>
   </header>
   <section class="archive" aria-label="좌표 관측 기록">
-    <div class="ledger-head" aria-hidden="true"><span>N.</span><span>P.</span><span>C.</span><span>S.</span></div>
+    <div class="ledger-head" aria-hidden="true"><span>No.</span><span>Planet</span><span>Field</span><span>Status</span></div>
     <section class="ledger" aria-label="좌표 목록"><div id="fa-ledger"></div></section>
     <section id="fa-preview" class="preview" aria-live="polite">
       <div class="frame empty">
@@ -98,7 +98,7 @@
     </section>
     <div id="fa-selection" class="selection-line" aria-hidden="true"></div>
   </section>
-  <footer class="footer"><span>©2026 KIM GUNWOO. ALL RIGHTS RESERVED.</span><span id="fa-footer">No active field source.</span></footer>
+  <footer class="footer"><span>©2026 KIM GUNWOO. ALL RIGHTS RESERVED.</span><span id="fa-footer">No field observations in this session.</span></footer>
 </main>
 <script>
 (() => {
@@ -308,7 +308,9 @@
       node.addEventListener("click", () => select(station, node));
     }
     count.textContent = `${String(records.length).padStart(2, "0")} / ${String(stations.length).padStart(2, "0")} SIGNALS ACQUIRED`;
-    document.getElementById("fa-footer").textContent = records.length ? `${records.length} stored camera return${records.length === 1 ? "" : "s"} / session field cache` : "No active field source.";
+    document.getElementById("fa-footer").textContent = records.length
+      ? `${records.length} camera return${records.length === 1 ? "" : "s"} retained for this session.`
+      : "No field observations in this session.";
     if (selected) select(selected, recordNodes.get(selected.id));
     else clearPreview();
   }

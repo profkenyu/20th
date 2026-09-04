@@ -247,9 +247,20 @@ export class MobileControl {
     if (this.permission === "granted") this.recalibrate();
     this._syncUi(false, false, false);
   }
+  _sensorMessage() {
+    if (this.permission === "granted") {
+      return this.calibrating
+        ? "CALIBRATING · \uC218\uD3C9 \uC720\uC9C0"
+        : "TILT READY · \uAE30\uC6B8\uC5EC \uC870\uD5A5 / \uC138\uC6B0\uBA74 \uC815\uC9C0";
+    }
+    if (this.permission === "pending") return "REQUESTING SENSOR";
+    if (this.permission === "denied") return "DRAG TO STEER · \uC13C\uC11C \uAC70\uBD80";
+    if (this.permission === "unavailable") return "DRAG TO STEER · \uC13C\uC11C \uBBF8\uC9C0\uC6D0";
+    return "ENABLE TILT · \uAE30\uC6B8\uC5EC \uC870\uD5A5";
+  }
   _syncUi(blocked, missionHold, released) {
     if (!this.active) return;
-    const sensor = this.permission === "granted" ? this.calibrating ? "CALIBRATING \xB7 \uC218\uD3C9 \uC720\uC9C0" : "TILT READY \xB7 \uAE30\uC6B8\uC5EC \uC870\uD5A5 / \uC138\uC6B0\uBA74 \uC815\uC9C0" : this.permission === "pending" ? "REQUESTING SENSOR" : this.permission === "denied" ? "DRAG STEER \xB7 \uC13C\uC11C \uAC70\uC808\uB428" : this.permission === "unavailable" ? "DRAG STEER \xB7 \uC13C\uC11C \uBBF8\uC9C0\uC6D0" : "ENABLE TILT \xB7 \uAE30\uC6B8\uAE30 \uC870\uD5A5";
+    const sensor = this._sensorMessage();
     const key = `${sensor}|${blocked}|${missionHold}|${released}|${this.explorer}`;
     if (key === this.lastUi) return;
     this.lastUi = key;

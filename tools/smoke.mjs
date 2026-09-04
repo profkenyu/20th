@@ -85,6 +85,10 @@ if (MOBILE) {
       drawingVisible: !!drawing && drawing.width > 120 && drawing.height > 120,
       specVisible: !!specRect && specRect.width > 120 && specRect.height > 70,
       specOverflow: !!spec && spec.scrollHeight > spec.clientHeight + 1,
+      specBox: spec ? {
+        clientHeight: spec.clientHeight,
+        scrollHeight: spec.scrollHeight
+      } : null,
       gridConfinedToDrawing: specStyle?.backgroundImage === "none",
       canvasReady: !!canvas && canvas.width > 0 && canvas.height > 0 && !!canvasRect && canvasRect.width > 120 && canvasRect.height > 120,
       horizontalOverflow: document.documentElement.scrollWidth > innerWidth + 1,
@@ -375,7 +379,14 @@ if (MOBILE) {
     const driveButtons = [...document.querySelectorAll("#ti-mobile-drive button")].map((button) => button.getBoundingClientRect());
     const utilityHeights = [sound, archive].filter(Boolean).map((rect) => rect.height);
     const driveHeights = driveButtons.map((rect) => rect.height);
-    const safeRight = Math.max(0, innerWidth - (document.querySelector(".bar.b")?.getBoundingClientRect().right ?? innerWidth));
+    const configuredSafeRight = Number.parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue("--safe-right")
+    );
+    const measuredSafeRight = Math.max(
+      0,
+      innerWidth - (document.querySelector(".bar.b")?.getBoundingClientRect().right ?? innerWidth)
+    );
+    const safeRight = Number.isFinite(configuredSafeRight) ? configuredSafeRight : measuredSafeRight;
     const frameBottom = document.querySelector(".bar.b")?.getBoundingClientRect().height ?? 0;
     const compactLandscape = matchMedia("(pointer: coarse) and (orientation: landscape) and (max-height: 520px)").matches;
     const greenRight = compactLandscape ? Math.max(68, safeRight + 64) : Math.max(14, safeRight);

@@ -395,11 +395,43 @@ let experienceMode = "observer", lastExplorerIntent = -Infinity;
 let released = false;
 let prologuePhase = "blueprints";
 let entryRevealRequested = false;
-let soundControl = null, fieldArchiveControl = null, greenControl = null, driveModeControl = null, lightControl = null, cameraControl = null, desktopStart = null;
-let running = false, hasTimestamp = false;
-let rafId = 0, loopGeneration = 0, frameInFlight = false;
-let tPrev = 0, tStamp = 0, tProbe = 0, frames = 0, acc = 0;
+let soundControl = null;
+let fieldArchiveControl = null;
+let greenControl = null;
+let driveModeControl = null;
+let lightControl = null;
+let cameraControl = null;
+let desktopStart = null;
+let running = false;
+let hasTimestamp = false;
+let rafId = 0;
+let loopGeneration = 0;
+let frameInFlight = false;
+let tPrev = 0;
+let tStamp = 0;
+let tProbe = 0;
+let frames = 0;
+let acc = 0;
 const rc = { ground: 0, field: 0, scatter: 0 };
+
+function bindControl(control, action) {
+  if (!control) return;
+  control.addEventListener("pointerdown", (event) => event.stopPropagation());
+  control.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    action();
+  });
+}
+
+function toggleGreenMonitor() {
+  const forcedGreen = archiveMode || mobileControl?.active && released;
+  const active = !rawMonitorManual && (forcedGreen || greenMonitorManual);
+  greenMonitorManual = active ? false : !forcedGreen;
+  rawMonitorManual = active && forcedGreen;
+  syncGreenMonitor();
+}
+
 try {
   scene = new THREE.Scene();
   hud = new Hud(TEST ? DIAGNOSTIC_ROWS : GALLERY_ROWS, "recentre", { diagnostic: TEST });
@@ -415,39 +447,10 @@ try {
   driveModeControl = document.getElementById("ti-drive-mode");
   lightControl = document.getElementById("ti-light");
   cameraControl = document.getElementById("ti-camera");
-  driveModeControl?.addEventListener("pointerdown", (event) => event.stopPropagation());
-  driveModeControl?.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    toggleDriveMode(performance.now());
-  });
-  lightControl?.addEventListener("pointerdown", (event) => event.stopPropagation());
-  lightControl?.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    toggleHeadlights();
-  });
-  cameraControl?.addEventListener("pointerdown", (event) => event.stopPropagation());
-  cameraControl?.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    cycleCameraView(performance.now());
-  });
-  greenControl?.addEventListener("pointerdown", (event) => event.stopPropagation());
-  greenControl?.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    const forcedGreen = archiveMode || mobileControl?.active && released;
-    const active = !rawMonitorManual && (forcedGreen || greenMonitorManual);
-    if (active) {
-      greenMonitorManual = false;
-      rawMonitorManual = forcedGreen;
-    } else {
-      rawMonitorManual = false;
-      greenMonitorManual = !forcedGreen;
-    }
-    syncGreenMonitor();
-  });
+  bindControl(driveModeControl, () => toggleDriveMode(performance.now()));
+  bindControl(lightControl, toggleHeadlights);
+  bindControl(cameraControl, () => cycleCameraView(performance.now()));
+  bindControl(greenControl, toggleGreenMonitor);
   syncGreenMonitor();
   kiosk = new Kiosk(CFG.kiosk.idleMs);
   wake = new Wake();
@@ -682,7 +685,20 @@ addEventListener("keydown", (e) => {
   }
 });
 function authoredExperienceLock() {
-  return prologuePhase !== "released" || !!completionTableau || !!pendingArrival || !!finalTableau || docking.started || voyage.active || !!restoration.event || !!waterMission.event || !!geologicalMemory.event || restoration.group.visible && restoration.complete || waterMission.complete || geologicalMemory.state === "complete";
+  return [
+    prologuePhase !== "released",
+    completionTableau,
+    pendingArrival,
+    finalTableau,
+    docking.started,
+    voyage.active,
+    restoration.event,
+    waterMission.event,
+    geologicalMemory.event,
+    restoration.group.visible && restoration.complete,
+    waterMission.complete,
+    geologicalMemory.state === "complete"
+  ].some(Boolean);
 }
 function observerMayDrive() {
   return released && !completionTableau && !pendingArrival && !finalTableau && !docking.started && !voyage.active;
@@ -758,7 +774,7 @@ function syncDriveModeControl() {
     driveModeControl.disabled = locked;
     driveModeControl.setAttribute("aria-disabled", String(locked));
     driveModeControl.setAttribute("aria-hidden", String(!released && !location.search.includes("embed")));
-    driveModeControl.setAttribute("aria-label", manual ? "수동운행 사용 중 · 자동운행으로 전환" : "자동운행 사용 중 · 수동운행으로 전환");
+    driveModeControl.setAttribute("aria-label", manual ? "수동 주행 중 · 자동 주행으로 전환" : "자동 주행 중 · 수동 주행으로 전환");
   }
 }
 function syncRoverUtilityControls() {
