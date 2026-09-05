@@ -307,6 +307,14 @@ export class ShotDirector {
     const heading = this.rover.heading;
     const fx = -Math.sin(heading), fz = -Math.cos(heading);
     const sx = -fz, sz = fx;
+    const finalSite = this.mission?.state === "complete" ? this.mission.model?.sites.at(-1) : null;
+    if (finalSite) {
+      const x = finalSite.x + sx * 8.5, z = finalSite.z + sz * 8.5;
+      this._camera.set(x, this.heightAt(x, z) + 3.8, z);
+      this._aim.set(finalSite.x, this.heightAt(finalSite.x, finalSite.z) + 0.1, finalSite.z);
+      this.camera.fov = 48;
+      return;
+    }
     const data = this.mission?.scanFocus ?? this.mission?.target ?? this.restoration.scanFocus ?? this.restoration.target;
     const specimenDistance = data ? Math.hypot(this.rover.pos.x - data.x, this.rover.pos.z - data.z) : Infinity;
     const specimen = data && specimenDistance <= 7 ? { x: data.x, y: this.heightAt(data.x, data.z), z: data.z } : {

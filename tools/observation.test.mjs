@@ -1,0 +1,51 @@
+import assert from "node:assert/strict";
+import { WaterMission } from "../engine/core/water-mission.js";
+import { GeologicalMemory } from "../engine/core/geological-memory.js";
+import { MissionMemory } from "../engine/core/mission-memory.js";
+
+const site = { x: 0, z: 0, acquireRadius: 3, scanRadius: 5, scanHoldMs: 6600 };
+let confirmations = 0;
+const mission = new WaterMission(() => 0, site, () => confirmations++);
+const probe = { x: 0, z: 0, speed: 0 };
+mission.activate(0);
+mission.update(probe, 0);
+mission.update(probe, 2200);
+assert.equal(mission.snapshot().observations, 1);
+assert.equal(mission.complete, false);
+mission.update(probe, 5300);
+assert.equal(mission.snapshot().observations, 2);
+assert.equal(mission.complete, false);
+mission.update(probe, 8399);
+assert.equal(mission.complete, false);
+mission.update(probe, 8400);
+assert.equal(mission.snapshot().observations, 3);
+assert.equal(mission.complete, true);
+mission.update(probe, 9000);
+assert.equal(confirmations, 1);
+assert.equal(mission.rings.every(ring => ring.scale.x === 1), true);
+mission.reset();
+mission.activate(10000);
+mission.update(probe, 10000);
+mission.update({ x: 20, z: 0, speed: 0 }, 13000);
+mission.update(probe, 13100);
+assert.equal(mission.snapshot().observations, 0);
+assert.equal(mission.complete, false);
+console.log("✓ Three observations, pauses, stable rings, cancellation and single completion verified");
+
+const ledger = new MissionMemory();
+ledger.recordSamples(Array.from({ length: 6 }, (_, i) => ({ sample: `MATERIAL ${i}`, x: i * 20, z: i * 30 })));
+ledger.recordWater({ complete: true });
+let endings = 0;
+const geological = new GeologicalMemory({ renderer: null, heightAt: () => 0, onComplete: () => endings++ });
+geological.activate(ledger.composeBody03(), 0);
+for (let i = 0; i < 3; i++) geological.forceAcquire(i * 1000);
+geological.setFinale(1);
+await geological.update(probe, 15000);
+assert.equal(endings, 1);
+assert.equal(geological.snapshot().retainedMinerals, 3);
+assert.equal(geological.uMissionVisible.value, 0);
+for (const site of geological.sites) {
+  assert.ok(site.mineralRoot.children.every(shard => shard.rotation.y === site.data.phaseDelta));
+  assert.ok(site.materialRings.every(ring => ring.material.opacity === 0));
+}
+console.log("✓ Finale retains three aligned mineral structures and removes observation overlays");

@@ -91,6 +91,7 @@ export class MobileControl {
     this.steer?.addEventListener("pointercancel", endDrag);
   }
   _intent(kind) {
+    if (kind === "tilt-motion" && !this.explorer) return;
     this.onIntent?.(kind, performance.now());
   }
   _drag(e) {
@@ -269,6 +270,6 @@ export class MobileControl {
       this.tilt.setAttribute("aria-pressed", String(this.permission === "granted"));
       this.tilt.disabled = this.permission === "pending";
     }
-    if (this.steer) this.steer.disabled = blocked || missionHold || !released;
+    if (this.steer) this.steer.disabled = blocked || missionHold || !released || !this.explorer;
   }
 }

@@ -71,6 +71,16 @@ assert.deepEqual(
   model,
   "the same evidence must generate the same geological mission"
 );
+for (let i = 0; i < 400; i++) memory.recordJourney({ x: i * 0.4, z: i * 0.1, speed: 1 }, 0.1, "terra");
+const travelled = memory.composeBody03();
+assert.notDeepEqual(travelled.sites.map(s => [s.x, s.z]), model.sites.map(s => [s.x, s.z]), "manual travel changes node positions");
+for (let i = 0; i < 600; i++) memory.recordJourney({ x: 160, z: 40, speed: 0 }, 0.1, "terra");
+const lingered = memory.composeBody03();
+assert.notDeepEqual(lingered.materialField, travelled.materialField, "dwell changes spatial wavelength");
+assert.ok(lingered.sites[0].scanHoldMs > travelled.sites[0].scanHoldMs, "dwell changes observation time");
+memory.resetJourney();
+memory.recordJourney({ x: 100, z: 20, speed: 1 }, 0.1, "terra", false);
+assert.deepEqual(memory.composeBody03(), model, "reset and AUTO leave the baseline unchanged");
 const changed = new MissionMemory({ storage: null, key: "unpersisted" });
 changed.recordSamples(samples);
 changed.recordWater({ ...water, site: {

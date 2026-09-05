@@ -1,6 +1,22 @@
 export const MISSION_MEMORY_VERSION = 3;
 export const REQUIRED_BODY01_SAMPLE_COUNT = 6;
 export const DEFAULT_MEMORY_KEY = "terra-incognita:mission-memory:v3";
+
+// Session-only artistic mapping. These limits do not describe physical units.
+const JOURNEY = Object.freeze({
+  maxStepSeconds: 0.1,
+  maxStepDistance: 5,
+  distanceScale: 160,
+  maxDistance: 8,
+  turnScale: 600,
+  maxTurn: 1.5,
+  stationarySpeed: 0.12,
+  dwellScale: 60,
+  maxDwell: 3,
+  dwellHoldMs: 400,
+  distanceHoldMs: 120
+});
+
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
 const fract = (value) => value - Math.floor(value);
 const textHash = (value) => {
@@ -52,14 +68,14 @@ function cleanWater(source) {
     spectrumRingMicron: finite(visual.spectrumRingMicron ?? source.spectrumRingMicron, bands[1] ?? 1.9)
   };
 }
-function fieldFromSamples(samples) {
+function fieldFromSamples(samples, journey) {
   return samples.map((sample, index) => {
     const materialHash = textHash(`${sample.sample}|${sample.sign}`);
     const bearing = Math.atan2(sample.z, sample.x);
     return {
-      angle: bearing * 0.38 + (hash01(materialHash) - 0.5) * 1.15,
-      wavelength: 17 + index * 1.35 + hash01(materialHash + 19) * 5.5,
-      phase: hash01(materialHash + 47) * Math.PI * 2,
+      angle: bearing * 0.38 + (hash01(materialHash) - 0.5) * 1.15 + journey.turn,
+      wavelength: 17 + index * 1.35 + hash01(materialHash + 19) * 5.5 + journey.dwell * (index + 1),
+      phase: hash01(materialHash + 47) * Math.PI * 2 + journey.distance * (index + 1),
       weight: 0.72 + hash01(materialHash + 83) * 0.28
     };
   });
@@ -154,6 +170,45 @@ export class MissionMemory {
     this.storage = storageOrNull(options.storage);
     this.data = { version: MISSION_MEMORY_VERSION, samples: [], water: null };
     this.load();
+    this.resetJourney();
+  }
+
+  resetJourney() {
+    this.journey = { distance: 0, dwell: 0, turn: 0 };
+    this.lastJourneyPoint = null;
+  }
+
+  // A bounded, session-only artistic mapping, not a geological simulation.
+  recordJourney(probe, dt, world, enabled = true) {
+    if (!enabled || !["terra", "desert"].includes(world)) {
+      this.lastJourneyPoint = null;
+      return;
+    }
+    if (!Number.isFinite(probe.x) || !Number.isFinite(probe.z)) return;
+    const seconds = Math.max(0, Math.min(JOURNEY.maxStepSeconds, finite(dt)));
+    const previous = this.lastJourneyPoint;
+    if (previous?.world === world) {
+      const dx = probe.x - previous.x;
+      const dz = probe.z - previous.z;
+      const distance = Math.hypot(dx, dz);
+      if (distance < JOURNEY.maxStepDistance) {
+        this.journey.distance = Math.min(
+          JOURNEY.maxDistance,
+          this.journey.distance + distance / JOURNEY.distanceScale
+        );
+        this.journey.turn = Math.max(
+          -JOURNEY.maxTurn,
+          Math.min(JOURNEY.maxTurn, this.journey.turn + (dx - dz) / JOURNEY.turnScale)
+        );
+        if (Math.abs(probe.speed) < JOURNEY.stationarySpeed) {
+          this.journey.dwell = Math.min(
+            JOURNEY.maxDwell,
+            this.journey.dwell + seconds / JOURNEY.dwellScale
+          );
+        }
+      }
+    }
+    this.lastJourneyPoint = { x: probe.x, z: probe.z, world };
   }
   get samplesReady() {
     return this.data.samples.length === REQUIRED_BODY01_SAMPLE_COUNT;
@@ -203,11 +258,18 @@ export class MissionMemory {
     const model = {
       id: "BODY03-GEOLOGICAL-MEMORY",
       source: { samples: this.data.samples.length, water: this.data.water.id },
-      materialField: fieldFromSamples(this.data.samples),
+      journey: { ...this.journey },
+      materialField: fieldFromSamples(this.data.samples, this.journey),
       water: { ...this.data.water },
       start
     };
     model.sites = chooseSites(model, start);
+    model.sites.forEach((site, index) => {
+      site.scanHoldMs += Math.round(
+        this.journey.dwell * JOURNEY.dwellHoldMs +
+        this.journey.distance * index * JOURNEY.distanceHoldMs
+      );
+    });
     return model;
   }
   snapshot() {
@@ -216,6 +278,7 @@ export class MissionMemory {
       ready: this.ready,
       samplesReady: this.samplesReady,
       waterReady: this.waterReady,
+      journey: this.journey ? { ...this.journey } : { distance: 0, dwell: 0, turn: 0 },
       samples: this.data.samples.map((sample) => ({ ...sample })),
       water: this.data.water ? {
         ...this.data.water,
@@ -224,6 +287,7 @@ export class MissionMemory {
     };
   }
   clear() {
+    this.resetJourney();
     this.data = { version: MISSION_MEMORY_VERSION, samples: [], water: null };
     try {
       this.storage?.removeItem(this.key);

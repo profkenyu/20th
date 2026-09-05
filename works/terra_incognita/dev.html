@@ -916,6 +916,20 @@
   #ti-mobile-drive {
     transition: opacity 1.2s ease;
   }
+  #ti-ending-archive {
+    position: fixed;
+    z-index: 90;
+    right: calc(env(safe-area-inset-right, 0px) + 24px);
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 24px);
+    padding: 14px 0 14px 14px;
+    color: #9ba99e;
+    font: 10px monospace;
+    letter-spacing: .12em;
+    text-decoration: none;
+  }
+  #ti-ending-archive[hidden] { display: none; }
+  #ti-ending-archive:focus-visible { outline: 1px dotted currentColor; }
+  body.ti-memory-tableau #fh-cap-line { opacity: 0 !important; }
   body.ti-completion-tableau #ti-monitor,
   body.ti-completion-tableau #survey-log,
   body.ti-completion-tableau #fh-hud,
@@ -1491,8 +1505,8 @@
     body.ti-mobile #ti-prologue #ti-start {
       display: none;
     }
-    body.ti-mobile.ti-prologue-released #ti-mobile-drive,
-    body.ti-mobile.embed #ti-mobile-drive {
+    body.ti-mobile.ti-explorer.ti-prologue-released #ti-mobile-drive,
+    body.ti-mobile.ti-explorer.embed #ti-mobile-drive {
       display: grid;
     }
   }
@@ -1919,14 +1933,16 @@
 <section id="ti-prologue" aria-label="Terra Incognita prologue">
   <div class="inner">
     <h1>Terra Incognita</h1>
-    <p class="ko">인류는 새로운 이주의 가능성을 찾아 세 행성을 횡단한다. 무인 로버는 첫 번째 행성에서 네 종류의 구조재와 질소·알코올 원료를 회수해 착륙선을 보강하고, 두 번째 행성에서 물의 흔적을 확인한다. 두 행성에서 모은 증거는 세 번째 행성에서 지질 기억으로 되돌아온다.</p>
-    <p class="en">Humanity crosses three planets in search of a new path for migration. On the first, an autonomous rover recovers four structural materials and two raw materials—nitrogen and alcohol—to reinforce the lander. On the second, it searches for traces of water. Evidence from both worlds returns on the third as geological memory.</p>
+    <p class="ko">인류는 새로운 이주의 가능성을 따라 세 행성으로 향한다. 무인 로버가 지나간 자리는 기록이 된다.</p>
+    <p class="en">Humanity journeys toward three planets in search of a place to migrate. An autonomous rover leaves a record wherever it passes.</p>
     <span class="mission">Three-Body Autonomous Survey · Matter / Water / Memory<span id="ti-terminal-state">Archival Terminal · Low Bandwidth</span></span>
     <button id="ti-start" class="skip desktop-start" type="button" disabled><span>START</span></button>
     <button id="ti-mobile-start" class="skip" type="button" disabled><span>START</span></button>
   </div>
   <div class="controls"><span class="desktop-controls">AUTO DRIVE &nbsp;·&nbsp; <kbd>WASD</kbd> MANUAL &nbsp;·&nbsp; <kbd>C</kbd> CAMERA &nbsp;·&nbsp; <kbd>SPACE</kbd> RETURN TO AUTO</span><span class="mobile-controls">기본 자동 주행 · MANUAL 전환 후 기울이거나 드래그<br>Auto by default · Switch to manual, then tilt or drag</span></div>
 </section>
+
+<a id="ti-ending-archive" href="field-archive.html" hidden>FIELD ARCHIVE <span aria-hidden="true">↗</span></a>
 
 <script>
   (function() {

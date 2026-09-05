@@ -138,6 +138,7 @@ export class GeologicalMemory {
         0.36 + hash(i * 43) * 1.18
       );
       shard.rotation.set(hash(i * 47) * 1.8, a + data.phaseDelta, hash(i * 53) * 1.3);
+      shard.userData.initialAngle = shard.rotation.y;
       mineralRoot.add(shard);
     }
     root.add(mineralRoot);
@@ -285,16 +286,11 @@ export class GeologicalMemory {
       this.onComplete?.(this.snapshot(), now);
     } else this.state = "searching";
   }
-  async update(probe, now, worldActive = true) {
-    this.group.visible = worldActive && this.state !== "inactive";
-    if (!this.group.visible) return;
+  _updateSiteVisuals(now) {
     const t = now * 1e-3;
-    this.uTime.value = t;
-    this.uCurrent.value = this.current;
-    this.uMissionVisible.value = 1 - this.finale;
-    this.uIntegration.value = this.event && this.target ? clamp01((now - this.event.t0) / this.target.scanHoldMs) : 0;
     for (let index = 0; index < this.sites.length; index++) {
-      const site = this.sites[index], active = index === this.current;
+      const site = this.sites[index];
+      const active = index === this.current;
       const completed = index < this.current;
       const integration = active && this.event ? clamp01((now - this.event.t0) / site.data.scanHoldMs) : 0;
       const beat = 0.72 + Math.sin(t * 0.42 + site.data.phaseDelta) * 0.28;
@@ -303,9 +299,27 @@ export class GeologicalMemory {
         site.materialRings[i].material.opacity = (completed ? 0.012 : (active ? 0.045 + integration * 0.075 : 0.018) * beat) * visible;
         site.waterRings[i].material.opacity = (completed ? 0.01 : (active ? 0.038 + integration * 0.085 : 0.015) * (1.18 - beat * 0.34)) * visible;
       }
-      site.mineralRoot.visible = !completed;
+      site.mineralRoot.visible = true;
+      const alignment = completed ? 1 : integration;
+      for (const shard of site.mineralRoot.children) {
+        shard.rotation.y = shard.userData.initialAngle * (1 - alignment) + site.data.phaseDelta * alignment;
+      }
     }
-    if (this.compute && this.renderer?.computeAsync) {
+  }
+
+  async update(probe, now, worldActive = true) {
+    this.group.visible = worldActive && this.state !== "inactive";
+    if (!this.group.visible) return;
+
+    this.uTime.value = now * 1e-3;
+    this.uCurrent.value = this.current;
+    this.uMissionVisible.value = 1 - this.finale;
+    this.uIntegration.value = this.event && this.target
+      ? clamp01((now - this.event.t0) / this.target.scanHoldMs)
+      : 0;
+    this._updateSiteVisuals(now);
+
+    if (this.finale < 1 && this.compute && this.renderer?.computeAsync) {
       await this.renderer.computeAsync(this.compute);
       this.computeDispatches++;
     }
@@ -329,6 +343,8 @@ export class GeologicalMemory {
     return {
       state: this.state,
       complete: this.complete,
+      finale: this.finale,
+      retainedMinerals: this.sites.filter(site => site.mineralRoot.visible).length,
       current: this.current,
       total: this.model?.sites?.length ?? 0,
       records: [...this.records],

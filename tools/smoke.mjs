@@ -351,7 +351,7 @@ if (!MOBILE) {
 if (MOBILE) {
   await page.waitForTimeout(1600);
   await page.waitForFunction(
-    () => document.getElementById("ti-mobile-steer")?.disabled === false,
+    () => document.getElementById("ti-drive-mode")?.disabled === false,
     null,
     { timeout: 12e3 }
   );
@@ -362,10 +362,14 @@ if (MOBILE) {
       pressed: button?.getAttribute("aria-pressed") === "true",
       state: button?.dataset.driveState ?? "",
       label: button?.getAttribute("aria-label") ?? "",
-      visible: !!button && button.getBoundingClientRect().width > 0
+      visible: !!button && button.getBoundingClientRect().width > 0,
+      steeringVisible: document.getElementById("ti-mobile-drive")?.getBoundingClientRect().width > 0
     };
   });
   const initialDriveMode = await readMobileDriveMode();
+  if (initialDriveMode.steeringVisible) throw new Error("AUTO must hide the steering panel");
+  await page.click("#ti-drive-mode");
+  await page.waitForFunction(() => document.getElementById("ti-mobile-steer")?.disabled === false);
   mobileControl = await page.evaluate(() => {
     const root = document.getElementById("ti-mobile-drive")?.getBoundingClientRect();
     const steer = document.getElementById("ti-mobile-steer")?.getBoundingClientRect();
@@ -457,6 +461,7 @@ if (MOBILE) {
   await page.click("#ti-drive-mode");
   await page.waitForFunction(() => window.TI_EXPERIENCE?.().driveMode === "auto");
   const auto = await readMobileDriveMode();
+  if (auto.steeringVisible) throw new Error("Returning to AUTO must hide steering");
   await page.click("#ti-drive-mode");
   await page.waitForFunction(() => window.TI_EXPERIENCE?.().driveMode === "manual");
   const restoredManual = await readMobileDriveMode();

@@ -290,6 +290,9 @@ const DOCKED_BREATH_MS = 2800;
 const ARRIVAL_BREATH_MS = 3e3;
 const WATER_CONFIRM_BREATH_MS = 4800;
 const FINAL_TABLEAU_MS = 12e3;
+const FINAL_RETURN_MS = 45e3;
+const FINAL_FADE_START = 0.56;
+const FINAL_FADE_SPAN = 0.44;
 const DRIVE_KEYS = new Set([
   "KeyW",
   "KeyA",
@@ -380,7 +383,18 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.02;
 captureDeviceErrors(renderer, handleGpuFault);
 window.TI_BOOT?.beat("world");
-let scene, hud, captions, ambient, kiosk, ground, field, wake, dust, graniteField, storm, transferFx, matterPassage, scatter, beam, sky, landmark, rover, lander, restoration, waterMission, missionMemory, fieldArchive, geologicalMemory, docking, voyage, shotDirector, power, lens, adaptive, minimap, optics, survey, mobileControl, openingBlueprints, animeRituals;
+// Rendering and environment.
+let scene, ground, field, wake, dust, graniteField, storm;
+let scatter, beam, sky, landmark, lens, adaptive;
+
+// Vehicles, missions and transitions.
+let rover, lander, restoration, waterMission, missionMemory, geologicalMemory;
+let docking, voyage, shotDirector, power, transferFx, matterPassage;
+
+// Interface and exhibition lifecycle.
+let hud, captions, ambient, kiosk, fieldArchive, minimap, optics, survey;
+let mobileControl, openingBlueprints, animeRituals;
+
 let world = "terra";
 let landerPresent = true;
 let archiveMode = false, greenMonitorManual = false, rawMonitorManual = false;
@@ -484,32 +498,19 @@ try {
   restoration = new Restoration(lander, heightCPU, TERRA_RESOURCE_SITES);
   missionMemory = new MissionMemory();
   fieldArchive = new FieldArchive();
+  if (location.pathname.endsWith("/TERRA_INCOGNITA.html")) {
+    document.getElementById("ti-ending-archive").href = "FIELD_ARCHIVE.html";
+  }
   fieldArchive.registerStations([
     ...FIELD_ARCHIVE_STATIONS.terra,
     ...FIELD_ARCHIVE_STATIONS.desert
   ]);
-  geologicalMemory = new GeologicalMemory({ renderer, heightAt: heightCPU, onComplete: (memory, now) => {
-    rover.auto = false;
-    rover.missionHold = true;
-    rover.operatorHold = true;
-    finalTableau = { t0: now, requested: false };
-    document.body.classList.add("ti-memory-tableau");
-    captions.force({
-      r: 0,
-      ko: "\uC9C0\uC9C8 \uAE30\uC5B5 \uACE0\uC815 \xB7 \uC138 \uAC1C \uAD50\uCC28 \uACB0\uC808 \uD655\uC778",
-      en: "GEOLOGICAL MEMORY FIXED \xB7 THREE CONCORDANCE NODES"
-    }, now, FINAL_TABLEAU_MS - 800);
-    kiosk.last = now;
-  } });
-  waterMission = new WaterMission(heightCPU, BODY02_WATER_SITE, (_site, now) => {
-    missionMemory.recordWater({ complete: true, site: BODY02_WATER_SITE });
-    captions.force({
-      r: 0,
-      ko: "\uC218\uBD84 \uD655\uC778 \xB7 \uC218\uD654 \uADDC\uC0B0\uC5FC\uACFC \uC218\uBD84 \uC2E0\uD638 \uC77C\uCE58",
-      en: "H\u2082O CONFIRMED \xB7 HYDRATED SILICA / PORE ICE MATCH"
-    }, now, 5200);
-    kiosk.last = now;
+  geologicalMemory = new GeologicalMemory({
+    renderer,
+    heightAt: heightCPU,
+    onComplete: beginFinalTableau
   });
+  waterMission = new WaterMission(heightCPU, BODY02_WATER_SITE, recordWaterConfirmation);
   transferFx = new ResolutionTransferFX(rover.group);
   matterPassage = new MatterPassage({ renderer, rover: rover.group, lander: lander.group });
   docking = new DockingSequence({
@@ -685,21 +686,54 @@ addEventListener("keydown", (e) => {
   }
 });
 function authoredExperienceLock() {
-  return [
-    prologuePhase !== "released",
-    completionTableau,
-    pendingArrival,
-    finalTableau,
-    docking.started,
-    voyage.active,
-    restoration.event,
-    waterMission.event,
-    geologicalMemory.event,
-    restoration.group.visible && restoration.complete,
-    waterMission.complete,
-    geologicalMemory.state === "complete"
-  ].some(Boolean);
+  const transitionLocked = prologuePhase !== "released" || completionTableau ||
+    pendingArrival || finalTableau || docking.started || voyage.active;
+  if (transitionLocked) return true;
+
+  const scanning = restoration.event || waterMission.event || geologicalMemory.event;
+  if (scanning) return true;
+
+  const missionComplete = (restoration.group.visible && restoration.complete) ||
+    waterMission.complete || geologicalMemory.state === "complete";
+
+  return !!missionComplete;
 }
+
+function recordWaterConfirmation(_site, now) {
+  missionMemory.recordWater({ complete: true, site: BODY02_WATER_SITE });
+  captions.force({
+    r: 0,
+    ko: "\uC218\uBD84 \uD655\uC778 \xB7 \uC218\uD654 \uADDC\uC0B0\uC5FC\uACFC \uC218\uBD84 \uC2E0\uD638 \uC77C\uCE58",
+    en: "H\u2082O CONFIRMED \xB7 HYDRATED SILICA / PORE ICE MATCH"
+  }, now, 5200);
+  kiosk.last = now;
+}
+
+function beginFinalTableau(_memory, now) {
+  rover.auto = false;
+  rover.missionHold = true;
+  rover.operatorHold = true;
+  finalTableau = { t0: now, requested: false };
+  document.body.classList.add("ti-memory-tableau");
+  captions.rearm();
+  kiosk.last = now;
+}
+
+function updateFinalTableau(now) {
+  if (!finalTableau) return;
+
+  const elapsed = now - finalTableau.t0;
+  const progress = Math.max(0, Math.min(1, elapsed / FINAL_TABLEAU_MS));
+  const fadeProgress = Math.max(0, (progress - FINAL_FADE_START) / FINAL_FADE_SPAN);
+  geologicalMemory.setFinale(orbitEase(fadeProgress));
+  document.getElementById("ti-ending-archive").hidden = progress < 1;
+
+  if (elapsed >= FINAL_RETURN_MS && !finalTableau.requested) {
+    finalTableau.requested = true;
+    kiosk.requestReturn(now);
+  }
+}
+
 function observerMayDrive() {
   return released && !completionTableau && !pendingArrival && !finalTableau && !docking.started && !voyage.active;
 }
@@ -878,6 +912,15 @@ window.TI_EXPERIENCE = () => ({
   idleFor: experienceMode === "explorer" ? performance.now() - lastExplorerIntent : 0,
   manualPersistent: true
 });
+function anomalyState(site, index) {
+  if (site.acquired) return "trace";
+  if (restoration.acquiredItems[site.itemIndex]) {
+    return restoration.subtraction?.complete ? "subtracted" : "potential";
+  }
+  if (restoration.event?.index === index) return "scanning";
+  return site.data === restoration.target ? "target" : "latent";
+}
+
 window.TI_ANOMALIES = () => restoration.sites.map((site, index) => ({
   index,
   item: site.itemIndex,
@@ -885,9 +928,7 @@ window.TI_ANOMALIES = () => restoration.sites.map((site, index) => ({
   x: site.data.x,
   y: site.root.position.y,
   z: site.data.z,
-  state: site.acquired ? "trace" : restoration.acquiredItems[site.itemIndex]
-    ? restoration.subtraction?.complete ? "subtracted" : "potential"
-    : restoration.event?.index === index ? "scanning" : site.data === restoration.target ? "target" : "latent",
+  state: anomalyState(site, index),
   distance: Math.hypot(rover.pos.x - site.data.x, rover.pos.z - site.data.z)
 }));
 window.TI_WATER = () => ({
@@ -1295,14 +1336,7 @@ async function frame() {
   if (pendingArrival && now >= pendingArrival.at && !voyage.active) {
     activateArrivalMission(pendingArrival.key, now);
   }
-  if (finalTableau) {
-    const p = Math.max(0, Math.min(1, (now - finalTableau.t0) / FINAL_TABLEAU_MS));
-    geologicalMemory.setFinale(orbitEase(Math.max(0, (p - 0.56) / 0.44)));
-    if (p >= 1 && !finalTableau.requested) {
-      finalTableau.requested = true;
-      kiosk.requestReturn(now);
-    }
-  }
+  updateFinalTableau(now);
   const missionEnding = voyage.phase === "epilogue" || voyage.phase === "ended" || !!finalTableau;
   if (experienceMode === "explorer") {
     let driveHeld = false;
@@ -1352,6 +1386,7 @@ async function frame() {
   });
   syncDriveModeControl();
   const v = rover.update(dt);
+  missionMemory.recordJourney(v, dt, world, released && experienceMode === "explorer" && !authoredExperienceLock());
   restoration.update(v, now, world === "terra");
   if (world === "terra" && restoration.event && !restoration.event.all && restoration.event.t0 !== resourceSignalAt) {
     resourceSignalAt = restoration.event.t0;
@@ -1820,6 +1855,8 @@ async function returnToStart() {
   docking.reset();
   completionTableau = null;
   finalTableau = null;
+  missionMemory.resetJourney();
+  document.getElementById("ti-ending-archive").hidden = true;
   greenMonitorManual = false;
   rawMonitorManual = false;
   syncGreenMonitor();

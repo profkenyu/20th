@@ -51,6 +51,14 @@ npm run release    # 빌드부터 실제 WebGPU 스모크까지 릴리스 검증
 
 ## PLANET 01 물질 행동과 기록
 
+### 관측의 시간과 이동의 기억
+
+P01의 선택·소거 규칙은 유지한다. P02는 세 관측 구간 사이에 0.9초의 공백을 두고, 확인한 고리부터 흔들림을 멈춘다. 이는 실제 센서의 반복 측정이나 확률적 신뢰도가 아닌 작품 내부의 관측 리듬이다.
+
+P03은 재료·수분 기록에 수동 이동 거리, 방향과 정지 시간을 더해 위상·파장과 세 결절의 위치·간격·관측 시간을 결정한다. 삼각함수의 위상 계산은 수학적 계산이며, 유한 후보점 탐색은 수치 근사다. 이동을 지질 기억으로 바꾸는 대응은 예술적 해석이지 실제 지질학 모델이 아니다. AUTO에는 기존 기준장을 적용한다. 이동 요약은 메모리에만 보관하며 시작 화면 복귀 시 지운다.
+
+마지막 결절은 광물 방향이 정렬된 채 남는다. 안내 신호는 사라지고 카메라의 미세 이동이 멈춘다. 12초 후 FIELD ARCHIVE 링크를 표시하고, 45초 후 전시 순환을 재시작한다. 기존 HIGH/MID/LOW 렌더링 등급은 유지하며, 세 등급 모두 같은 결절과 시간 규칙을 사용한다. 추가 입자나 렌더 패스는 없고 마지막 장면에서 계산 디스패치를 중지한다.
+
 각 물질은 장식 효과가 아니라 서로 다른 운동 규칙을 갖는다. 철–니켈은 전단 방향으로 정렬되고, 규산염은 분광 고리를 분리하며, 탄소는 주변 신호를 흡수한다. 전도 격자는 이산 위상에 고정되고, 질소는 확산하며, 알코올은 C–O와 O–H에 대응하는 두 밴드로 진동한다. 질소 Raman과 알코올 분광 표기는 과학적 근거이며, 화면에서의 운동은 실시간 수치 근사이자 예술적 해석이다.
 
 여섯 번째 물질을 획득하면 `FIELD SUBTRACTION`이 발생한다. 선택되지 않은 12개 발현은 조용히 소거되고 실제로 획득한 6개 좌표 흔적만 남는다. FIELD ARCHIVE v3는 기존 P01/P02/P03의 12/7/5 행 구성을 유지하면서, P01의 각 물질을 선택 증거 `EVIDENCE` 1행과 미선택 후보를 합친 `RESOLVED POTENTIAL` 1행으로 기록한다.
@@ -65,6 +73,15 @@ dist/TERRA_INCOGNITA.html  전시 배포본
 ```
 
 `works/terra_incognita/surface.js`와 `surface.cpu.js`는 같은 지형을 GPU와 CPU에서 각각 계산한다. CPU 버전은 로버 바퀴 접지와 먼지의 지면 충돌에 사용되므로, 지형을 변경할 때 두 구현의 일관성을 `npm run verify`와 `npm run terrain`으로 반드시 확인한다.
+
+### 임무 코드 읽는 순서
+
+- `works/terra_incognita/main.js`: 시스템 초기화와 프레임 실행 순서. 수분 확인은 `recordWaterConfirmation`, 엔딩 진입·갱신은 `beginFinalTableau` / `updateFinalTableau`, 조작 잠금은 `authoredExperienceLock`에서 처리한다.
+- `engine/core/mission-memory.js`: 기록 정규화 → 이동 요약 → 위상장 합성 → 결절 선택. 이동 요약의 제한값과 변환 계수는 `JOURNEY`에 모았다.
+- `engine/core/water-mission.js`: `update`는 관측 진행과 완료를, `_updateVisuals`는 입자·고리 표시를 담당한다.
+- `engine/core/geological-memory.js`: `update`는 임무 진행과 GPU 실행을, `_updateSiteVisuals`는 결절·광물 표시를 담당한다.
+
+원본을 수정한 뒤 `npm run build`로 배포 HTML을 재생성한다. 임무 계산과 관측·엔딩 상태는 `npm run memory`와 `npm run observation`으로 검증한다.
 
 ## 전시 운영 체크
 

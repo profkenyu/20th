@@ -260,7 +260,7 @@ body.tx-active #fh-keys {
 }
 #fh-keys .mode {
   display: inline-block;
-  width: 34px;
+  width: 58px;
   color: rgba(192, 21, 42, .72);
   letter-spacing: .16em;
 }
@@ -336,13 +336,13 @@ export class Hud {
     const mission = document.createElement("div");
     mission.id = "fh-mission";
     mission.setAttribute("aria-hidden", "true");
-    mission.innerHTML = '<span class="experience">OBSERVER \xB7 AUTONOMOUS</span><span class="body"><span class="body-code"></span><span class="body-label">SHEAR WORLD</span></span><span class="objective"><span class="objective-label">LANDER SHELL</span><span class="objective-code"></span></span><span class="systems">PWR \u2014 \xB7 COMMS LOCAL</span>';
+    mission.innerHTML = '<span class="experience">AUTO</span><span class="body"><span class="body-code"></span><span class="body-label">SHEAR WORLD</span></span><span class="objective"><span class="objective-label">LANDER SHELL</span><span class="objective-code"></span></span><span class="systems">PWR \u2014 \xB7 COMMS LOCAL</span>';
     document.body.appendChild(mission);
     renderDotMatrix(mission.querySelector(".body-code"), "P01", { label: "PLANET 01" });
     renderDotMatrix(mission.querySelector(".objective-code"), "0/5", { label: "0 / 5" });
     const keys = document.createElement("div");
     keys.id = "fh-keys";
-    keys.innerHTML = '<span class="mode">EXP</span><b>WASD / ARROWS</b> DRIVE \xB7 <b>C</b> CAMERA<br><span class="mode">OBS</span><b>SPACE</b> AUTONOMOUS \xB7 <b>H</b> ENGINEERING \xB7 <b>M</b> AUDIO';
+    keys.innerHTML = '<span class="mode">MANUAL</span><b>WASD / ARROWS</b> DRIVE \xB7 <b>C</b> CAMERA<br><span class="mode">AUTO</span><b>SPACE</b> RETURN \xB7 <b>H</b> ENGINEERING \xB7 <b>M</b> SOUND';
     document.body.appendChild(keys);
     const wakeKeys = () => {
       keys.classList.add("awake");
@@ -424,7 +424,7 @@ export class Hud {
     document.body.classList.toggle("ti-explorer", next === "explorer");
     document.body.classList.toggle("ti-observer", next === "observer");
     const label = this.missionEl?.querySelector(".experience");
-    if (label) label.textContent = next === "explorer" ? "EXPLORER \xB7 DIRECT CONTROL" : "OBSERVER \xB7 AUTONOMOUS";
+    if (label) label.textContent = next === "explorer" ? "MANUAL" : "AUTO";
     this.keys?.classList.toggle("awake", next === "explorer");
   }
   flash() {

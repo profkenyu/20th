@@ -1,13 +1,11 @@
 import * as THREE from "three";
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
-const smooth = (value) => {
-  const p = clamp01(value);
-  return p * p * (3 - 2 * p);
-};
 const hash = (n) => {
   const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
   return x - Math.floor(x);
 };
+const OBSERVATION_COUNT = 3;
+const OBSERVATION_GAP_MS = 900;
 export class WaterMission {
   constructor(heightAt, site, onConfirmed = null) {
     this.heightAt = heightAt;
@@ -16,6 +14,7 @@ export class WaterMission {
     this.state = "inactive";
     this.event = null;
     this.confirmedAt = 0;
+    this.observations = 0;
     this.lastDistance = Infinity;
     this.group = new THREE.Group();
     this.group.visible = false;
@@ -98,9 +97,10 @@ export class WaterMission {
     return this.event ? this.site : null;
   }
   snapshot() {
-    return { state: this.state, complete: this.complete, distance: this.lastDistance };
+    return { state: this.state, complete: this.complete, distance: this.lastDistance, observations: this.observations, requiredObservations: OBSERVATION_COUNT };
   }
   activate(now = performance.now()) {
+    this.observations = 0;
     this.state = "searching";
     this.event = null;
     this.confirmedAt = 0;
@@ -113,6 +113,7 @@ export class WaterMission {
     this.startedAt = now;
   }
   reset() {
+    this.observations = 0;
     this.state = "inactive";
     this.event = null;
     this.confirmedAt = 0;
@@ -132,12 +133,13 @@ export class WaterMission {
   _confirm(now) {
     if (this.complete) return;
     this.state = "confirmed";
+    this.observations = OBSERVATION_COUNT;
     this.confirmedAt = now;
     this.event = null;
     this.rings.forEach((ring, i) => {
       ring.material.opacity = 0.12 - i * 0.018;
     });
-    this.particles.material.opacity = 0.32;
+    this.particles.material.opacity = 0.08;
     this.onConfirmed?.(this.site, now);
   }
   update(probe, now, worldActive = true) {
@@ -145,8 +147,35 @@ export class WaterMission {
     if (!this.group.visible) return;
     const dx = probe.x - this.site.x, dz = probe.z - this.site.z;
     this.lastDistance = Math.hypot(dx, dz);
-    const t = now * 1e-3;
-    const integration = this.event ? clamp01((now - this.event.t0) / this.site.scanHoldMs) : 0;
+    const passMs = this.site.scanHoldMs / OBSERVATION_COUNT;
+    const elapsed = this.event ? Math.max(0, now - this.event.t0) : 0;
+    const pass = Math.min(OBSERVATION_COUNT - 1, Math.floor(elapsed / (passMs + OBSERVATION_GAP_MS)));
+    const passProgress = this.event ? clamp01((elapsed - pass * (passMs + OBSERVATION_GAP_MS)) / passMs) : 0;
+    if (this.complete) this.observations = OBSERVATION_COUNT;
+    else if (this.event) this.observations = pass + (passProgress >= 1 ? 1 : 0);
+    else this.observations = 0;
+
+    const integration = this.complete ? 1 : (pass + passProgress) / OBSERVATION_COUNT;
+    this._updateVisuals(now * 1e-3, integration, pass, passProgress);
+
+    if (this.complete) return;
+    if (this.event) {
+      const totalScanMs = this.site.scanHoldMs + OBSERVATION_GAP_MS * (OBSERVATION_COUNT - 1);
+      if (this.lastDistance > this.site.scanRadius) {
+        this.event = null;
+        this.state = "searching";
+      } else if (elapsed >= totalScanMs) {
+        this._confirm(now);
+      }
+      return;
+    }
+    if (this.lastDistance <= this.site.acquireRadius && probe.speed <= 0.12) {
+      this.event = { t0: now };
+      this.state = "scanning";
+    }
+  }
+
+  _updateVisuals(t, integration, pass, passProgress) {
     for (let i = 0; i < this.particleCount; i++) {
       const p = i * 3, phase = t * (0.28 + i % 7 * 0.017) + i * 1.73;
       const density = 1 - integration * 0.27;
@@ -156,20 +185,9 @@ export class WaterMission {
     }
     this.particles.geometry.attributes.position.needsUpdate = true;
     this.rings.forEach((ring, i) => {
-      ring.material.opacity = this.complete ? 0.09 - i * 0.012 : 0.022 + integration * (0.14 - i * 0.018);
-      ring.scale.set(1 + Math.sin(t * 0.36 + i) * 0.012, 0.68, 1);
+      const stable = i < this.observations;
+      ring.material.opacity = stable ? 0.09 - i * 0.012 : 0.015 + (this.event && i === pass ? passProgress * 0.07 : 0);
+      ring.scale.set(stable ? 1 : 1 + Math.sin(t * 0.36 + i) * 0.012, 0.68, 1);
     });
-    if (this.complete) return;
-    if (this.event) {
-      if (this.lastDistance > this.site.scanRadius) {
-        this.event = null;
-        this.state = "searching";
-      } else if (now - this.event.t0 >= this.site.scanHoldMs) this._confirm(now);
-      return;
-    }
-    if (this.lastDistance <= this.site.acquireRadius && probe.speed <= 0.12) {
-      this.event = { t0: now };
-      this.state = "scanning";
-    }
   }
 }
