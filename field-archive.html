@@ -392,13 +392,17 @@
     return "\uFEFF" + rows.map((row) => row.map(csvCell).join(",")).join("\r\n") + "\r\n";
   }
 
+  // works/first_dawn/migration-sequence.js
+  var MIGRATION_DURATION = 84;
+  var MIGRATION_CUTS = Object.freeze([12, 32, 60, 66]);
+
   // works/shared/post-mission-state.js
   var POST_KEY = "beyond-known:post-mission:v1";
-  var POST_PHASES = Object.freeze({ migration: { file: "migration.html", start: 0, duration: 69, next: "arrival" }, arrival: { file: "arrival.html", start: 68, duration: 60, next: "ending" }, ending: { file: "ending.html", start: 0, duration: 18, next: null } });
+  var POST_PHASES = Object.freeze({ migration: { file: "migration.html", start: 0, duration: MIGRATION_DURATION, next: "arrival" }, arrival: { file: "arrival.html", start: 68, duration: 60, next: "ending" }, ending: { file: "ending.html", start: 0, duration: 18, next: null } });
   function readPostMission() {
     try {
       const s = JSON.parse(sessionStorage.getItem(POST_KEY) || "null");
-      if (s?.version !== 1 || !POST_PHASES[s.phase] || !Number.isFinite(s.elapsed) || s.elapsed < 0 || s.elapsed > POST_PHASES[s.phase].duration) return null;
+      if (s?.version !== 1 || !Object.hasOwn(POST_PHASES, s.phase) || !Number.isFinite(s.elapsed) || s.elapsed < 0 || s.elapsed > POST_PHASES[s.phase].duration) return null;
       if (s.evidence && (!/^[0-9a-f]{6}$/i.test(s.seed) || !Number.isFinite(s.evidence.temperature) || !Number.isFinite(s.evidence.energy) || !Number.isFinite(s.evidence.radiation) || s.evidence.samples !== 6 || s.evidence.water !== true || s.evidence.nodes !== 3)) return null;
       const signatures = s.evidence?.sampleSignatures;
       if (signatures != null && (!Array.isArray(signatures) || signatures.length !== 6 || signatures.some((v) => !Number.isFinite(v) || v < 0 || v > 1))) return null;
