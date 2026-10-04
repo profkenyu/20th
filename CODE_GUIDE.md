@@ -38,3 +38,12 @@ HTML과 JavaScript는 2칸 들여쓰기와 줄바꿈으로 정리했습니다. H
 제작 소스는 상위 폴더의 `v38.0 (빌드도구포함)/works/`에 있습니다. 사운드는 `works/shared/journey-score.js`, `journey-audio.js`, `journey-controls.js`에서 수정합니다.
 
 제작 폴더에서 `npm run build`, `npm run verify`를 실행하고, `node tools/export-readable.mjs`로 수정한 다섯 페이지를 20th에 내보내면서 전체 실행 파일의 서식과 해시를 정리합니다. `node tools/journey-audio.mjs`는 다섯 장면의 소리와 화면 보존을 검사합니다.
+
+## 재질과 텍스처
+
+- `aerospaceTextures`: 금속 가공 결, 도장, 단열재 접힘, 열차폐재, 방열판, 고무의 색·높이·거칠기 텍스처입니다.
+- `aerospaceNode`: 로버와 착륙·탐사선의 표면 요철과 반사에 사용하는 노드입니다.
+- `flightMaterial`: 이동 장면의 재질별 반사와 사용 흔적입니다.
+- `installVoyageAgeing`: 이주선의 재질별 오염, 도장면의 국부적 손상, 모델 크기에 맞춘 미세 요철입니다.
+
+제작 소스는 `works/shared/aerospace-textures.js`, `engine/vehicle/aerospace-node.js`, `works/space/surfaces.js`, `works/first_dawn/voyage-materials.js`입니다. 텍스처는 절차적으로 만든 표면이며 실제 표본의 계측 데이터는 아닙니다. HIGH/MID/LOW 해상도는 512/256/128이고, LOW에서는 표면 요철 계산을 생략합니다.

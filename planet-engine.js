@@ -19819,10 +19819,12 @@ ${builder.flow.code}`;
     normalMap = nodeProxy(NormalMapNode).setParameterLength(1, 2),
     dHdxy_fwd = Fn(({ textureNode, bumpScale }) => {
       let sampleTexture = (callback) =>
-          textureNode.isolate().context({
-            getUV: (texNode) => callback(texNode.uvNode || uv$1()),
-            forceUVContext: !0,
-          }),
+          textureNode
+            .isolate()
+            .context({
+              getUV: (texNode) => callback(texNode.uvNode || uv$1()),
+              forceUVContext: !0,
+            }),
         Hll = float(sampleTexture((uvNode) => uvNode));
       return vec2(
         float(sampleTexture((uvNode) => uvNode.add(uvNode.dFdx()))).sub(Hll),
@@ -23099,18 +23101,20 @@ ${builder.flow.code}`;
             lightColor.mul(fresnel).mul(LTC_Evaluate({ N: N2, V, P, mInv, p0, p1, p2, p3 })),
           ),
           reflectedLight.directDiffuse.addAssign(
-            lightColor.mul(diffuseContribution).mul(
-              LTC_Evaluate({
-                N: N2,
-                V,
-                P,
-                mInv: mat3(1, 0, 0, 0, 1, 0, 0, 0, 1),
-                p0,
-                p1,
-                p2,
-                p3,
-              }),
-            ),
+            lightColor
+              .mul(diffuseContribution)
+              .mul(
+                LTC_Evaluate({
+                  N: N2,
+                  V,
+                  P,
+                  mInv: mat3(1, 0, 0, 0, 1, 0, 0, 0, 1),
+                  p0,
+                  p1,
+                  p2,
+                  p3,
+                }),
+              ),
           ),
           this.clearcoat === !0)
         ) {
@@ -23511,28 +23515,11 @@ ${builder.flow.code}`;
         let gl_FragColor = vec3().toVar();
         return (
           gl_FragColor.addAssign(
-            weights.element(0).mul(
-              getSample({
-                theta: 0,
-                axis: axis2,
-                outputDirection,
-                mipInt,
-                envMap,
-                CUBEUV_TEXEL_WIDTH,
-                CUBEUV_TEXEL_HEIGHT,
-                CUBEUV_MAX_MIP,
-              }),
-            ),
-          ),
-          Loop({ start: int(1), end: n }, ({ i }) => {
-            If(i.greaterThanEqual(samples), () => {
-              Break();
-            });
-            let theta = float(dTheta.mul(float(i))).toVar();
-            (gl_FragColor.addAssign(
-              weights.element(i).mul(
+            weights
+              .element(0)
+              .mul(
                 getSample({
-                  theta: theta.mul(-1),
+                  theta: 0,
                   axis: axis2,
                   outputDirection,
                   mipInt,
@@ -23542,11 +23529,18 @@ ${builder.flow.code}`;
                   CUBEUV_MAX_MIP,
                 }),
               ),
-            ),
-              gl_FragColor.addAssign(
-                weights.element(i).mul(
+          ),
+          Loop({ start: int(1), end: n }, ({ i }) => {
+            If(i.greaterThanEqual(samples), () => {
+              Break();
+            });
+            let theta = float(dTheta.mul(float(i))).toVar();
+            (gl_FragColor.addAssign(
+              weights
+                .element(i)
+                .mul(
                   getSample({
-                    theta,
+                    theta: theta.mul(-1),
                     axis: axis2,
                     outputDirection,
                     mipInt,
@@ -23556,6 +23550,22 @@ ${builder.flow.code}`;
                     CUBEUV_MAX_MIP,
                   }),
                 ),
+            ),
+              gl_FragColor.addAssign(
+                weights
+                  .element(i)
+                  .mul(
+                    getSample({
+                      theta,
+                      axis: axis2,
+                      outputDirection,
+                      mipInt,
+                      envMap,
+                      CUBEUV_TEXEL_WIDTH,
+                      CUBEUV_TEXEL_HEIGHT,
+                      CUBEUV_MAX_MIP,
+                    }),
+                  ),
               ));
           }),
           vec4(gl_FragColor, 1)
@@ -56571,16 +56581,16 @@ body.tx-active #fh-keys {
         (n < 16 && ((running -= rows[n]), (rows[n] = Math.random() * 2 - 1), (running += rows[n])),
           (d[i] = (running + (Math.random() * 2 - 1)) / 17));
       }
-      let noise = ctx.createBufferSource();
-      ((noise.buffer = buf), (noise.loop = !0));
+      let noise2 = ctx.createBufferSource();
+      ((noise2.buffer = buf), (noise2.loop = !0));
       let noiseLp = ctx.createBiquadFilter();
       ((noiseLp.type = "lowpass"),
         (noiseLp.frequency.value = 900),
         (noiseLp.Q.value = 0.6),
         (this.noiseGain = ctx.createGain()),
         (this.noiseGain.gain.value = A.noiseGain),
-        noise.connect(noiseLp).connect(this.noiseGain).connect(this.worldGain),
-        noise.start(),
+        noise2.connect(noiseLp).connect(this.noiseGain).connect(this.worldGain),
+        noise2.start(),
         (this.osc = [ctx.createOscillator(), ctx.createOscillator()]),
         (this.droneGain = ctx.createGain()),
         (this.droneGain.gain.value = 0));
@@ -57561,13 +57571,15 @@ body.tx-active #fh-keys {
       return count;
     }
     get rawMaterials() {
-      return this.items.slice(STRUCTURAL_MATERIAL_COUNT).map((item, index) => ({
-        code: item.gauge,
-        label: item.module,
-        sample: item.sample,
-        value: Number(this.gaugeValues[index] ?? 0),
-        acquired: !!this.acquiredItems[STRUCTURAL_MATERIAL_COUNT + index],
-      }));
+      return this.items
+        .slice(STRUCTURAL_MATERIAL_COUNT)
+        .map((item, index) => ({
+          code: item.gauge,
+          label: item.module,
+          sample: item.sample,
+          value: Number(this.gaugeValues[index] ?? 0),
+          acquired: !!this.acquiredItems[STRUCTURAL_MATERIAL_COUNT + index],
+        }));
     }
     get acquiredSites() {
       return this.items
@@ -60971,16 +60983,32 @@ body.ti-voyage #ti-transfer-trigger {
   }
   var cache3 = new Map(),
     AEROSPACE_FINISH = Object.freeze({
-      white: { color: 14211541, roughness: 0.72, metalness: 0.07, bump: 0.0015 },
-      steel: { color: 10267054, roughness: 0.4, metalness: 0.86, bump: 8e-4 },
-      titanium: { color: 7831947, roughness: 0.52, metalness: 0.8, bump: 0.001 },
-      foil: { color: 11967064, roughness: 0.43, metalness: 0.78, bump: 0.009 },
+      white: { color: 14211541, roughness: 0.76, metalness: 0.025, bump: 0.0015 },
+      steel: { color: 10267054, roughness: 0.46, metalness: 0.92, bump: 8e-4 },
+      titanium: { color: 7831947, roughness: 0.58, metalness: 0.88, bump: 0.001 },
+      foil: { color: 11967064, roughness: 0.52, metalness: 0.86, bump: 0.009 },
       thermal: { color: 2435888, roughness: 0.92, metalness: 0.03, bump: 0.003 },
+      rubber: { color: 2106151, roughness: 0.96, metalness: 0, bump: 0.0018 },
       radiator: { color: 12897482, roughness: 0.68, metalness: 0.18, bump: 0.001 },
     }),
     fract5 = (x) => x - Math.floor(x),
     hash10 = (x, y) => fract5(Math.sin(x * 127.1 + y * 311.7) * 43758.5453),
-    clamp7 = (x) => Math.max(0, Math.min(1, x));
+    clamp7 = (x) => Math.max(0, Math.min(1, x)),
+    noise = (u, v, cells) => {
+      let x = u * cells,
+        y = v * cells,
+        ix = Math.floor(x),
+        iy = Math.floor(y),
+        f = fract5(x),
+        g = fract5(y),
+        a = f * f * (3 - 2 * f),
+        b = g * g * (3 - 2 * g),
+        h = (x2, y2) => hash10(((x2 % cells) + cells) % cells, ((y2 % cells) + cells) % cells);
+      return (
+        (1 - b) * ((1 - a) * h(ix, iy) + a * h(ix + 1, iy)) +
+        b * ((1 - a) * h(ix, iy + 1) + a * h(ix + 1, iy + 1))
+      );
+    };
   function aerospaceTextures(kind, tier = "mid") {
     let key3 = kind + ":" + tier;
     if (cache3.has(key3)) return cache3.get(key3);
@@ -60992,25 +61020,43 @@ body.ti-voyage #ti-transfer-trigger {
         let u = (x + 0.5) / size,
           v = (y + 0.5) / size,
           n = hash10(x, y),
+          broad = noise(u, v, 8),
+          fine = noise(u, v, 48),
+          edge = Math.min(u, 1 - u, v, 1 - v),
           tone = 1,
           height = 0.5,
           rough = 0.9;
         if (kind === "foil") {
-          let fold = Math.sin(2 * Math.PI * (u * 7 + Math.sin(v * 6 * Math.PI) * 0.21)),
-            wrinkle =
-              Math.sin(2 * Math.PI * (v * 19 + u * 5)) * 0.23 +
-              Math.sin((u - v) * 48 * Math.PI) * 0.12,
-            seam = Math.min(u, 1 - u, v, 1 - v) < 0.018;
-          ((height = clamp7(0.5 + fold * 0.22 + wrinkle * 0.4)),
-            (tone = seam ? 0.53 : 0.8 + height * 0.2),
-            (rough = 0.64 + (0.5 - height) * 0.22));
+          let warp = (broad - 0.5) * 0.42,
+            fold = Math.sin(2 * Math.PI * (u * 7 + v * 2 + warp)),
+            cross3 = Math.sin(2 * Math.PI * (v * 13 - u * 3 + warp * 0.55)),
+            crease = Math.exp(-Math.abs(fold) * 10),
+            seam = edge < 0.015;
+          ((height = clamp7(
+            0.48 + fold * 0.14 + cross3 * 0.055 - crease * 0.16 + (fine - 0.5) * 0.075,
+          )),
+            (tone = seam ? 0.72 : 0.94 + (broad - 0.5) * 0.045),
+            (rough = clamp7(0.83 + (broad - 0.5) * 0.13 + crease * 0.08)));
         } else if (kind === "steel" || kind === "titanium") {
-          let brush = 0.5 + 0.5 * Math.sin(v * size * 0.77 + Math.sin(u * 24 * Math.PI) * 0.08),
-            joint = Math.min(u, 1 - u) < 0.007,
-            weld = Math.min(u, 1 - u) < 0.024;
-          ((tone = joint ? 0.57 : weld ? 0.82 : 0.93 + brush * 0.04 + n * 0.02),
-            (height = joint ? 0.18 : weld ? 0.57 : 0.46 + brush * 0.06),
-            (rough = 0.55 + brush * 0.17));
+          let brush = Math.sin(2 * Math.PI * (v * 38 + 0.06 * Math.sin(u * 6 * Math.PI))),
+            machining = Math.sin(2 * Math.PI * v * 12),
+            joint = edge < 0.0035,
+            weld = edge < 0.013,
+            scratch =
+              Math.pow(Math.max(0, Math.sin(2 * Math.PI * (v * 23 + u))), 42) *
+              Math.max(0, broad - 0.57);
+          ((tone = joint ? 0.76 : weld ? 0.93 : 0.965 + (broad - 0.5) * 0.035 - scratch * 0.08),
+            (height = joint
+              ? 0.33
+              : weld
+                ? 0.52
+                : 0.5 + brush * 0.022 + machining * 0.006 + (fine - 0.5) * 0.014 - scratch * 0.09),
+            (rough = clamp7(
+              (kind === "steel" ? 0.82 : 0.9) +
+                brush * 0.045 +
+                (broad - 0.5) * 0.11 +
+                scratch * 0.14,
+            )));
         } else if (kind === "thermal") {
           let px2 = u * 6 * Math.sqrt(3),
             py2 = v * 9,
@@ -61025,17 +61071,24 @@ body.ti-voyage #ti-transfer-trigger {
                 dy = Math.abs(py2 - row * 1.5);
               d = Math.min(d, Math.max(dx, dx * 0.5 + dy * 0.8660254));
             }
-          let seam = d > 0.85,
-            grain2 = 0.95 + n * 0.035;
-          ((tone = seam ? 0.68 : grain2), (height = seam ? 0.3 : 0.5 + n * 0.035), (rough = 0.98));
+          let seam = d > 0.85;
+          ((tone = seam ? 0.68 : 0.945 + (broad - 0.5) * 0.055 + (fine - 0.5) * 0.018),
+            (height = seam ? 0.29 : 0.51 + (fine - 0.5) * 0.055),
+            (rough = 0.95 + n * 0.045));
         } else if (kind === "radiator") {
-          let line = Math.abs(fract5(v * 12) - 0.5) > 0.465;
-          ((tone = line ? 0.58 : 0.94 + n * 0.025), (height = line ? 0.2 : 0.52), (rough = 0.88));
-        } else {
-          let joint = Math.min(u, 1 - u, v, 1 - v) < 0.006;
-          ((tone = joint ? 0.63 : 0.96 + n * 0.022),
-            (height = joint ? 0.2 : 0.5 + n * 0.012),
-            (rough = 0.9 + n * 0.07));
+          let channel = Math.abs(fract5(v * 12) - 0.5) > 0.465;
+          ((tone = channel ? 0.66 : 0.955 + (broad - 0.5) * 0.025),
+            (height = channel ? 0.27 : 0.52 + (fine - 0.5) * 0.012),
+            (rough = 0.91 + (broad - 0.5) * 0.09));
+        } else if (kind === "rubber")
+          ((tone = 0.94 + (broad - 0.5) * 0.045),
+            (height = 0.5 + (fine - 0.5) * 0.08),
+            (rough = 0.96 + n * 0.035));
+        else {
+          let joint = edge < 0.004;
+          ((tone = joint ? 0.76 : 0.975 + (broad - 0.5) * 0.025),
+            (height = joint ? 0.31 : 0.5 + (fine - 0.5) * 0.04 + (n - 0.5) * 0.009),
+            (rough = 0.94 + (fine - 0.5) * 0.065 + (broad - 0.5) * 0.025));
         }
         let i = (y * size + x) * 4,
           c = Math.round(clamp7(tone) * 255);
@@ -61071,6 +61124,13 @@ body.ti-voyage #ti-transfer-trigger {
         select2(n.y.greaterThan(n.z), positionLocal2.xz, positionLocal2.xy),
       ).mul(scale2);
     return {
+      normal:
+        tier === "low"
+          ? normalWorld2
+          : bumpMap2(
+              texture2(maps.data, coords).r,
+              float2(kind === "foil" ? 0.18 : kind === "thermal" ? 0.07 : 0.045),
+            ).transformDirection(cameraWorldMatrix2),
       color: texture2(maps.color, coords).rgb,
       roughness: texture2(maps.data, coords).g,
       resolution: maps.size,
@@ -61779,7 +61839,7 @@ body.ti-voyage #ti-transfer-trigger {
             ? { kind: profile, resolution: finish.resolution }
             : null),
           (mat.colorNode = Fn2(() => {
-            let n = normalize3(normalWorld2),
+            let n = normalize3(finish ? finish.normal : normalWorld2),
               v = normalize3(cameraPosition2.sub(positionWorld2)),
               ndl = max2(dot2(n, L), float2(0)),
               halfVector = normalize3(L.add(v)),
@@ -61813,7 +61873,7 @@ body.ti-voyage #ti-transfer-trigger {
         );
       },
       hull = paint([0.43, 0.455, 0.46], 0, 0.11, 30, 0.008, 0.035, "white"),
-      dark = paint([0.022, 0.023, 0.027], 0, 0.035, 18, 0.07, 0.075),
+      dark = paint([0.022, 0.023, 0.027], 0, 0.035, 18, 0.012, 0.075, "rubber"),
       metal = paint([0.24, 0.28, 0.32], 0, 0.4, 68, 0.012, 0.022, "titanium"),
       armour = paint([0.54, 0.55, 0.525], 0, 0.12, 36, 0.008, 0.025, "white"),
       wheelTread = paint([0.205, 0.225, 0.25], 0, 0.26, 48, 0.028, 0.075, "steel"),
@@ -62592,7 +62652,7 @@ body.ti-voyage #ti-transfer-trigger {
       (mat.userData.flightSurface = { rgb, sheen: sheen3, gloss, profile }),
       finish && (mat.userData.aerospace = { kind: profile, resolution: finish.resolution }),
       (mat.colorNode = Fn2(() => {
-        let n = normalize3(normalWorld2),
+        let n = normalize3(finish ? finish.normal : normalWorld2),
           v = normalize3(cameraPosition2.sub(positionWorld2)),
           ndl = max2(dot2(n, L), float2(0)),
           halfVector = normalize3(L.add(v)),
@@ -64744,12 +64804,14 @@ body.ti-voyage #ti-transfer-trigger {
             : {}),
           (this.id = options.id ?? "PLANET 01"),
           (this.label = options.label ?? "LOCAL FRAME"),
-          (this.archives = (options.archives ?? []).slice(-2).map((a) => ({
-            ...a,
-            cells: (a.cells ?? []).map((p) => ({ ...p })),
-            trail: (a.trail ?? []).map((p) => ({ ...p })),
-            bounds: a.bounds ? { ...a.bounds } : null,
-          }))),
+          (this.archives = (options.archives ?? [])
+            .slice(-2)
+            .map((a) => ({
+              ...a,
+              cells: (a.cells ?? []).map((p) => ({ ...p })),
+              trail: (a.trail ?? []).map((p) => ({ ...p })),
+              bounds: a.bounds ? { ...a.bounds } : null,
+            }))),
           (this.start = { x: start[0], z: start[1] }),
           (this.trail = [{ ...this.start }]),
           (this.cells = new Map()),
@@ -66221,7 +66283,7 @@ body.ti-voyage #ti-transfer-trigger {
   var POST_KEY = "beyond-known:post-mission:v1",
     POST_PHASES = Object.freeze({
       migration: { file: "migration.html", start: 0, duration: 100, next: "arrival" },
-      arrival: { file: "arrival.html", start: 68, duration: 60, next: "ending" },
+      arrival: { file: "arrival.html", start: 68, duration: 64, next: "ending" },
       ending: { file: "ending.html", start: 0, duration: 18, next: null },
     }),
     clamp10 = (x, a, b) => Math.max(a, Math.min(b, x));
