@@ -40358,7 +40358,7 @@ void main() {
           ship.localToWorld(target);
           passageLateral.set(1, 0, 0).transformDirection(ship.matrixWorld);
           passageSight.subVectors(target, camera2.position).normalize();
-          camera2.up.crossVectors(passageLateral, passageSight).normalize();
+          camera2.up.crossVectors(passageLateral, passageSight).normalize().negate();
           camera2.lookAt(target);
           camera2.updateProjectionMatrix();
           return { name: "lead-underpass", subject: 0 };
@@ -62918,7 +62918,7 @@ void main() {
           model: "authored-deposition-and-impact-masks",
         };
       }
-      function installVoyageEngineGlow(fleet2, tier2) {
+      function installVoyageEngineGlow(fleet2, tier2, { lengthScale = 5, tailFalloff = 0 } = {}) {
         const segments = tier2 === "low" ? 16 : tier2 === "mid" ? 24 : 32;
         const coreGeometry = new CircleGeometry(1, segments);
         const plumeGeometry = new CylinderGeometry(1, 0.08, 1, segments, 1, true);
@@ -62976,10 +62976,12 @@ void main() {
       float plumeFacing=abs(dot(normalize(vPlumeNormal),normalize(vPlumeView)));
       float plumeU=clamp(vEngineUV.y,0.0,1.0);
       float plumeFade=plumeU*plumeU*plumeU*(plumeU*(plumeU*6.0-15.0)+10.0);
+      // Authored optical falloff: retain the nozzle brightness, dissolve the long tail.
+      plumeFade*=exp(-${tailFalloff.toFixed(2)}*(1.0-plumeU));
       diffuseColor.a*=plumeFade*pow(smoothstep(.0,.55,plumeFacing),1.35);`,
           );
         };
-        plume.customProgramCacheKey = () => "voyage-engine-plume-v4";
+        plume.customProgramCacheKey = () => `voyage-engine-plume-v5-${tailFalloff}`;
         let nozzles = 0;
         fleet2.forEach((ship) => {
           const reference = ship.name === "sf-migration-ark";
@@ -63009,14 +63011,14 @@ void main() {
             ship.add(disc);
             const exhaust = new Mesh(plumeGeometry, plume);
             exhaust.name = "voyage-engine-plume";
-            const length = radius * 5;
+            const length = radius * lengthScale;
             exhaust.position.set(x, y, exit - length * 0.5);
             exhaust.scale.set(radius * 0.7, radius * 0.7, length);
             ship.add(exhaust);
             nozzles++;
           }
         });
-        return { nozzles, mode: "restrained-steady-glow", segments, lengthScale: 5 };
+        return { nozzles, mode: "restrained-steady-glow", segments, lengthScale, tailFalloff };
       }
 
       // works/shared/context-recovery.js
@@ -63366,7 +63368,11 @@ void main() {
         fleet = [...createFleet(tier), createReferenceArk(tier)];
         fleet.forEach((ship) => scene.add(ship));
         window.VOYAGE_AGEING = installVoyageAgeing(fleet, tier);
-        window.VOYAGE_ENGINES = installVoyageEngineGlow(fleet, tier);
+        window.VOYAGE_ENGINES = installVoyageEngineGlow(
+          fleet,
+          tier,
+          phase === "migration" ? { lengthScale: 45, tailFalloff: 1.6 } : {},
+        );
         if (phase === "arrival")
           arrivalLight = createArrivalLight(
             keyLight,
