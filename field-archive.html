@@ -393,8 +393,10 @@
   }
 
   // works/first_dawn/migration-sequence.js
-  var MIGRATION_DURATION = 84;
-  var MIGRATION_CUTS = Object.freeze([12, 32, 60, 66]);
+  var MIGRATION_OPENING = 28;
+  var MIGRATION_EXTENSION = MIGRATION_OPENING - 3;
+  var MIGRATION_DURATION = 75 + MIGRATION_EXTENSION;
+  var MIGRATION_CUTS = Object.freeze([MIGRATION_OPENING, 23 + MIGRATION_EXTENSION, 51 + MIGRATION_EXTENSION, 57 + MIGRATION_EXTENSION]);
 
   // works/shared/post-mission-state.js
   var POST_KEY = "beyond-known:post-mission:v1";
