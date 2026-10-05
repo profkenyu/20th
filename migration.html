@@ -14741,271 +14741,6 @@
           return new this.constructor().copy(this);
         }
       };
-      var LineBasicMaterial = class extends Material {
-        /**
-         * Constructs a new line basic material.
-         *
-         * @param {Object} [parameters] - An object with one or more properties
-         * defining the material's appearance. Any property of the material
-         * (including any property from inherited materials) can be passed
-         * in here. Color values can be passed any type of value accepted
-         * by {@link Color#set}.
-         */
-        constructor(parameters) {
-          super();
-          this.isLineBasicMaterial = true;
-          this.type = "LineBasicMaterial";
-          this.color = new Color(16777215);
-          this.map = null;
-          this.linewidth = 1;
-          this.linecap = "round";
-          this.linejoin = "round";
-          this.fog = true;
-          this.setValues(parameters);
-        }
-        copy(source) {
-          super.copy(source);
-          this.color.copy(source.color);
-          this.map = source.map;
-          this.linewidth = source.linewidth;
-          this.linecap = source.linecap;
-          this.linejoin = source.linejoin;
-          this.fog = source.fog;
-          return this;
-        }
-      };
-      var _vStart = /* @__PURE__ */ new Vector3();
-      var _vEnd = /* @__PURE__ */ new Vector3();
-      var _inverseMatrix$1 = /* @__PURE__ */ new Matrix4();
-      var _ray$1 = /* @__PURE__ */ new Ray();
-      var _sphere$1 = /* @__PURE__ */ new Sphere();
-      var _intersectPointOnRay = /* @__PURE__ */ new Vector3();
-      var _intersectPointOnSegment = /* @__PURE__ */ new Vector3();
-      var Line = class extends Object3D {
-        /**
-         * Constructs a new line.
-         *
-         * @param {BufferGeometry} [geometry] - The line geometry.
-         * @param {Material|Array<Material>} [material] - The line material.
-         */
-        constructor(geometry = new BufferGeometry(), material = new LineBasicMaterial()) {
-          super();
-          this.isLine = true;
-          this.type = "Line";
-          this.geometry = geometry;
-          this.material = material;
-          this.morphTargetDictionary = void 0;
-          this.morphTargetInfluences = void 0;
-          this.updateMorphTargets();
-        }
-        copy(source, recursive) {
-          super.copy(source, recursive);
-          this.material = Array.isArray(source.material)
-            ? source.material.slice()
-            : source.material;
-          this.geometry = source.geometry;
-          return this;
-        }
-        /**
-         * Computes an array of distance values which are necessary for rendering dashed lines.
-         * For each vertex in the geometry, the method calculates the cumulative length from the
-         * current point to the very beginning of the line.
-         *
-         * @return {Line} A reference to this line.
-         */
-        computeLineDistances() {
-          const geometry = this.geometry;
-          if (geometry.index === null) {
-            const positionAttribute = geometry.attributes.position;
-            const lineDistances = [0];
-            for (let i = 1, l = positionAttribute.count; i < l; i++) {
-              _vStart.fromBufferAttribute(positionAttribute, i - 1);
-              _vEnd.fromBufferAttribute(positionAttribute, i);
-              lineDistances[i] = lineDistances[i - 1];
-              lineDistances[i] += _vStart.distanceTo(_vEnd);
-            }
-            geometry.setAttribute("lineDistance", new Float32BufferAttribute(lineDistances, 1));
-          } else {
-            warn(
-              "Line.computeLineDistances(): Computation only possible with non-indexed BufferGeometry.",
-            );
-          }
-          return this;
-        }
-        /**
-         * Computes intersection points between a casted ray and this line.
-         *
-         * @param {Raycaster} raycaster - The raycaster.
-         * @param {Array<Object>} intersects - The target array that holds the intersection points.
-         */
-        raycast(raycaster, intersects2) {
-          const geometry = this.geometry;
-          const matrixWorld = this.matrixWorld;
-          const threshold = raycaster.params.Line.threshold;
-          const drawRange = geometry.drawRange;
-          if (geometry.boundingSphere === null) geometry.computeBoundingSphere();
-          _sphere$1.copy(geometry.boundingSphere);
-          _sphere$1.applyMatrix4(matrixWorld);
-          _sphere$1.radius += threshold;
-          if (raycaster.ray.intersectsSphere(_sphere$1) === false) return;
-          _inverseMatrix$1.copy(matrixWorld).invert();
-          _ray$1.copy(raycaster.ray).applyMatrix4(_inverseMatrix$1);
-          const localThreshold = threshold / ((this.scale.x + this.scale.y + this.scale.z) / 3);
-          const localThresholdSq = localThreshold * localThreshold;
-          const step = this.isLineSegments ? 2 : 1;
-          const index = geometry.index;
-          const attributes = geometry.attributes;
-          const positionAttribute = attributes.position;
-          if (index !== null) {
-            const start2 = Math.max(0, drawRange.start);
-            const end = Math.min(index.count, drawRange.start + drawRange.count);
-            for (let i = start2, l = end - 1; i < l; i += step) {
-              const a = index.getX(i);
-              const b = index.getX(i + 1);
-              const intersect = checkIntersection(
-                this,
-                raycaster,
-                _ray$1,
-                localThresholdSq,
-                a,
-                b,
-                i,
-              );
-              if (intersect) {
-                intersects2.push(intersect);
-              }
-            }
-            if (this.isLineLoop) {
-              const a = index.getX(end - 1);
-              const b = index.getX(start2);
-              const intersect = checkIntersection(
-                this,
-                raycaster,
-                _ray$1,
-                localThresholdSq,
-                a,
-                b,
-                end - 1,
-              );
-              if (intersect) {
-                intersects2.push(intersect);
-              }
-            }
-          } else {
-            const start2 = Math.max(0, drawRange.start);
-            const end = Math.min(positionAttribute.count, drawRange.start + drawRange.count);
-            for (let i = start2, l = end - 1; i < l; i += step) {
-              const intersect = checkIntersection(
-                this,
-                raycaster,
-                _ray$1,
-                localThresholdSq,
-                i,
-                i + 1,
-                i,
-              );
-              if (intersect) {
-                intersects2.push(intersect);
-              }
-            }
-            if (this.isLineLoop) {
-              const intersect = checkIntersection(
-                this,
-                raycaster,
-                _ray$1,
-                localThresholdSq,
-                end - 1,
-                start2,
-                end - 1,
-              );
-              if (intersect) {
-                intersects2.push(intersect);
-              }
-            }
-          }
-        }
-        /**
-         * Sets the values of {@link Line#morphTargetDictionary} and {@link Line#morphTargetInfluences}
-         * to make sure existing morph targets can influence this 3D object.
-         */
-        updateMorphTargets() {
-          const geometry = this.geometry;
-          const morphAttributes = geometry.morphAttributes;
-          const keys = Object.keys(morphAttributes);
-          if (keys.length > 0) {
-            const morphAttribute = morphAttributes[keys[0]];
-            if (morphAttribute !== void 0) {
-              this.morphTargetInfluences = [];
-              this.morphTargetDictionary = {};
-              for (let m = 0, ml = morphAttribute.length; m < ml; m++) {
-                const name = morphAttribute[m].name || String(m);
-                this.morphTargetInfluences.push(0);
-                this.morphTargetDictionary[name] = m;
-              }
-            }
-          }
-        }
-      };
-      function checkIntersection(object, raycaster, ray, thresholdSq, a, b, i) {
-        const positionAttribute = object.geometry.attributes.position;
-        _vStart.fromBufferAttribute(positionAttribute, a);
-        _vEnd.fromBufferAttribute(positionAttribute, b);
-        const distSq = ray.distanceSqToSegment(
-          _vStart,
-          _vEnd,
-          _intersectPointOnRay,
-          _intersectPointOnSegment,
-        );
-        if (distSq > thresholdSq) return;
-        _intersectPointOnRay.applyMatrix4(object.matrixWorld);
-        const distance = raycaster.ray.origin.distanceTo(_intersectPointOnRay);
-        if (distance < raycaster.near || distance > raycaster.far) return;
-        return {
-          distance,
-          // What do we want? intersection point on the ray or on the segment??
-          // point: raycaster.ray.at( distance ),
-          point: _intersectPointOnSegment.clone().applyMatrix4(object.matrixWorld),
-          index: i,
-          face: null,
-          faceIndex: null,
-          barycoord: null,
-          object,
-        };
-      }
-      var _start = /* @__PURE__ */ new Vector3();
-      var _end = /* @__PURE__ */ new Vector3();
-      var LineSegments = class extends Line {
-        /**
-         * Constructs a new line segments.
-         *
-         * @param {BufferGeometry} [geometry] - The line geometry.
-         * @param {Material|Array<Material>} [material] - The line material.
-         */
-        constructor(geometry, material) {
-          super(geometry, material);
-          this.isLineSegments = true;
-          this.type = "LineSegments";
-        }
-        computeLineDistances() {
-          const geometry = this.geometry;
-          if (geometry.index === null) {
-            const positionAttribute = geometry.attributes.position;
-            const lineDistances = [];
-            for (let i = 0, l = positionAttribute.count; i < l; i += 2) {
-              _start.fromBufferAttribute(positionAttribute, i);
-              _end.fromBufferAttribute(positionAttribute, i + 1);
-              lineDistances[i] = i === 0 ? 0 : lineDistances[i - 1];
-              lineDistances[i + 1] = lineDistances[i] + _start.distanceTo(_end);
-            }
-            geometry.setAttribute("lineDistance", new Float32BufferAttribute(lineDistances, 1));
-          } else {
-            warn(
-              "LineSegments.computeLineDistances(): Computation only possible with non-indexed BufferGeometry.",
-            );
-          }
-          return this;
-        }
-      };
       var PointsMaterial = class extends Material {
         /**
          * Constructs a new points material.
@@ -16075,99 +15810,6 @@
          */
         static fromJSON(data) {
           return new _PolyhedronGeometry(data.vertices, data.indices, data.radius, data.detail);
-        }
-      };
-      var _v0 = /* @__PURE__ */ new Vector3();
-      var _v1$1 = /* @__PURE__ */ new Vector3();
-      var _normal = /* @__PURE__ */ new Vector3();
-      var _triangle = /* @__PURE__ */ new Triangle();
-      var EdgesGeometry = class extends BufferGeometry {
-        /**
-         * Constructs a new edges geometry.
-         *
-         * @param {?BufferGeometry} [geometry=null] - The geometry.
-         * @param {number} [thresholdAngle=1] - An edge is only rendered if the angle (in degrees)
-         * between the face normals of the adjoining faces exceeds this value.
-         */
-        constructor(geometry = null, thresholdAngle = 1) {
-          super();
-          this.type = "EdgesGeometry";
-          this.parameters = {
-            geometry,
-            thresholdAngle,
-          };
-          if (geometry !== null) {
-            const precisionPoints = 4;
-            const precision = Math.pow(10, precisionPoints);
-            const thresholdDot = Math.cos(DEG2RAD * thresholdAngle);
-            const indexAttr = geometry.getIndex();
-            const positionAttr = geometry.getAttribute("position");
-            const indexCount = indexAttr ? indexAttr.count : positionAttr.count;
-            const indexArr = [0, 0, 0];
-            const vertKeys = ["a", "b", "c"];
-            const hashes = new Array(3);
-            const edgeData = {};
-            const vertices = [];
-            for (let i = 0; i < indexCount; i += 3) {
-              if (indexAttr) {
-                indexArr[0] = indexAttr.getX(i);
-                indexArr[1] = indexAttr.getX(i + 1);
-                indexArr[2] = indexAttr.getX(i + 2);
-              } else {
-                indexArr[0] = i;
-                indexArr[1] = i + 1;
-                indexArr[2] = i + 2;
-              }
-              const { a, b, c } = _triangle;
-              a.fromBufferAttribute(positionAttr, indexArr[0]);
-              b.fromBufferAttribute(positionAttr, indexArr[1]);
-              c.fromBufferAttribute(positionAttr, indexArr[2]);
-              _triangle.getNormal(_normal);
-              hashes[0] = `${Math.round(a.x * precision)},${Math.round(a.y * precision)},${Math.round(a.z * precision)}`;
-              hashes[1] = `${Math.round(b.x * precision)},${Math.round(b.y * precision)},${Math.round(b.z * precision)}`;
-              hashes[2] = `${Math.round(c.x * precision)},${Math.round(c.y * precision)},${Math.round(c.z * precision)}`;
-              if (hashes[0] === hashes[1] || hashes[1] === hashes[2] || hashes[2] === hashes[0]) {
-                continue;
-              }
-              for (let j = 0; j < 3; j++) {
-                const jNext = (j + 1) % 3;
-                const vecHash0 = hashes[j];
-                const vecHash1 = hashes[jNext];
-                const v0 = _triangle[vertKeys[j]];
-                const v1 = _triangle[vertKeys[jNext]];
-                const hash2 = `${vecHash0}_${vecHash1}`;
-                const reverseHash = `${vecHash1}_${vecHash0}`;
-                if (reverseHash in edgeData && edgeData[reverseHash]) {
-                  if (_normal.dot(edgeData[reverseHash].normal) <= thresholdDot) {
-                    vertices.push(v0.x, v0.y, v0.z);
-                    vertices.push(v1.x, v1.y, v1.z);
-                  }
-                  edgeData[reverseHash] = null;
-                } else if (!(hash2 in edgeData)) {
-                  edgeData[hash2] = {
-                    index0: indexArr[j],
-                    index1: indexArr[jNext],
-                    normal: _normal.clone(),
-                  };
-                }
-              }
-            }
-            for (const key2 in edgeData) {
-              if (edgeData[key2]) {
-                const { index0, index1 } = edgeData[key2];
-                _v0.fromBufferAttribute(positionAttr, index0);
-                _v1$1.fromBufferAttribute(positionAttr, index1);
-                vertices.push(_v0.x, _v0.y, _v0.z);
-                vertices.push(_v1$1.x, _v1$1.y, _v1$1.z);
-              }
-            }
-            this.setAttribute("position", new Float32BufferAttribute(vertices, 3));
-          }
-        }
-        copy(source) {
-          super.copy(source);
-          this.parameters = Object.assign({}, source.parameters);
-          return this;
         }
       };
       var Curve = class {
@@ -18356,6 +17998,126 @@
           return new _IcosahedronGeometry(data.radius, data.detail);
         }
       };
+      var LatheGeometry = class _LatheGeometry extends BufferGeometry {
+        /**
+         * Constructs a new lathe geometry.
+         *
+         * @param {Array<Vector2|Vector3>} [points] - An array of points in 2D space. The x-coordinate of each point
+         * must be greater than zero.
+         * @param {number} [segments=12] - The number of circumference segments to generate.
+         * @param {number} [phiStart=0] - The starting angle in radians.
+         * @param {number} [phiLength=Math.PI*2] - The radian (0 to 2PI) range of the lathed section 2PI is a
+         * closed lathe, less than 2PI is a portion.
+         */
+        constructor(
+          points = [new Vector2(0, -0.5), new Vector2(0.5, 0), new Vector2(0, 0.5)],
+          segments = 12,
+          phiStart = 0,
+          phiLength = Math.PI * 2,
+        ) {
+          super();
+          this.type = "LatheGeometry";
+          this.parameters = {
+            points,
+            segments,
+            phiStart,
+            phiLength,
+          };
+          segments = Math.floor(segments);
+          phiLength = clamp(phiLength, 0, Math.PI * 2);
+          const indices = [];
+          const vertices = [];
+          const uvs = [];
+          const initNormals = [];
+          const normals = [];
+          const inverseSegments = 1 / segments;
+          const vertex2 = new Vector3();
+          const uv = new Vector2();
+          const normal = new Vector3();
+          const curNormal = new Vector3();
+          const prevNormal = new Vector3();
+          let dx = 0;
+          let dy = 0;
+          for (let j = 0; j <= points.length - 1; j++) {
+            switch (j) {
+              case 0:
+                dx = points[j + 1].x - points[j].x;
+                dy = points[j + 1].y - points[j].y;
+                normal.x = dy * 1;
+                normal.y = -dx;
+                normal.z = dy * 0;
+                prevNormal.copy(normal);
+                normal.normalize();
+                initNormals.push(normal.x, normal.y, normal.z);
+                break;
+              case points.length - 1:
+                initNormals.push(prevNormal.x, prevNormal.y, prevNormal.z);
+                break;
+              default:
+                dx = points[j + 1].x - points[j].x;
+                dy = points[j + 1].y - points[j].y;
+                normal.x = dy * 1;
+                normal.y = -dx;
+                normal.z = dy * 0;
+                curNormal.copy(normal);
+                normal.x += prevNormal.x;
+                normal.y += prevNormal.y;
+                normal.z += prevNormal.z;
+                normal.normalize();
+                initNormals.push(normal.x, normal.y, normal.z);
+                prevNormal.copy(curNormal);
+            }
+          }
+          for (let i = 0; i <= segments; i++) {
+            const phi = phiStart + i * inverseSegments * phiLength;
+            const sin2 = Math.sin(phi);
+            const cos2 = Math.cos(phi);
+            for (let j = 0; j <= points.length - 1; j++) {
+              vertex2.x = points[j].x * sin2;
+              vertex2.y = points[j].y;
+              vertex2.z = points[j].x * cos2;
+              vertices.push(vertex2.x, vertex2.y, vertex2.z);
+              uv.x = i / segments;
+              uv.y = j / (points.length - 1);
+              uvs.push(uv.x, uv.y);
+              const x = initNormals[3 * j + 0] * sin2;
+              const y = initNormals[3 * j + 1];
+              const z = initNormals[3 * j + 0] * cos2;
+              normals.push(x, y, z);
+            }
+          }
+          for (let i = 0; i < segments; i++) {
+            for (let j = 0; j < points.length - 1; j++) {
+              const base = j + i * points.length;
+              const a = base;
+              const b = base + points.length;
+              const c = base + points.length + 1;
+              const d = base + 1;
+              indices.push(a, b, d);
+              indices.push(c, d, b);
+            }
+          }
+          this.setIndex(indices);
+          this.setAttribute("position", new Float32BufferAttribute(vertices, 3));
+          this.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
+          this.setAttribute("normal", new Float32BufferAttribute(normals, 3));
+        }
+        copy(source) {
+          super.copy(source);
+          this.parameters = Object.assign({}, source.parameters);
+          return this;
+        }
+        /**
+         * Factory method for creating an instance of this class from the given
+         * JSON object.
+         *
+         * @param {Object} data - A JSON object representing the serialized geometry.
+         * @return {LatheGeometry} A new instance.
+         */
+        static fromJSON(data) {
+          return new _LatheGeometry(data.points, data.segments, data.phiStart, data.phiLength);
+        }
+      };
       var PlaneGeometry = class _PlaneGeometry extends BufferGeometry {
         /**
          * Constructs a new plane geometry.
@@ -19100,6 +18862,206 @@
           this.wireframeLinejoin = source.wireframeLinejoin;
           this.flatShading = source.flatShading;
           this.fog = source.fog;
+          return this;
+        }
+      };
+      var MeshPhysicalMaterial = class extends MeshStandardMaterial {
+        /**
+         * Constructs a new mesh physical material.
+         *
+         * @param {Object} [parameters] - An object with one or more properties
+         * defining the material's appearance. Any property of the material
+         * (including any property from inherited materials) can be passed
+         * in here. Color values can be passed any type of value accepted
+         * by {@link Color#set}.
+         */
+        constructor(parameters) {
+          super();
+          this.isMeshPhysicalMaterial = true;
+          this.defines = {
+            STANDARD: "",
+            PHYSICAL: "",
+          };
+          this.type = "MeshPhysicalMaterial";
+          this.anisotropyRotation = 0;
+          this.anisotropyMap = null;
+          this.clearcoatMap = null;
+          this.clearcoatRoughness = 0;
+          this.clearcoatRoughnessMap = null;
+          this.clearcoatNormalScale = new Vector2(1, 1);
+          this.clearcoatNormalMap = null;
+          this.ior = 1.5;
+          Object.defineProperty(this, "reflectivity", {
+            get: function () {
+              return clamp((2.5 * (this.ior - 1)) / (this.ior + 1), 0, 1);
+            },
+            set: function (reflectivity) {
+              this.ior = (1 + 0.4 * reflectivity) / (1 - 0.4 * reflectivity);
+            },
+          });
+          this.iridescenceMap = null;
+          this.iridescenceIOR = 1.3;
+          this.iridescenceThicknessRange = [100, 400];
+          this.iridescenceThicknessMap = null;
+          this.sheenColor = new Color(0);
+          this.sheenColorMap = null;
+          this.sheenRoughness = 1;
+          this.sheenRoughnessMap = null;
+          this.transmissionMap = null;
+          this.thickness = 0;
+          this.thicknessMap = null;
+          this.attenuationDistance = Infinity;
+          this.attenuationColor = new Color(1, 1, 1);
+          this.specularIntensity = 1;
+          this.specularIntensityMap = null;
+          this.specularColor = new Color(1, 1, 1);
+          this.specularColorMap = null;
+          this._anisotropy = 0;
+          this._clearcoat = 0;
+          this._dispersion = 0;
+          this._iridescence = 0;
+          this._sheen = 0;
+          this._transmission = 0;
+          this.setValues(parameters);
+        }
+        /**
+         * The anisotropy strength, from `0.0` to `1.0`.
+         *
+         * @type {number}
+         * @default 0
+         */
+        get anisotropy() {
+          return this._anisotropy;
+        }
+        set anisotropy(value) {
+          if (this._anisotropy > 0 !== value > 0) {
+            this.version++;
+          }
+          this._anisotropy = value;
+        }
+        /**
+         * Represents the intensity of the clear coat layer, from `0.0` to `1.0`. Use
+         * clear coat related properties to enable multilayer materials that have a
+         * thin translucent layer over the base layer.
+         *
+         * @type {number}
+         * @default 0
+         */
+        get clearcoat() {
+          return this._clearcoat;
+        }
+        set clearcoat(value) {
+          if (this._clearcoat > 0 !== value > 0) {
+            this.version++;
+          }
+          this._clearcoat = value;
+        }
+        /**
+         * The intensity of the iridescence layer, simulating RGB color shift based on the angle between
+         * the surface and the viewer, from `0.0` to `1.0`.
+         *
+         * @type {number}
+         * @default 0
+         */
+        get iridescence() {
+          return this._iridescence;
+        }
+        set iridescence(value) {
+          if (this._iridescence > 0 !== value > 0) {
+            this.version++;
+          }
+          this._iridescence = value;
+        }
+        /**
+         * Defines the strength of the angular separation of colors (chromatic aberration) transmitting
+         * through a relatively clear volume. Any value zero or larger is valid, the typical range of
+         * realistic values is `[0, 1]`. This property can be only be used with transmissive objects.
+         *
+         * @type {number}
+         * @default 0
+         */
+        get dispersion() {
+          return this._dispersion;
+        }
+        set dispersion(value) {
+          if (this._dispersion > 0 !== value > 0) {
+            this.version++;
+          }
+          this._dispersion = value;
+        }
+        /**
+         * The intensity of the sheen layer, from `0.0` to `1.0`.
+         *
+         * @type {number}
+         * @default 0
+         */
+        get sheen() {
+          return this._sheen;
+        }
+        set sheen(value) {
+          if (this._sheen > 0 !== value > 0) {
+            this.version++;
+          }
+          this._sheen = value;
+        }
+        /**
+         * Degree of transmission (or optical transparency), from `0.0` to `1.0`.
+         *
+         * Thin, transparent or semitransparent, plastic or glass materials remain
+         * largely reflective even if they are fully transmissive. The transmission
+         * property can be used to model these materials.
+         *
+         * When transmission is non-zero, `opacity` should be  set to `1`.
+         *
+         * @type {number}
+         * @default 0
+         */
+        get transmission() {
+          return this._transmission;
+        }
+        set transmission(value) {
+          if (this._transmission > 0 !== value > 0) {
+            this.version++;
+          }
+          this._transmission = value;
+        }
+        copy(source) {
+          super.copy(source);
+          this.defines = {
+            STANDARD: "",
+            PHYSICAL: "",
+          };
+          this.anisotropy = source.anisotropy;
+          this.anisotropyRotation = source.anisotropyRotation;
+          this.anisotropyMap = source.anisotropyMap;
+          this.clearcoat = source.clearcoat;
+          this.clearcoatMap = source.clearcoatMap;
+          this.clearcoatRoughness = source.clearcoatRoughness;
+          this.clearcoatRoughnessMap = source.clearcoatRoughnessMap;
+          this.clearcoatNormalMap = source.clearcoatNormalMap;
+          this.clearcoatNormalScale.copy(source.clearcoatNormalScale);
+          this.dispersion = source.dispersion;
+          this.ior = source.ior;
+          this.iridescence = source.iridescence;
+          this.iridescenceMap = source.iridescenceMap;
+          this.iridescenceIOR = source.iridescenceIOR;
+          this.iridescenceThicknessRange = [...source.iridescenceThicknessRange];
+          this.iridescenceThicknessMap = source.iridescenceThicknessMap;
+          this.sheen = source.sheen;
+          this.sheenColor.copy(source.sheenColor);
+          this.sheenColorMap = source.sheenColorMap;
+          this.sheenRoughness = source.sheenRoughness;
+          this.sheenRoughnessMap = source.sheenRoughnessMap;
+          this.transmission = source.transmission;
+          this.transmissionMap = source.transmissionMap;
+          this.thickness = source.thickness;
+          this.thicknessMap = source.thicknessMap;
+          this.attenuationDistance = source.attenuationDistance;
+          this.attenuationColor.copy(source.attenuationColor);
+          this.specularIntensity = source.specularIntensity;
+          this.specularIntensityMap = source.specularIntensityMap;
+          this.specularColor.copy(source.specularColor);
+          this.specularColorMap = source.specularColorMap;
           return this;
         }
       };
@@ -25977,12 +25939,12 @@
           "ToneMapping( color ); }"
         );
       }
-      var _v02 = /* @__PURE__ */ new Vector3();
+      var _v0 = /* @__PURE__ */ new Vector3();
       function getLuminanceFunction() {
-        ColorManagement.getLuminanceCoefficients(_v02);
-        const r = _v02.x.toFixed(4);
-        const g = _v02.y.toFixed(4);
-        const b = _v02.z.toFixed(4);
+        ColorManagement.getLuminanceCoefficients(_v0);
+        const r = _v0.x.toFixed(4);
+        const g = _v0.y.toFixed(4);
+        const b = _v0.z.toFixed(4);
         return [
           "float luminance( const in vec3 rgb ) {",
           `	const vec3 weights = vec3( ${r}, ${g}, ${b} );`,
@@ -35373,7 +35335,7 @@ void main() {
               height = 0.5 + (fine - 0.5) * 0.08;
               rough = 0.96 + n * 0.035;
             } else {
-              const joint = edge < 4e-3;
+              const joint = kind !== "hull" && edge < 4e-3;
               tone = joint ? 0.76 : 0.975 + (broad - 0.5) * 0.025;
               height = joint ? 0.31 : 0.5 + (fine - 0.5) * 0.04 + (n - 0.5) * 9e-3;
               rough = 0.94 + (fine - 0.5) * 0.065 + (broad - 0.5) * 0.025;
@@ -35420,6 +35382,100 @@ void main() {
         return material;
       }
 
+      // works/first_dawn/ship-detail.js
+      function shipMaterial(kind, tier2, options = {}) {
+        const material = aerospaceMaterial(kind, tier2, options);
+        if (kind === "white") {
+          const maps = aerospaceTextures("hull", tier2);
+          material.map = maps.color;
+          material.roughnessMap = maps.data;
+          material.bumpMap = tier2 === "low" ? null : maps.data;
+          material.roughness = 0.68;
+          material.bumpScale = 7e-4;
+        }
+        if (kind === "steel" || kind === "titanium") {
+          material.roughness = kind === "steel" ? 0.36 : 0.51;
+          if (tier2 !== "low") {
+            const physical = new MeshPhysicalMaterial({
+              color: material.color,
+              map: material.map,
+              roughnessMap: material.roughnessMap,
+              bumpMap: material.bumpMap,
+              bumpScale: material.bumpScale,
+              roughness: material.roughness,
+              metalness: material.metalness,
+              anisotropy: tier2 === "high" ? 0.42 : 0.24,
+              anisotropyRotation: Math.PI / 2,
+              ...options,
+            });
+            physical.name = material.name;
+            physical.userData = material.userData;
+            material.dispose();
+            return physical;
+          }
+        }
+        if (kind === "foil") {
+          material.roughness = 0.43;
+          material.bumpScale = 4e-3;
+        }
+        return material;
+      }
+      function nozzleAssembly(tier2, radius, length, outer, inner) {
+        const r = radius,
+          t = 1.05;
+        const profile = [
+          [r * 0.65, 0],
+          [r * 0.66, length * 0.16],
+          [r * 0.71, length * 0.38],
+          [r * 0.83, length * 0.7],
+          [r, length],
+          [r - t, length],
+          [r * 0.83 - t, length * 0.7],
+          [r * 0.71 - t, length * 0.38],
+          [r * 0.66 - t, length * 0.16],
+          [r * 0.65 - t, 0],
+          [r * 0.65, 0],
+        ];
+        const segments = { high: 48, mid: 32, low: 20 }[tier2];
+        const geometry = new LatheGeometry(
+          profile.map((p) => new Vector2(...p)),
+          segments,
+        );
+        geometry.rotateX(-Math.PI / 2);
+        const edges = profile.length - 1;
+        geometry.clearGroups();
+        for (let slice = 0; slice < segments; slice++) {
+          geometry.addGroup(slice * edges * 6, 5 * 6, 0);
+          geometry.addGroup((slice * edges + 5) * 6, 5 * 6, 1);
+        }
+        const indices = geometry.index.array,
+          ordered = [];
+        for (const materialIndex of [0, 1])
+          for (const group2 of geometry.groups)
+            if (group2.materialIndex === materialIndex)
+              for (let i = group2.start; i < group2.start + group2.count; i++)
+                ordered.push(indices[i]);
+        geometry.setIndex(ordered);
+        geometry.clearGroups();
+        geometry.addGroup(0, segments * 30, 0);
+        geometry.addGroup(segments * 30, segments * 30, 1);
+        const group = new Group();
+        group.name = "layered-engine-nozzle";
+        const bell = new Mesh(geometry, [outer, inner]);
+        bell.name = "engine-nozzle";
+        bell.castShadow = bell.receiveShadow = true;
+        group.add(bell);
+        const collarGeometry = new CylinderGeometry(r * 0.72, r * 0.72, 6, segments);
+        collarGeometry.rotateX(Math.PI / 2);
+        const collar = new Mesh(collarGeometry, outer);
+        collar.position.z = 2;
+        collar.name = "nozzle-mount";
+        collar.castShadow = collar.receiveShadow = true;
+        group.add(collar);
+        group.userData.outlet = { radius, length };
+        return group;
+      }
+
       // works/first_dawn/ships.js
       var rng = (seed) => () => {
         seed = Math.imul(seed ^ (seed >>> 15), 1 | seed);
@@ -35429,12 +35485,12 @@ void main() {
       function createFleet(tier2, count = 5) {
         const toon = (color, extra = {}) =>
           new MeshStandardMaterial({ color, roughness: 0.72, metalness: 0.18, ...extra });
-        const armour = aerospaceMaterial("white", tier2, { vertexColors: true });
-        const steel = aerospaceMaterial("steel", tier2),
-          dark = aerospaceMaterial("thermal", tier2),
-          ivory = aerospaceMaterial("white", tier2);
-        const foil = aerospaceMaterial("foil", tier2),
-          radiatorSurface = aerospaceMaterial("radiator", tier2);
+        const armour = shipMaterial("white", tier2, { vertexColors: true });
+        const steel = shipMaterial("steel", tier2),
+          dark = shipMaterial("thermal", tier2),
+          ivory = shipMaterial("white", tier2);
+        const foil = shipMaterial("foil", tier2),
+          radiatorSurface = shipMaterial("radiator", tier2);
         const glass = toon(1518129, {
           metalness: 0.6,
           roughness: 0.22,
@@ -35455,7 +35511,7 @@ void main() {
           engine2,
           foil,
           foil,
-          aerospaceMaterial("titanium", tier2),
+          shipMaterial("titanium", tier2),
           dark,
         ];
         const create = (index) => {
@@ -35548,13 +35604,23 @@ void main() {
             const p = [];
             for (const c of corners) p.push(...c.toArray());
             for (const c of corners)
-              p.push(...c.clone().lerp(centre, 8e-3).addScaledVector(n, thickness).toArray());
+              p.push(
+                ...c
+                  .clone()
+                  .lerp(centre, thickness > 0 ? 3e-3 : 0)
+                  .addScaledVector(n, thickness)
+                  .toArray(),
+              );
             const g = new BufferGeometry();
             g.setAttribute("position", new Float32BufferAttribute(p, 3));
-            g.setIndex([
-              4, 5, 6, 4, 6, 7, 0, 1, 5, 0, 5, 4, 1, 2, 6, 1, 6, 5, 2, 3, 7, 2, 7, 6, 3, 0, 4, 3, 4,
-              7,
-            ]);
+            g.setIndex(
+              thickness === 0
+                ? [0, 1, 2, 0, 2, 3]
+                : [
+                    0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7, 0, 1, 5, 0, 5, 4, 1, 2, 6, 1, 6, 5, 2, 3, 7,
+                    2, 7, 6, 3, 0, 4, 3, 4, 7,
+                  ],
+            );
             const flat = g.toNonIndexed();
             g.dispose();
             flat.computeVertexNormals();
@@ -35585,13 +35651,21 @@ void main() {
                 3226174,
                 0,
               );
-              const rows = tier2 === "low" ? 1 : 2;
-              for (let col = 0; col < detail + 2; col++)
-                for (let row = 0; row < rows; row++) {
-                  const u0 = (col + 25e-4) / (detail + 2),
-                    u1 = (col + 0.9975) / (detail + 2),
-                    v0 = face + (row + 35e-4) / rows,
-                    v1 = face + (row + 0.9965) / rows;
+              const underside = face === 4;
+              const cuts = underside ? [0, 0.24, 0.43, 0.57, 0.76, 1] : [0, 0.5, 1];
+              const longitudinal =
+                s === 0 ? [0, 0.38, 1] : s === 1 ? [0, 0.28, 0.72, 1] : [0, 0.62, 1];
+              for (let col = 0; col < longitudinal.length - 1; col++)
+                for (let row = 0; row < cuts.length - 1; row++) {
+                  const u0 = longitudinal[col] + 18e-4,
+                    u1 = longitudinal[col + 1] - 18e-4;
+                  const v0 = face + cuts[row] + 16e-4,
+                    v1 = face + cuts[row + 1] - 16e-4;
+                  const central = underside && row === 2;
+                  const shade =
+                    0.85 +
+                    0.035 *
+                      Math.sin(s * 1.7 + col * 0.83 + Math.min(row, cuts.length - 2 - row) * 0.71);
                   const { centre, n } = plate(
                     [
                       facet(a, b, u0, v0),
@@ -35599,8 +35673,8 @@ void main() {
                       facet(a, b, u1, v1),
                       facet(a, b, u0, v1),
                     ],
-                    new Color().setScalar(0.73 + rand() * 0.2),
-                    0.65,
+                    new Color().setScalar(central ? 0.72 : shade),
+                    central ? 0.7 : 1.05,
                   );
                   if (face === 2 || face === 6) {
                     const q = new Quaternion().setFromUnitVectors(new Vector3(0, 0, 1), n);
@@ -35639,18 +35713,80 @@ void main() {
               if (j % 4 !== 0)
                 add(3, -width * 0.45 + j * 6, y + 5, z + length * 0.46 + 3.2, 2.5, 0.85, 0.25);
           }
-          for (let k = 0; k < profile.length - 1; k++) {
+          const keel = (width, top, bottom, material, name, x = 0) => {
+            const positions = [],
+              indices = [];
+            for (const [z, w, h] of profile) {
+              const half = Math.min(width * 0.5, w * 0.4);
+              positions.push(
+                x - half,
+                -h - top,
+                z,
+                x + half,
+                -h - top,
+                z,
+                x + half,
+                -h - bottom,
+                z,
+                x - half,
+                -h - bottom,
+                z,
+              );
+            }
+            for (let k = 0; k < profile.length - 1; k++)
+              for (let side = 0; side < 4; side++) {
+                const a = k * 4 + side,
+                  b = k * 4 + ((side + 1) % 4),
+                  c = b + 4,
+                  d = a + 4;
+                indices.push(a, c, b, a, d, c);
+              }
+            const last2 = (profile.length - 1) * 4;
+            indices.push(
+              0,
+              1,
+              2,
+              0,
+              2,
+              3,
+              last2,
+              last2 + 2,
+              last2 + 1,
+              last2,
+              last2 + 3,
+              last2 + 2,
+            );
+            const g = new BufferGeometry();
+            g.setAttribute("position", new Float32BufferAttribute(positions, 3));
+            g.setIndex(indices);
+            const flat = g.toNonIndexed();
+            g.dispose();
+            flat.computeVertexNormals();
+            const uv = [];
+            const pos = flat.attributes.position;
+            for (let i = 0; i < pos.count; i++)
+              uv.push(pos.getZ(i) / 90, (pos.getX(i) + pos.getY(i)) / 70);
+            flat.setAttribute("uv", new Float32BufferAttribute(uv, 2));
+            const mesh = new Mesh(flat, material);
+            mesh.name = name;
+            mesh.castShadow = mesh.receiveShadow = true;
+            root.add(mesh);
+          };
+          keel(22, 0.8, 2.5, dark, "continuous-keel-recess");
+          keel(6, 2.5, 3.4, steel, "continuous-keel-spine");
+          for (const side of [-1, 1]) keel(1.8, 1, 3.9, steel, "keel-edge-rail", side * 10.5);
+          for (const z of [-390, -290, -190, -90, 10, 210, 310, 410]) {
+            const h = section(z).h;
+            const k = profile.findIndex(
+              (v, i) => i < profile.length - 1 && z >= v[0] && z < profile[i + 1][0],
+            );
             const a = profile[k],
               b = profile[k + 1],
-              z = (a[0] + b[0]) / 2,
-              h = (a[2] + b[2]) / 2;
-            const length = Math.hypot(b[0] - a[0], b[2] - a[2]);
-            const q = new Quaternion().setFromAxisAngle(
-              new Vector3(1, 0, 0),
-              Math.atan2(b[2] - a[2], b[0] - a[0]),
-            );
-            add(1, 0, -h - 2, z, Math.min(28, a[1] * 0.8, b[1] * 0.8), 6, length, q);
-            add(0, 0, -h - 5, z, 8, 3, length, q);
+              q = new Quaternion().setFromAxisAngle(
+                new Vector3(1, 0, 0),
+                Math.atan2(b[2] - a[2], b[0] - a[0]),
+              );
+            add(0, 0, -h - 2.9, z, 19, 1.2, 2.3, q);
           }
           const nose = profile.at(-1)[0];
           add(1, 0, 4, nose, Math.min(48, profile.at(-1)[1] * 1.4), 14, 4);
@@ -35733,13 +35869,13 @@ void main() {
                 t = (z - a[0]) / (b[0] - a[0]);
               const h = MathUtils.lerp(a[2], b[2], t),
                 w = MathUtils.lerp(a[1], b[1], t);
-              const slope = Math.atan2(b[2] - a[2], b[0] - a[0]);
-              const q = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), -slope);
+              const slope2 = Math.atan2(b[2] - a[2], b[0] - a[0]);
+              const q = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), -slope2);
               const x = side * w * 0.43;
               add(1, x, h + 0.4, z, Math.max(7, w * 0.13), 1.2, 57, q);
               add(0, x, h + 1.3, z, 2, 1.3, 51, q);
               for (const dz of [-20, 20])
-                add(2, x, h + 2 - dz * Math.sin(-slope), z + dz, Math.max(8, w * 0.14), 1.2, 2, q);
+                add(2, x, h + 2 - dz * Math.sin(-slope2), z + dz, Math.max(8, w * 0.14), 1.2, 2, q);
             }
           for (const side of [-1, 1])
             for (let j = 0; j < 4; j++) {
@@ -35749,14 +35885,45 @@ void main() {
               add(1, x, -h - 1, z, 47, 5, 49);
               add(0, x, -h - 3, z, 38, 2, 39);
             }
-          const hatchY = -section(105).h - 4;
-          const collar = new Mesh(new TorusGeometry(20, 4, 6, 20), steel);
+          const hatchZ = 105,
+            hatchY = -section(hatchZ).h;
+          const slope = (section(hatchZ + 1).h - section(hatchZ - 1).h) / 2;
+          const hatchFrame = new Group();
+          hatchFrame.name = "integrated-docking-seat";
+          hatchFrame.position.set(0, hatchY, hatchZ);
+          hatchFrame.rotation.x = Math.atan(slope);
+          const seat = new Mesh(
+            new CylinderGeometry(23, 23, 2.2, tier2 === "low" ? 24 : 40),
+            steel,
+          );
+          seat.position.y = -1.5;
+          hatchFrame.add(seat);
+          const hatch = new Mesh(
+            new CylinderGeometry(17, 17, 2.5, tier2 === "low" ? 24 : 40),
+            dark,
+          );
+          hatch.position.y = -3;
+          hatchFrame.add(hatch);
+          const collar = new Mesh(
+            new TorusGeometry(19.2, 1.3, 6, tier2 === "low" ? 24 : 40),
+            steel,
+          );
           collar.rotation.x = Math.PI / 2;
-          collar.position.set(0, hatchY, 105);
-          root.add(collar);
-          const hatch = new Mesh(new CylinderGeometry(17, 17, 6, 20), dark);
-          hatch.position.set(0, hatchY, 105);
-          root.add(hatch);
+          collar.position.y = -3.5;
+          hatchFrame.add(collar);
+          const locks = new InstancedMesh(unitBox, steel, 8);
+          const lock = new Object3D();
+          for (let j = 0; j < 8; j++) {
+            const a = (j * Math.PI) / 4;
+            lock.scale.set(3, 1.4, 2);
+            lock.position.set(Math.cos(a) * 20.3, -3, Math.sin(a) * 20.3);
+            lock.rotation.y = -a;
+            lock.updateMatrix();
+            locks.setMatrixAt(j, lock.matrix);
+          }
+          locks.computeBoundingSphere();
+          hatchFrame.add(locks);
+          root.add(hatchFrame);
           const deployables = [];
           for (const side of [-1, 1]) {
             const pivot = new Group();
@@ -35781,21 +35948,14 @@ void main() {
             root.add(pivot);
             deployables.push({ pivot, side });
           }
-          const nozzle = new CylinderGeometry(17, 24, 48, tier2 === "low" ? 16 : 32, 1, true);
-          nozzle.rotateX(Math.PI / 2);
-          const rim = new TorusGeometry(23.5, 1.7, 8, tier2 === "low" ? 20 : 40);
           const throat = new CircleGeometry(16, tier2 === "low" ? 16 : 32);
           add(0, 0, -4, -519, 190, 39, 10);
           for (const side of [-1, 1])
             beam([side * section(-470).w * 0.6, -4, -470], [side * 76, -4, -519], 7);
           for (const x of [-76, 0, 76]) {
-            const bell = new Mesh(nozzle, steel);
-            bell.name = "engine-nozzle";
-            bell.position.set(x, -4, -540);
+            const bell = nozzleAssembly(tier2, 24, 48, steel, dark);
+            bell.position.set(x, -4, -516);
             root.add(bell);
-            const lip = new Mesh(rim, ivory);
-            lip.position.set(x, -4, -564);
-            root.add(lip);
             const core = new Mesh(throat, engine2);
             core.rotation.y = Math.PI;
             core.position.set(x, -4, -521);
@@ -35827,17 +35987,6 @@ void main() {
           body.name = "shield-hull";
           body.castShadow = body.receiveShadow = true;
           root.add(body);
-          const wire = new LineSegments(
-            new EdgesGeometry(geometry, 32),
-            new LineBasicMaterial({
-              color: 1514786,
-              transparent: true,
-              opacity: 0.16,
-              depthWrite: false,
-            }),
-          );
-          wire.name = "structural-wireframe";
-          root.add(wire);
           instances.forEach((list, i) => {
             const mesh = new InstancedMesh(i === 3 ? unitBox : box, materialList[i], list.length);
             list.forEach((m, j) => mesh.setMatrixAt(j, m));
@@ -35872,19 +36021,19 @@ void main() {
           tier2 === "low" ? new BoxGeometry(1, 1, 1) : new RoundedBoxGeometry(1, 1, 1, 1, 0.025);
         const radial = tier2 === "high" ? 24 : tier2 === "mid" ? 16 : 12;
         const mats = [
-          aerospaceMaterial("white", tier2),
-          aerospaceMaterial("thermal", tier2),
-          aerospaceMaterial("steel", tier2),
-          aerospaceMaterial("white", tier2, { color: 13027781 }),
+          shipMaterial("white", tier2),
+          shipMaterial("thermal", tier2),
+          shipMaterial("steel", tier2),
+          shipMaterial("white", tier2, { color: 13027781 }),
           new MeshStandardMaterial({
             color: 10203062,
             emissive: 9219772,
             emissiveIntensity: 0.28,
             roughness: 0.4,
           }),
-          aerospaceMaterial("foil", tier2),
+          shipMaterial("foil", tier2),
         ];
-        const radiatorSurface = aerospaceMaterial("radiator", tier2);
+        const radiatorSurface = shipMaterial("radiator", tier2);
         {
           let block = function (mat, x, y, z, w, h, d, q) {
               matrix.compose(new Vector3(x, y, z), q || new Quaternion(), new Vector3(w, h, d));
@@ -36016,10 +36165,12 @@ void main() {
             [-39, -15, 24],
             [39, -15, 24],
           ]) {
-            const nozzle = new CylinderGeometry(r * 0.65, r, 57, detail, 1, true);
-            nozzle.rotateX(Math.PI / 2);
-            mesh(nozzle, 1, x, y, -539);
-            mesh(new TorusGeometry(r, 2, 6, detail), 2, x, y, -567);
+            const nozzle = nozzleAssembly(tier2, r, 57, mats[2], mats[1]);
+            nozzle.position.set(x, y, -510.5);
+            nozzle.traverse((node) => {
+              node.userData.blueprintPart = blueprintPart;
+            });
+            ship.add(nozzle);
             const core = mesh(new CircleGeometry(r * 0.58, detail), 4, x, y, -533);
             core.rotation.y = Math.PI;
           }
@@ -62846,14 +62997,16 @@ void main() {
               const finishKind = original.userData.aerospace?.kind;
               if (material.bumpMap) material.bumpScale *= 40;
               const depositStrength =
-                finishKind === "foil" ? 0.025 : finishKind === "white" ? 0.08 : 0.045;
+                finishKind === "foil" ? 0.018 : finishKind === "white" ? 0.065 : 0.04;
               material.name = (original.name || "hull") + "-voyage-aged";
               material.onBeforeCompile = (shader) => {
                 shader.uniforms.voyageToShip = { value: toShip };
                 shader.uniforms.voyagePartCentre = { value: partCentre };
                 shader.uniforms.voyagePartExtent = { value: partExtent };
                 shader.uniforms.voyageSeed = { value: index * 37.13 + 11.7 };
-                shader.uniforms.voyageEngineSpan = { value: index === 5 ? 142 : 76 };
+                shader.uniforms.voyageReference = {
+                  value: ship.name === "sf-migration-ark" ? 1 : 0,
+                };
                 shader.vertexShader =
                   "uniform mat4 voyageToShip; uniform vec3 voyagePartCentre; uniform vec3 voyagePartExtent; varying vec3 vVoyagePart; varying vec3 vVoyageHull;\n" +
                   shader.vertexShader;
@@ -62872,7 +63025,36 @@ void main() {
                 shader.fragmentShader =
                   `
             uniform float voyageSeed;
-            uniform float voyageEngineSpan;
+            uniform float voyageReference;
+            // Localised residues and heat cycling are an authored year-long voyage cue.
+            // They are not a simulated temperature or a prediction of material lifetime.
+            vec2 voyageNozzleField(vec3 p, vec2 centre, float radius) {
+              float radial=length(p.xy-centre);
+              float ringDistance=length(vec2(radial-radius,p.z+563.0));
+              vec2 direction=(p.xy-centre)/max(radial,.001);
+              float angle=atan(direction.y,direction.x);
+              float phase=voyageSeed*.71+centre.x*.043+centre.y*.17;
+              float variation=.5+.29*sin(angle*3.0+phase)+.21*sin(angle*7.0-phase*1.7);
+              float hotPatch=smoothstep(.38,.78,variation);
+              float lipZ=mix(-564.0,-567.5,voyageReference);
+              float width=mix(.85,1.8,hotPatch);
+              float heat=exp(-pow((radial-radius)/width,2.0)-pow((p.z-lipZ)/5.0,2.0))*hotPatch;
+              return vec2(ringDistance,heat);
+            }
+            vec2 voyageEngines(vec3 p) {
+              vec2 a,b,c,d;
+              if(voyageReference>.5){
+                a=voyageNozzleField(p,vec2(-142,0),32.0);
+                b=voyageNozzleField(p,vec2(142,0),32.0);
+                c=voyageNozzleField(p,vec2(-39,-15),24.0);
+                d=voyageNozzleField(p,vec2(39,-15),24.0);
+              }else{
+                a=voyageNozzleField(p,vec2(-76,-4),23.5);
+                b=voyageNozzleField(p,vec2(76,-4),23.5);
+                c=voyageNozzleField(p,vec2(0,-4),23.5);d=c;
+              }
+              return vec2(min(min(a.x,b.x),min(c.x,d.x)),max(max(a.y,b.y),max(c.y,d.y)));
+            }
             varying vec3 vVoyagePart;
             varying vec3 vVoyageHull;
             float voyageHash(vec3 p) {
@@ -62894,22 +63076,32 @@ void main() {
             vec3 ageP = vVoyageHull + vec3(voyageSeed);
             float ageBroad = voyageNoise(ageP * vec3(.033,.046,.022));
             float ageGrain = voyageNoise(ageP * .32);
-            float ageDeposit = smoothstep(.39,.71,ageBroad + (ageGrain-.5)*.26);
-            // Restrained, uneven discolouration; no terrestrial rust or liquid streaks.
-            vec3 ageTint = mix(vec3(.91,.90,.86),vec3(.25,.225,.19),ageDeposit*.83);
-            vec3 ageCell = floor(ageP*.17);
-            vec3 ageOffset = vec3(voyageHash(ageCell),voyageHash(ageCell+19.2),voyageHash(ageCell+43.8));
-            float ageRadius = length(fract(ageP*.17)-(.18+.64*ageOffset));
-            float ageWidth = max(fwidth(ageRadius)*1.2,.008);
-            float agePit = (1.0-smoothstep(.105-ageWidth,.105+ageWidth,ageRadius))*step(.72,ageOffset.z);
-            float ageRim = (1.0-smoothstep(.025,.025+ageWidth,abs(ageRadius-.14)))*step(.72,ageOffset.z);
-            diffuseColor.rgb *= mix(vec3(1.0),ageTint,${depositStrength.toFixed(3)}) * (1.0-agePit*.072);
-            diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb*1.35,ageRim*.03);
-            // Rare paint chips: broken edges and a few impact rims, never a full flaking coat.
+            // Deposit only near the engine assembly and a few exposed part edges.
+            // The fixed ship-space seed survives cuts and does not mirror wear.
+            vec2 engineField=voyageEngines(vVoyageHull);
             vec3 ageEdge = abs(abs(vVoyagePart)-vec3(1.0));
             float ageEdgeDistance = min(max(ageEdge.x,ageEdge.y),min(max(ageEdge.x,ageEdge.z),max(ageEdge.y,ageEdge.z)));
-            float ageEdgeMask = 1.0-smoothstep(.018,.060,ageEdgeDistance);
-            float ageChip = smoothstep(.69,.83,ageGrain)*step(.72,ageOffset.x)*ageEdgeMask;
+            float ageEdgeMask = 1.0-smoothstep(.012,.045,ageEdgeDistance);
+            float ageZone = max(exp(-engineField.x/46.0),ageEdgeMask*.24);
+            float ageDeposit = smoothstep(.44,.73,ageBroad + (ageGrain-.5)*.18)*ageZone;
+            // Restrained, uneven discolouration; no terrestrial rust or liquid streaks.
+            vec3 ageTint = mix(vec3(1.0),vec3(.40,.37,.32),ageDeposit);
+            vec3 ageCell = floor(ageP*.035);
+            vec3 ageOffset = vec3(voyageHash(ageCell),voyageHash(ageCell+19.2),voyageHash(ageCell+43.8));
+            float ageRadius = length(fract(ageP*.035)-(.18+.64*ageOffset));
+            float ageWidth = max(fwidth(ageRadius)*1.2,.002);
+            float agePit = (1.0-smoothstep(.023-ageWidth,.023+ageWidth,ageRadius))*step(.987,ageOffset.z);
+            float ageRim = (1.0-smoothstep(.004,.004+ageWidth,abs(ageRadius-.031)))*step(.987,ageOffset.z);
+            diffuseColor.rgb *= mix(vec3(1.0),ageTint,${depositStrength.toFixed(3)}) * (1.0-agePit*.22);
+            diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb*1.35,ageRim*.075);
+            float engineResidue=exp(-engineField.x/42.0)*smoothstep(.30,.73,ageBroad+ageGrain*.12);
+            float engineHeat=engineField.y*(.55+.45*ageBroad);
+            // Deposits remain strongest around the nozzle assembly, with no long dirt streaks.
+            diffuseColor.rgb*=mix(vec3(1.0),vec3(.45,.41,.37),engineResidue*.23);
+            float heatStain=exp(-engineField.x/24.0)*(.35+.65*ageBroad)*${finishKind === "steel" || finishKind === "titanium" || finishKind === "thermal" ? "0.10" : "0.025"};
+            diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(1.14,.91,.71),heatStain);
+            // Rare paint chips: broken edges and a few impact rims, never a full flaking coat.
+            float ageChip = smoothstep(.72,.88,ageGrain)*step(.86,ageOffset.x)*ageEdgeMask;
             ageChip = max(ageChip,ageRim*step(.96,ageOffset.x)*.65);
             ageChip*=${finishKind === "white" ? "1.0" : "0.0"};
             diffuseColor.rgb = mix(diffuseColor.rgb,vec3(.39,.40,.39),ageChip*.78);
@@ -62922,28 +63114,28 @@ void main() {
                   "#include <roughnessmap_fragment>",
                   `
             #include <roughnessmap_fragment>
-            roughnessFactor = min(1.0, roughnessFactor + ageDeposit*.024 + agePit*.018 - ageChip*.17);
+            roughnessFactor = min(1.0, roughnessFactor + ageDeposit*.032 + agePit*.028 + engineResidue*.07 - ageChip*.17);
           `,
                 );
                 shader.fragmentShader = shader.fragmentShader.replace(
                   "#include <emissivemap_fragment>",
                   `
             #include <emissivemap_fragment>
-            float nozzleDistance=min(length(vVoyageHull-vec3(voyageEngineSpan,-4.0,-546.0)),length(vVoyageHull-vec3(-voyageEngineSpan,-4.0,-546.0)));
-            nozzleDistance=min(nozzleDistance,length(vVoyageHull-vec3(0.0,-4.0,-546.0)));
-            totalEmissiveRadiance+=vec3(.016,.046,.064)*exp(-nozzleDistance/36.0);
+            totalEmissiveRadiance+=vec3(.016,.046,.064)*exp(-engineField.x/36.0);
+            // A restrained amber-red hot lip; exhaust retains its authored blue-white palette.
+            totalEmissiveRadiance+=mix(vec3(.045,.003,.0003),vec3(.13,.023,.002),engineHeat*engineHeat)*engineHeat*${finishKind === "steel" || finishKind === "titanium" || finishKind === "thermal" ? "1.0" : "0.0"};
           `,
                 );
                 shader.fragmentShader = shader.fragmentShader.replace(
                   "#include <metalnessmap_fragment>",
                   `
             #include <metalnessmap_fragment>
-            metalnessFactor = mix(metalnessFactor*(1.0-ageDeposit*.062),.72,ageChip);
+            metalnessFactor = mix(metalnessFactor*(1.0-ageDeposit*.075-engineResidue*.1),.72,ageChip);
           `,
                 );
               };
               material.customProgramCacheKey = () =>
-                "voyage-ageing-v5-" + detail + "-" + finishKind;
+                "voyage-ageing-v8-" + detail + "-" + finishKind;
               treated++;
               return material;
             };
@@ -62956,8 +63148,12 @@ void main() {
           vessels: fleet2.length,
           materials: treated,
           detail,
-          contaminationStrength: 0.1,
-          model: "authored-deposition-and-impact-masks",
+          contaminationStrength: 0.065,
+          wearDistribution: "engine-and-exposed-edges",
+          impactCellProbability: 0.013,
+          voyageAge: "approximately-one-year",
+          localEngineHeat: true,
+          model: "authored-deposition-impact-and-thermal-masks",
         };
       }
       function installVoyageEngineGlow(
@@ -63318,9 +63514,10 @@ void main() {
         }
         fillLight.intensity = opening ? 0.62 : 0.22;
         if (opening) {
-          fillLight.position.copy(fleet[0].position);
-          fillLight.position.y -= 1800;
-          fillLight.position.z += 700;
+          fillLight.position
+            .set(0, -1250, 1350)
+            .applyQuaternion(fleet[0].quaternion)
+            .add(fleet[0].position);
           fillLight.target.position.copy(fleet[0].position);
         } else {
           fillLight.position.set(1800, -600, -2200);
