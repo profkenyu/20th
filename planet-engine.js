@@ -50289,6 +50289,11 @@ var<${access}> ${name} : ${structName};`;
           "body.ti-fleet-return #fh-cap-line{opacity:1!important}#ti-fleet-uplink{position:fixed;z-index:22;top:max(90px,14vh);right:5vw;width:min(270px,80vw);color:#b4c7ca;pointer-events:none;font:10px/1.8 monospace;letter-spacing:.08em}#ti-fleet-uplink[hidden]{display:none}#ti-fleet-uplink b,#ti-fleet-uplink span,#ti-fleet-uplink small{display:block}#ti-fleet-uplink b{font-weight:400;font-size:12px;margin:10px 0 2px}#ti-fleet-uplink i{display:block;height:1px;background:#354448;margin:12px 0}#ti-fleet-uplink em{display:block;height:1px;background:#b4c7ca;transform-origin:left}"),
           document.head.append(style),
           document.body.append(this.panel),
+          (this.phaseLabel = this.panel.querySelector("b")),
+          (this.koreanLabel = this.panel.querySelector("span")),
+          (this.progressBar = this.panel.querySelector("em")),
+          (this.targetPosition = new Vector3()),
+          (this.targetAim = new Vector3()),
           (this.aim = new Vector3()),
           (this.startPosition = new Vector3()),
           (this.startAim = new Vector3()));
@@ -50332,15 +50337,15 @@ var<${access}> ${name} : ${structName};`;
                   : t < 22
                     ? "이주선 함대 수신 확인"
                     : "송신 완료 · 항해 대기";
-        ((this.panel.querySelector("b").textContent = phase),
-          (this.panel.querySelector("span").textContent = ko),
-          (this.panel.querySelector("em").style.transform = `scaleX(${p})`),
+        (this.phaseLabel.textContent !== phase && (this.phaseLabel.textContent = phase),
+          this.koreanLabel.textContent !== ko && (this.koreanLabel.textContent = ko),
+          (this.progressBar.style.transform = `scaleX(${p})`),
           (this.received = t >= 18),
           this.lander.setBeaconOverride(
             t >= 7 && t < 18 ? 0.35 + 0.45 * (0.5 + 0.5 * Math.sin(t * 7)) : t >= 18 ? 0.65 : 0.08,
           ));
         let blend = ease(t / 5),
-          dolly = ease((t - 5) / 19),
+          dolly = ease((t - 5) / 17),
           aspect2 = this.camera.aspect,
           portrait = aspect2 < 0.85,
           distance3 = portrait ? 1.3 : 1,
@@ -50348,9 +50353,10 @@ var<${access}> ${name} : ${structName};`;
             (-14 + dolly * 1.4) * distance3,
             (-8 + dolly * 0.6) * distance3,
             8,
+            this.targetPosition,
           );
         target.y = Math.max(target.y, this.heightAt(target.x, target.z) + 1);
-        let aimed = this.lander.dockingPoint(-0.2, -0.15, 4.3);
+        let aimed = this.lander.dockingPoint(-0.2, -0.15, 4.3, this.targetAim);
         return (
           this.camera.position.lerpVectors(this.startPosition, target, blend),
           this.aim.lerpVectors(this.startAim, aimed, blend),
@@ -50359,7 +50365,7 @@ var<${access}> ${name} : ${structName};`;
           (this.camera.fov = this.startFov + ((aspect2 < 0.85 ? 56 : 42) - this.startFov) * blend),
           this.camera.updateProjectionMatrix(),
           focus.copy(aimed),
-          t >= 25
+          t >= 23.5
         );
       }
       reset() {
@@ -60810,6 +60816,8 @@ body.ti-voyage #ti-transfer-trigger {
           (this.lastCutAt = -1 / 0),
           (this.focus = new Vector3()),
           (this._camera = new Vector3()),
+          (this._returnCamera = new Vector3()),
+          (this._returnAim = new Vector3()),
           (this._aim = new Vector3()));
         let style = document.createElement("style");
         ((style.textContent = CSS5),
@@ -61034,21 +61042,29 @@ body.ti-voyage #ti-transfer-trigger {
           (this.mast(), this.camera.updateProjectionMatrix());
           return;
         }
-        ((this.rover.group.visible = !["closing", "docked"].includes(this.docking.phase)),
-          shot === "rear"
-            ? this.rear(now2)
-            : shot === "macro"
-              ? this.macro(now2)
-              : shot === "tele"
-                ? this.telephoto(now2)
-                : shot === "return"
-                  ? this.docking.phase === "returning"
-                    ? this.rear(now2)
-                    : this.lowSide(now2)
-                  : shot === "ascent"
-                    ? this.underside(now2)
-                    : this.ultrawide(now2),
-          this.applyPortraitSafeFrame(shot),
+        if (
+          ((this.rover.group.visible = !["closing", "docked"].includes(this.docking.phase)),
+          shot === "rear")
+        )
+          this.rear(now2);
+        else if (shot === "macro") this.macro(now2);
+        else if (shot === "tele") this.telephoto(now2);
+        else if (shot === "return")
+          if (this.docking.phase === "returning") {
+            let blend = smooth4(
+              (28 - this.rover.group.position.distanceTo(this.lander.group.position)) / 10,
+            );
+            (this.rear(now2),
+              this._returnCamera.copy(this._camera),
+              this._returnAim.copy(this._aim));
+            let rearFov = this.camera.fov;
+            (this.lowSide(now2),
+              this._camera.lerpVectors(this._returnCamera, this._camera, blend),
+              this._aim.lerpVectors(this._returnAim, this._aim, blend),
+              (this.camera.fov = MathUtils.lerp(rearFov, this.camera.fov, blend)));
+          } else this.lowSide(now2);
+        else shot === "ascent" ? this.underside(now2) : this.ultrawide(now2);
+        (this.applyPortraitSafeFrame(shot),
           this.camera.position.copy(this._camera),
           this.camera.up.set(0, 1, 0),
           this.camera.lookAt(this._aim),
@@ -61180,13 +61196,12 @@ body.ti-voyage #ti-transfer-trigger {
           (this.camera.fov = 23));
       }
       lowSide(now2) {
-        let drift = this.reducedMotion ? 0 : Math.sin(now2 * 9e-5) * 0.32;
-        (this._camera.copy(this.lander.dockingPoint(-7.4, 9.6 + drift, 1.34)),
+        (this._camera.copy(this.lander.dockingPoint(-11.5, 9, 2, this._camera)),
           (this._camera.y = Math.max(
             this._camera.y,
             this.heightAt(this._camera.x, this._camera.z) + 0.42,
           )),
-          this._aim.copy(this.lander.dockingPoint(-3.15, 0, 2.28)),
+          this._aim.copy(this.lander.dockingPoint(-4.5, 0, 2, this._aim)),
           (this.camera.fov = 42));
       }
       underside(now2) {
@@ -61382,6 +61397,256 @@ body.ti-voyage #ti-transfer-trigger {
       };
     }
   };
+  var words = [
+      "TR-Q1",
+      "TR-X01",
+      "TR-X02",
+      "TR-X03",
+      "TR-X04",
+      "TR-X05",
+      "TR-X06",
+      "TERRAFORMING_PROJECT",
+      "SURVEY / 01",
+      "F2345",
+      "F1021",
+      "F2406",
+      "F3108",
+      "I77",
+      "I62",
+      "I63",
+      "I81",
+      "TR-R01",
+      "LIFT HERE",
+      "NO STEP",
+      "SERVICE / 02",
+      "OPTICAL / KEEP CLEAR",
+      "RCS / KEEP CLEAR",
+      "LOX / FEED",
+      "ACCESS / 01",
+    ],
+    ROW = 32,
+    ATLAS_HEIGHT = 2048,
+    atlases = new Map();
+  function paint(tier) {
+    if (atlases.has(tier)) return atlases.get(tier);
+    if (typeof document > "u") {
+      let material2 = new MeshStandardMaterial({ roughness: 0.86, metalness: 0 });
+      return (
+        (material2.name = "mission-stencil-paint"),
+        (material2.userData = { vehicleMarking: !0, geometryOnly: !0 }),
+        atlases.set(tier, material2),
+        material2
+      );
+    }
+    let canvas = document.createElement("canvas"),
+      scale2 = tier === "low" ? 1 : 2;
+    ((canvas.width = 512 * scale2), (canvas.height = 2048 * scale2));
+    let c = canvas.getContext("2d");
+    c.scale(scale2, scale2);
+    for (let ink = 0; ink < 2; ink++)
+      words.forEach((word, i) => {
+        let row = ink * words.length + i,
+          y = row * ROW;
+        ((c.fillStyle = ink ? "#20282d" : "#d9dfdf"),
+          (c.textAlign = "center"),
+          (c.textBaseline = "middle"),
+          (c.font = `${word === "TERRAFORMING_PROJECT" ? 600 : 900} ${word.length > 14 ? 18 : 24}px Arial, sans-serif`),
+          c.save(),
+          c.translate(256, y + ROW / 2),
+          c.scale(470 / c.measureText(word).width, 1),
+          c.fillText(word, 0, 0),
+          c.restore(),
+          c.save(),
+          (c.globalCompositeOperation = "destination-out"));
+        for (let j = 0; j < 7; j++)
+          c.fillRect(24 + ((i * 37 + j * 71) % 465), y + 6 + ((j * 7) % 20), 0.6, 1.3);
+        c.restore();
+      });
+    let map = new CanvasTexture(canvas);
+    ((map.colorSpace = SRGBColorSpace), (map.anisotropy = tier === "high" ? 8 : 2));
+    let material = new MeshStandardMaterial({
+      map,
+      roughness: 0.86,
+      metalness: 0,
+      alphaTest: 0.35,
+      transparent: !0,
+      depthWrite: !1,
+      polygonOffset: !0,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
+    });
+    return (
+      (material.name = "mission-stencil-paint"),
+      (material.userData.vehicleMarking = !0),
+      atlases.set(tier, material),
+      material
+    );
+  }
+  function markingBatch(parent, tier = "mid") {
+    let positions = [],
+      normals = [],
+      uvs = [],
+      labels = [],
+      ray = new Raycaster(),
+      normalMatrix = new Matrix3();
+    return {
+      project(text, targets, centre, right, up, width, height, dark = !1, offset = 0.08) {
+        parent.updateWorldMatrix(!0, !0);
+        let origin = new Vector3(...centre),
+          u = new Vector3(...right),
+          v = new Vector3(...up),
+          n = new Vector3().crossVectors(u, v).normalize(),
+          inverse3 = parent.matrixWorld.clone().invert(),
+          steps = tier === "low" ? 8 : 16,
+          rows = 4,
+          points = [],
+          row = words.indexOf(text) + (dark ? words.length : 0);
+        if (words.indexOf(text) < 0) throw Error("Unknown vehicle marking: " + text);
+        for (let y = 0; y <= rows; y++)
+          for (let x = 0; x <= steps; x++) {
+            let start = origin
+              .clone()
+              .addScaledVector(u, (x / steps - 0.5) * width)
+              .addScaledVector(v, (y / rows - 0.5) * height)
+              .clone()
+              .addScaledVector(n, Math.max(width, height) * 4 + 10)
+              .applyMatrix4(parent.matrixWorld);
+            ray.set(start, n.clone().negate().transformDirection(parent.matrixWorld));
+            let hit = ray.intersectObjects(targets, !1)[0];
+            if (!hit) {
+              points.push(null);
+              continue;
+            }
+            let face = hit.face.normal
+              .clone()
+              .applyMatrix3(normalMatrix.getNormalMatrix(hit.object.matrixWorld))
+              .normalize();
+            if (face.dot(ray.ray.direction) > -0.15) {
+              points.push(null);
+              continue;
+            }
+            let local2 = hit.point.clone().applyMatrix4(inverse3).addScaledVector(n, offset);
+            points.push({
+              p: local2,
+              n: face.transformDirection(inverse3),
+              uv: [x / steps, 1 - (row * ROW + (1 - y / rows) * ROW) / ATLAS_HEIGHT],
+            });
+          }
+        let before = positions.length;
+        for (let y = 0; y < rows; y++)
+          for (let x = 0; x < steps; x++) {
+            let a = y * (steps + 1) + x,
+              b = a + 1,
+              d = a + steps + 1,
+              e = d + 1;
+            for (let tri2 of [
+              [a, b, e],
+              [a, e, d],
+            ])
+              if (tri2.every((i) => points[i]))
+                for (let i of tri2) {
+                  let q = points[i];
+                  (positions.push(...q.p.toArray()),
+                    normals.push(...q.n.toArray()),
+                    uvs.push(...q.uv));
+                }
+          }
+        positions.length > before && labels.push(text);
+      },
+      finish() {
+        if (!positions.length) return null;
+        let g = new BufferGeometry();
+        (g.setAttribute("position", new Float32BufferAttribute(positions, 3)),
+          g.setAttribute("normal", new Float32BufferAttribute(normals, 3)),
+          g.setAttribute("uv", new Float32BufferAttribute(uvs, 2)),
+          g.computeBoundingSphere());
+        let mesh = new Mesh(g, paint(tier));
+        return (
+          (mesh.name = "mission-markings"),
+          (mesh.receiveShadow = !0),
+          (mesh.userData = { vehicleMarking: !0, blueprintOmit: !0, flightHardware: !0, labels }),
+          parent.add(mesh),
+          mesh
+        );
+      },
+    };
+  }
+  function markSurveyor(parent, targets, tier = "mid") {
+    let b = markingBatch(parent, tier);
+    b.project("TR-Q1", targets, [-2.2, 4.79, 0], [-1, 0, 0], [0, 1, 0], 1.25, 0.28, !0, 0.006);
+    for (let side of [-1, 1])
+      (b.project("TR-Q1", targets, [0, 4.18, 1.5], [0, 0, -side], [0, 1, 0], 0.7, 0.19, !0, 0.006),
+        b.project(
+          "TERRAFORMING_PROJECT",
+          targets,
+          [0, 4.03, 1.5],
+          [0, 0, -side],
+          [0, 1, 0],
+          0.7,
+          0.07,
+          !0,
+          0.006,
+        ));
+    for (let side of [-1, 1])
+      b.project(
+        "SERVICE / 02",
+        targets,
+        [0, 3.88, 1.5],
+        [0, 0, -side],
+        [0, 1, 0],
+        0.6,
+        0.065,
+        !0,
+        0.006,
+      );
+    return b.finish();
+  }
+  function markSurveyorEngine(parent, targets, tier = "mid") {
+    let b = markingBatch(parent, tier);
+    for (let side of [-1, 1])
+      b.project("I77", targets, [0, 0.69, 0], [side, 0, 0], [0, 1, 0], 0.58, 0.18, !1, 0.004);
+    return b.finish();
+  }
+  function markRover(chassis, targets, tier, width, length3) {
+    let b = markingBatch(chassis, tier);
+    for (let side of [-1, 1])
+      (b.project(
+        "TR-R01",
+        targets,
+        [0, 0.075, length3 * 0.12],
+        [0, 0, -side],
+        [0, 1, 0],
+        length3 * 0.3,
+        0.105,
+        !0,
+        0.002,
+      ),
+        b.project(
+          "SURVEY / 01",
+          targets,
+          [0, -0.045, length3 * 0.12],
+          [0, 0, -side],
+          [0, 1, 0],
+          length3 * 0.3,
+          0.048,
+          !0,
+          0.002,
+        ));
+    return (
+      b.project(
+        "NO STEP",
+        targets,
+        [0, 0.2, length3 * 0.3],
+        [1, 0, 0],
+        [0, 0, -1],
+        width * 0.32,
+        0.075,
+        !0,
+        0.002,
+      ),
+      b.finish()
+    );
+  }
   var axis = new Vector3(0, 1, 0),
     direction = new Vector3();
   function fitLink(mesh, a, b) {
@@ -61421,6 +61686,7 @@ body.ti-voyage #ti-transfer-trigger {
   var cache3 = new Map(),
     AEROSPACE_FINISH = Object.freeze({
       white: { color: 14211541, roughness: 0.76, metalness: 0.025, bump: 0.0015 },
+      aluminum: { color: 11909561, roughness: 0.62, metalness: 0.86, bump: 6e-4 },
       steel: { color: 10267054, roughness: 0.42, metalness: 0.92, bump: 8e-4 },
       titanium: { color: 7831947, roughness: 0.55, metalness: 0.88, bump: 0.001 },
       foil: { color: 11967064, roughness: 0.48, metalness: 0.86, bump: 0.009 },
@@ -61481,6 +61747,7 @@ body.ti-voyage #ti-transfer-trigger {
             (rough = clamp7(0.72 + (broad - 0.5) * 0.23 + crease * 0.16 + crinkle * 0.08)),
             (tint = (broad - 0.5) * 0.025));
         } else if (
+          kind === "aluminum" ||
           kind === "steel" ||
           kind === "titanium" ||
           kind === "ship-steel" ||
@@ -61504,23 +61771,10 @@ body.ti-voyage #ti-transfer-trigger {
             )),
             (tint = (broad - 0.5) * 0.016));
         } else if (kind === "thermal") {
-          let px2 = u * 6 * Math.sqrt(3),
-            py2 = v * 9,
-            d = 10;
-          for (let row = Math.floor(py2 / 1.5) - 1; row <= Math.floor(py2 / 1.5) + 1; row++)
-            for (
-              let col = Math.floor(px2 / Math.sqrt(3)) - 1;
-              col <= Math.floor(px2 / Math.sqrt(3)) + 1;
-              col++
-            ) {
-              let dx = Math.abs(px2 - Math.sqrt(3) * (col + (row % 2) * 0.5)),
-                dy = Math.abs(py2 - row * 1.5);
-              d = Math.min(d, Math.max(dx, dx * 0.5 + dy * 0.8660254));
-            }
-          let seam = d > 0.85;
-          ((tone = seam ? 0.68 : 0.945 + (broad - 0.5) * 0.055 + (fine - 0.5) * 0.018),
-            (height = seam ? 0.29 : 0.51 + (fine - 0.5) * 0.055),
-            (rough = 0.95 + n * 0.045));
+          let pore = Math.max(0, (fine - 0.71) / 0.29);
+          ((tone = 0.96 + (broad - 0.5) * 0.025 - pore * 0.025),
+            (height = 0.5 + (fine - 0.5) * 0.022 - pore * 0.035),
+            (rough = clamp7(0.96 + n * 0.025 + pore * 0.015)));
         } else if (kind === "radiator") {
           let channel = Math.abs(fract5(v * 12) - 0.5) > 0.465;
           ((tone = channel ? 0.66 : 0.955 + (broad - 0.5) * 0.025),
@@ -62502,8 +62756,8 @@ body.ti-voyage #ti-transfer-trigger {
       dark = paint2([0.022, 0.023, 0.027], 0, 0.035, 18, 0.012, 0.075, "rubber"),
       metal = paint2([0.24, 0.28, 0.32], 0, 0.4, 68, 0.012, 0.022, "titanium"),
       armour = paint2([0.54, 0.55, 0.525], 0, 0.12, 36, 0.008, 0.025, "white"),
-      wheelTread = paint2([0.205, 0.225, 0.25], 0, 0.26, 48, 0.028, 0.075, "steel"),
-      wheelMetal = paint2([0.3, 0.325, 0.35], 0, 0.35, 62, 0.012, 0.045, "titanium"),
+      wheelTread = paint2([0.205, 0.225, 0.25], 0, 0.26, 48, 0.028, 0.075, "aluminum"),
+      wheelMetal = paint2([0.3, 0.325, 0.35], 0, 0.35, 62, 0.012, 0.045, "aluminum"),
       foil = paint2([0.48, 0.3, 0.085], 0, 0.32, 48, 0.01, 0.012, "foil"),
       mark = paint2(C.color.crimson, 0.85, 0.12, 34, 0.025, 0.015),
       beaconPulse = uniform2(0),
@@ -62556,6 +62810,17 @@ body.ti-voyage #ti-transfer-trigger {
       tub.add(new BoxGeometry(W * 0.7, 0.1, 0.08), xf([0, deck - 0.1, LEN * 0.51])));
     let tubMesh = new Mesh(tub.build(), hull);
     ((tubMesh.userData.designRole = "armoured-hull"), chassis.add(tubMesh));
+    let liftEyes = Merged();
+    for (let side of [-1, 1])
+      for (let z of [-LEN * 0.37, LEN * 0.34])
+        (liftEyes.add(
+          new TorusGeometry(0.046, 0.012, 6, C.tier === "low" ? 10 : 16),
+          xf([side * W * 0.39, 0.2, z], [0, Math.PI / 2, 0]),
+        ),
+          liftEyes.add(new BoxGeometry(0.034, 0.045, 0.11), xf([side * W * 0.39, 0.17, z])));
+    let liftingHardware = new Mesh(liftEyes.build(), metal);
+    ((liftingHardware.name = "chassis-lifting-eyes"),
+      chassis.add(transferTag(liftingHardware, "body", 8950937)));
     let access = Merged();
     for (let side of [-1, 1]) {
       for (let i = 0; i < 4; i++)
@@ -62604,6 +62869,8 @@ body.ti-voyage #ti-transfer-trigger {
       servicePanels.add(new Mesh(panelRecess.build(), dark)),
       servicePanels.add(new Mesh(panelFastener.build(), metal)),
       chassis.add(servicePanels));
+    let chassisPaint = markRover(chassis, [tubMesh, ...servicePanels.children], C.tier, W, LEN);
+    chassisPaint && transferTag(chassisPaint, "body", 3160124);
     let blankets = Merged(),
       blanketTabs = Merged();
     for (let side of [-1, 1])
@@ -63121,194 +63388,6 @@ body.ti-voyage #ti-transfer-trigger {
       let t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)));
       return t * t * (3 - 2 * t);
     };
-  var words = [
-      "TR-Q1",
-      "TR-X01",
-      "TR-X02",
-      "TR-X03",
-      "TR-X04",
-      "TR-X05",
-      "TR-X06",
-      "TERRAFORMING_PROJECT",
-      "SURVEY / 01",
-      "F2345",
-      "F1021",
-      "F2406",
-      "F3108",
-      "I77",
-      "I62",
-      "I63",
-      "I81",
-    ],
-    atlases = new Map();
-  function paint(tier) {
-    if (atlases.has(tier)) return atlases.get(tier);
-    if (typeof document > "u") {
-      let material2 = new MeshStandardMaterial({ roughness: 0.86, metalness: 0 });
-      return (
-        (material2.name = "mission-stencil-paint"),
-        (material2.userData = { vehicleMarking: !0, geometryOnly: !0 }),
-        atlases.set(tier, material2),
-        material2
-      );
-    }
-    let canvas = document.createElement("canvas"),
-      scale2 = tier === "low" ? 1 : 2;
-    ((canvas.width = 512 * scale2), (canvas.height = 2048 * scale2));
-    let c = canvas.getContext("2d");
-    c.scale(scale2, scale2);
-    for (let ink = 0; ink < 2; ink++)
-      words.forEach((word, i) => {
-        let row = ink * words.length + i,
-          y = row * 56;
-        ((c.fillStyle = ink ? "#20282d" : "#d9dfdf"),
-          (c.textAlign = "center"),
-          (c.textBaseline = "middle"),
-          (c.font = `${word === "TERRAFORMING_PROJECT" ? 600 : 900} ${word.length > 14 ? 30 : 42}px Arial, sans-serif`),
-          c.save(),
-          c.translate(256, y + 28),
-          c.scale(470 / c.measureText(word).width, 1),
-          c.fillText(word, 0, 0),
-          c.restore(),
-          c.save(),
-          (c.globalCompositeOperation = "destination-out"));
-        for (let j = 0; j < 7; j++)
-          c.fillRect(24 + ((i * 37 + j * 71) % 465), y + 12 + ((j * 11) % 30), 0.6, 1.3);
-        c.restore();
-      });
-    let map = new CanvasTexture(canvas);
-    ((map.colorSpace = SRGBColorSpace), (map.anisotropy = tier === "high" ? 8 : 2));
-    let material = new MeshStandardMaterial({
-      map,
-      roughness: 0.86,
-      metalness: 0,
-      alphaTest: 0.35,
-      transparent: !0,
-      depthWrite: !1,
-      polygonOffset: !0,
-      polygonOffsetFactor: -1,
-      polygonOffsetUnits: -1,
-    });
-    return (
-      (material.name = "mission-stencil-paint"),
-      (material.userData.vehicleMarking = !0),
-      atlases.set(tier, material),
-      material
-    );
-  }
-  function markingBatch(parent, tier = "mid") {
-    let positions = [],
-      normals = [],
-      uvs = [],
-      labels = [],
-      ray = new Raycaster(),
-      normalMatrix = new Matrix3();
-    return {
-      project(text, targets, centre, right, up, width, height, dark = !1, offset = 0.08) {
-        parent.updateWorldMatrix(!0, !0);
-        let origin = new Vector3(...centre),
-          u = new Vector3(...right),
-          v = new Vector3(...up),
-          n = new Vector3().crossVectors(u, v).normalize(),
-          inverse3 = parent.matrixWorld.clone().invert(),
-          steps = tier === "low" ? 8 : 16,
-          rows = 4,
-          points = [],
-          row = words.indexOf(text) + (dark ? words.length : 0);
-        if (words.indexOf(text) < 0) throw Error("Unknown vehicle marking: " + text);
-        for (let y = 0; y <= rows; y++)
-          for (let x = 0; x <= steps; x++) {
-            let start = origin
-              .clone()
-              .addScaledVector(u, (x / steps - 0.5) * width)
-              .addScaledVector(v, (y / rows - 0.5) * height)
-              .clone()
-              .addScaledVector(n, Math.max(width, height) * 4 + 10)
-              .applyMatrix4(parent.matrixWorld);
-            ray.set(start, n.clone().negate().transformDirection(parent.matrixWorld));
-            let hit = ray.intersectObjects(targets, !1)[0];
-            if (!hit) {
-              points.push(null);
-              continue;
-            }
-            let face = hit.face.normal
-              .clone()
-              .applyMatrix3(normalMatrix.getNormalMatrix(hit.object.matrixWorld))
-              .normalize();
-            if (face.dot(ray.ray.direction) > -0.15) {
-              points.push(null);
-              continue;
-            }
-            let local2 = hit.point.clone().applyMatrix4(inverse3).addScaledVector(n, offset);
-            points.push({
-              p: local2,
-              n: face.transformDirection(inverse3),
-              uv: [x / steps, 1 - (row * 56 + (1 - y / rows) * 56) / 2048],
-            });
-          }
-        let before = positions.length;
-        for (let y = 0; y < rows; y++)
-          for (let x = 0; x < steps; x++) {
-            let a = y * (steps + 1) + x,
-              b = a + 1,
-              d = a + steps + 1,
-              e = d + 1;
-            for (let tri2 of [
-              [a, b, e],
-              [a, e, d],
-            ])
-              if (tri2.every((i) => points[i]))
-                for (let i of tri2) {
-                  let q = points[i];
-                  (positions.push(...q.p.toArray()),
-                    normals.push(...q.n.toArray()),
-                    uvs.push(...q.uv));
-                }
-          }
-        positions.length > before && labels.push(text);
-      },
-      finish() {
-        if (!positions.length) return null;
-        let g = new BufferGeometry();
-        (g.setAttribute("position", new Float32BufferAttribute(positions, 3)),
-          g.setAttribute("normal", new Float32BufferAttribute(normals, 3)),
-          g.setAttribute("uv", new Float32BufferAttribute(uvs, 2)),
-          g.computeBoundingSphere());
-        let mesh = new Mesh(g, paint(tier));
-        return (
-          (mesh.name = "mission-markings"),
-          (mesh.receiveShadow = !0),
-          (mesh.userData = { vehicleMarking: !0, blueprintOmit: !0, flightHardware: !0, labels }),
-          parent.add(mesh),
-          mesh
-        );
-      },
-    };
-  }
-  function markSurveyor(parent, targets, tier = "mid") {
-    let b = markingBatch(parent, tier);
-    b.project("TR-Q1", targets, [-2.2, 4.79, 0], [-1, 0, 0], [0, 1, 0], 1.25, 0.28, !0, 0.006);
-    for (let side of [-1, 1])
-      (b.project("TR-Q1", targets, [0, 4.18, 1.5], [0, 0, -side], [0, 1, 0], 0.7, 0.19, !0, 0.006),
-        b.project(
-          "TERRAFORMING_PROJECT",
-          targets,
-          [0, 4.03, 1.5],
-          [0, 0, -side],
-          [0, 1, 0],
-          0.7,
-          0.07,
-          !0,
-          0.006,
-        ));
-    return b.finish();
-  }
-  function markSurveyorEngine(parent, targets, tier = "mid") {
-    let b = markingBatch(parent, tier);
-    for (let side of [-1, 1])
-      b.project("I77", targets, [0, 0.69, 0], [side, 0, 0], [0, 1, 0], 0.58, 0.18, !1, 0.004);
-    return b.finish();
-  }
   var LANDER_NOZZLES = Object.freeze([
       [0, 0, 2],
       [-1.45, -1.25, 0.65],
@@ -64412,6 +64491,7 @@ body.ti-voyage #ti-transfer-trigger {
             new Vector2(0.44, -0.16),
             new Vector2(0.29, 0.07),
             new Vector2(0.17, 0.3),
+            new Vector2(0.19, 0.53),
           ],
           tier === "high" ? 20 : tier === "mid" ? 14 : 10,
         );
@@ -64830,7 +64910,7 @@ body.ti-voyage #ti-transfer-trigger {
         ((clamp11.position.x = clamp11.userData.side * (0.96 - this.holdProgress * 0.225)),
           (clamp11.position.z = localZ + clamp11.userData.axle));
     }
-    dockingPoint(localZ, localX = 0, localY = null) {
+    dockingPoint(localZ, localX = 0, localY = null, target = new Vector3()) {
       let yaw = this.group.rotation.y,
         sin4 = Math.sin(yaw),
         cos4 = Math.cos(yaw),
@@ -64838,7 +64918,7 @@ body.ti-voyage #ti-transfer-trigger {
           localY == null
             ? this.group.position.y + this.hangarHeight(localZ)
             : this.group.position.y + localY;
-      return new Vector3(
+      return target.set(
         this.group.position.x + localX * cos4 + localZ * sin4,
         y,
         this.group.position.z - localX * sin4 + localZ * cos4,
@@ -67119,8 +67199,9 @@ body.ti-voyage #ti-transfer-trigger {
           return (hash12 >>> 0) / 4294967295;
         });
   }
-  var MIGRATION_CUTS = Object.freeze([30, 50, 102, 115]),
-    MIGRATION_DURATION = MIGRATION_CUTS[3] + 18;
+  var MIGRATION_CUTS = Object.freeze([30, 50, 102, 111]),
+    FLEET_FRONT_DURATION = 14,
+    MIGRATION_DURATION = MIGRATION_CUTS[3] + FLEET_FRONT_DURATION;
   var POST_KEY = "beyond-known:post-mission:v1",
     POST_PHASES = Object.freeze({
       migration: {
