@@ -3,6 +3,70 @@
   var __export = (target, all3) => {
     for (var name in all3) __defProp(target, name, { get: all3[name], enumerable: !0 });
   };
+  function bindMissionTripleTap({ target = document, enabled, onComplete }) {
+    let contact = null,
+      count = 0,
+      firstAt = 0,
+      lastAt = 0,
+      reset = () => {
+        ((contact = null), (count = 0), (firstAt = 0), (lastAt = 0));
+      };
+    (target.addEventListener(
+      "pointerdown",
+      (event) => {
+        if (event.pointerType === "touch") {
+          if (
+            !enabled() ||
+            event.isPrimary === !1 ||
+            event.target.closest?.(
+              'button,a,input,select,textarea,[role="button"],[contenteditable="true"]',
+            )
+          ) {
+            reset();
+            return;
+          }
+          contact = {
+            id: event.pointerId,
+            x: event.clientX,
+            y: event.clientY,
+            at: performance.now(),
+          };
+        }
+      },
+      { capture: !0, passive: !0 },
+    ),
+      target.addEventListener(
+        "pointermove",
+        (event) => {
+          contact?.id === event.pointerId &&
+            Math.hypot(event.clientX - contact.x, event.clientY - contact.y) > 18 &&
+            reset();
+        },
+        { capture: !0, passive: !0 },
+      ),
+      target.addEventListener(
+        "pointerup",
+        (event) => {
+          if (!contact || contact.id !== event.pointerId) return;
+          let now2 = performance.now(),
+            valid =
+              enabled() &&
+              now2 - contact.at <= 350 &&
+              Math.hypot(event.clientX - contact.x, event.clientY - contact.y) <= 18;
+          if (((contact = null), !valid)) {
+            reset();
+            return;
+          }
+          ((now2 - lastAt > 550 || now2 - firstAt > 1200) && ((count = 0), (firstAt = now2)),
+            (lastAt = now2),
+            ++count === 3 && (reset(), onComplete()));
+        },
+        { capture: !0, passive: !0 },
+      ),
+      target.addEventListener("pointercancel", reset, { capture: !0, passive: !0 }),
+      target.addEventListener("visibilitychange", reset),
+      addEventListener("pagehide", reset));
+  }
   var CullFaceNone = 0,
     CullFaceBack = 1,
     CullFaceFront = 2;
@@ -7938,12 +8002,12 @@
       }
     };
   function checkIntersection$1(object, material, raycaster, ray, pA, pB, pC, point) {
-    let intersect;
+    let intersect2;
     if (
       (material.side === BackSide
-        ? (intersect = ray.intersectTriangle(pC, pB, pA, !0, point))
-        : (intersect = ray.intersectTriangle(pA, pB, pC, material.side === FrontSide, point)),
-      intersect === null)
+        ? (intersect2 = ray.intersectTriangle(pC, pB, pA, !0, point))
+        : (intersect2 = ray.intersectTriangle(pA, pB, pC, material.side === FrontSide, point)),
+      intersect2 === null)
     )
       return null;
     (_intersectionPointWorld.copy(point), _intersectionPointWorld.applyMatrix4(object.matrixWorld));
@@ -8143,10 +8207,10 @@
               (_mesh$1.matrixWorld = _instanceWorldMatrix),
               _mesh$1.raycast(raycaster, _instanceIntersects));
             for (let i = 0, l = _instanceIntersects.length; i < l; i++) {
-              let intersect = _instanceIntersects[i];
-              ((intersect.instanceId = instanceId),
-                (intersect.object = this),
-                intersects2.push(intersect));
+              let intersect2 = _instanceIntersects[i];
+              ((intersect2.instanceId = instanceId),
+                (intersect2.object = this),
+                intersects2.push(intersect2));
             }
             _instanceIntersects.length = 0;
           }
@@ -8554,13 +8618,13 @@
           for (let i = start, l = end - 1; i < l; i += step3) {
             let a = index.getX(i),
               b = index.getX(i + 1),
-              intersect = checkIntersection(this, raycaster, _ray$1, localThresholdSq, a, b, i);
-            intersect && intersects2.push(intersect);
+              intersect2 = checkIntersection(this, raycaster, _ray$1, localThresholdSq, a, b, i);
+            intersect2 && intersects2.push(intersect2);
           }
           if (this.isLineLoop) {
             let a = index.getX(end - 1),
               b = index.getX(start),
-              intersect = checkIntersection(
+              intersect2 = checkIntersection(
                 this,
                 raycaster,
                 _ray$1,
@@ -8569,13 +8633,13 @@
                 b,
                 end - 1,
               );
-            intersect && intersects2.push(intersect);
+            intersect2 && intersects2.push(intersect2);
           }
         } else {
           let start = Math.max(0, drawRange.start),
             end = Math.min(positionAttribute.count, drawRange.start + drawRange.count);
           for (let i = start, l = end - 1; i < l; i += step3) {
-            let intersect = checkIntersection(
+            let intersect2 = checkIntersection(
               this,
               raycaster,
               _ray$1,
@@ -8584,10 +8648,10 @@
               i + 1,
               i,
             );
-            intersect && intersects2.push(intersect);
+            intersect2 && intersects2.push(intersect2);
           }
           if (this.isLineLoop) {
-            let intersect = checkIntersection(
+            let intersect2 = checkIntersection(
               this,
               raycaster,
               _ray$1,
@@ -8596,7 +8660,7 @@
               start,
               end - 1,
             );
-            intersect && intersects2.push(intersect);
+            intersect2 && intersects2.push(intersect2);
           }
         }
       }
@@ -8808,21 +8872,9 @@
     }
   };
   var CubeTexture = class extends Texture {
-    constructor(
-      images = [],
-      mapping = CubeReflectionMapping,
-      wrapS,
-      wrapT,
-      magFilter,
-      minFilter,
-      format,
-      type,
-      anisotropy3,
-      colorSpace,
-    ) {
-      (super(
-        images,
-        mapping,
+      constructor(
+        images = [],
+        mapping = CubeReflectionMapping,
         wrapS,
         wrapT,
         magFilter,
@@ -8831,17 +8883,36 @@
         type,
         anisotropy3,
         colorSpace,
-      ),
-        (this.isCubeTexture = !0),
-        (this.flipY = !1));
-    }
-    get images() {
-      return this.image;
-    }
-    set images(value) {
-      this.image = value;
-    }
-  };
+      ) {
+        (super(
+          images,
+          mapping,
+          wrapS,
+          wrapT,
+          magFilter,
+          minFilter,
+          format,
+          type,
+          anisotropy3,
+          colorSpace,
+        ),
+          (this.isCubeTexture = !0),
+          (this.flipY = !1));
+      }
+      get images() {
+        return this.image;
+      }
+      set images(value) {
+        this.image = value;
+      }
+    },
+    CanvasTexture = class extends Texture {
+      constructor(canvas, mapping, wrapS, wrapT, magFilter, minFilter, format, type, anisotropy3) {
+        (super(canvas, mapping, wrapS, wrapT, magFilter, minFilter, format, type, anisotropy3),
+          (this.isCanvasTexture = !0),
+          (this.needsUpdate = !0));
+      }
+    };
   var DepthTexture = class extends Texture {
       constructor(
         width,
@@ -14161,6 +14232,79 @@
       );
     }
   };
+  var _matrix = new Matrix4(),
+    Raycaster = class {
+      constructor(origin, direction2, near = 0, far = 1 / 0) {
+        ((this.ray = new Ray(origin, direction2)),
+          (this.near = near),
+          (this.far = far),
+          (this.camera = null),
+          (this.layers = new Layers()),
+          (this.params = {
+            Mesh: {},
+            Line: { threshold: 1 },
+            LOD: {},
+            Points: { threshold: 1 },
+            Sprite: {},
+          }));
+      }
+      set(origin, direction2) {
+        this.ray.set(origin, direction2);
+      }
+      setFromCamera(coords, camera) {
+        camera.isPerspectiveCamera
+          ? (this.ray.origin.setFromMatrixPosition(camera.matrixWorld),
+            this.ray.direction
+              .set(coords.x, coords.y, 0.5)
+              .unproject(camera)
+              .sub(this.ray.origin)
+              .normalize(),
+            (this.camera = camera))
+          : camera.isOrthographicCamera
+            ? (this.ray.origin
+                .set(coords.x, coords.y, camera.projectionMatrix.elements[14])
+                .unproject(camera),
+              this.ray.direction.set(0, 0, -1).transformDirection(camera.matrixWorld),
+              (this.camera = camera))
+            : error("Raycaster: Unsupported camera type: " + camera.type);
+      }
+      setFromXRController(controller) {
+        return (
+          _matrix.identity().extractRotation(controller.matrixWorld),
+          this.ray.origin.setFromMatrixPosition(controller.matrixWorld),
+          this.ray.direction.set(0, 0, -1).applyMatrix4(_matrix),
+          this
+        );
+      }
+      intersectObject(object, recursive = !0, intersects2 = []) {
+        return (
+          intersect(object, this, intersects2, recursive),
+          intersects2.sort(ascSort),
+          intersects2
+        );
+      }
+      intersectObjects(objects, recursive = !0, intersects2 = []) {
+        for (let i = 0, l = objects.length; i < l; i++)
+          intersect(objects[i], this, intersects2, recursive);
+        return (intersects2.sort(ascSort), intersects2);
+      }
+    };
+  function ascSort(a, b) {
+    return a.distance - b.distance;
+  }
+  function intersect(object, raycaster, intersects2, recursive) {
+    let propagate = !0;
+    if (
+      (object.layers.test(raycaster.layers) &&
+        object.raycast(raycaster, intersects2) === !1 &&
+        (propagate = !1),
+      propagate === !0 && recursive === !0)
+    ) {
+      let children = object.children;
+      for (let i = 0, l = children.length; i < l; i++)
+        intersect(children[i], raycaster, intersects2, !0);
+    }
+  }
   var Matrix2 = class _Matrix2 {
     static {
       _Matrix2.prototype.isMatrix2 = !0;
@@ -49454,200 +49598,6 @@ var<${access}> ${name} : ${structName};`;
         this.render());
     }
   };
-  function deviceTier() {
-    let query = typeof location < "u" ? new URLSearchParams(location.search) : null,
-      forced = query?.get("quality");
-    if (query?.has("terminal") || forced === "critical" || forced === "low") return "low";
-    if (query?.has("full") || forced === "high") return "high";
-    if (forced === "mid") return "mid";
-    let mem = navigator.deviceMemory ?? 8,
-      cores = navigator.hardwareConcurrency ?? 4;
-    return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
-      ? Number.isFinite(navigator.deviceMemory) && cores >= 8 && mem >= 8
-        ? "mid"
-        : "low"
-      : cores >= 8 && mem >= 8
-        ? "high"
-        : "mid";
-  }
-  function defaults(tier = deviceTier()) {
-    let pick = (o) => o[tier];
-    return {
-      tier,
-      lattice: { seed: 1, bias: 32768, stride: 65536, lacunarity: 2, gain: 0.5 },
-      clipmap: {
-        grid: pick({ high: 640, mid: 480, low: 320 }),
-        span: pick({ high: 560, mid: 460, low: 340 }),
-        edgeFade: [0.84, 0.995],
-        snapCells: 8,
-      },
-      field: { grid: pick({ high: 320, mid: 256, low: 192 }), span: 560, eps: 1.15 },
-      scatter: null,
-      wake: {
-        grid: pick({ high: 256, mid: 256, low: 128 }),
-        cellsPerSnap: 16,
-        radius: 1.45,
-        tau: 7,
-        gain: 2.4,
-        flatten: 1.15,
-        relief: 0.55,
-      },
-      metric: null,
-      vehicle: {
-        eye: 1.72,
-        cruise: 4.4,
-        boost: 15,
-        lookSpeed: 0.0028,
-        chassis: {
-          axles: [0.98, 0.33, -0.33, -0.98],
-          wheelBase: 0.98,
-          track: 0.62,
-          wheelR: 0.29,
-          wheelW: 0.19,
-          clearance: 0.28,
-          travel: 0.24,
-          camY: 0.92,
-          camZ: -0.7,
-          lidLen: 1.42,
-          lidWidth: 1,
-          lidMax: 1.2,
-          lidRate: 0.85,
-        },
-      },
-      headlight: {
-        count: 2,
-        reach: 9,
-        intensity: 1.7,
-        cosInner: 0.966,
-        cosOuter: 0.891,
-        tilt: 0.16,
-        offset: 0.42,
-        ahead: 0.98,
-        rise: 0.3,
-        colour: [0.6, 0.65, 0.76],
-      },
-      beam: {
-        strength: 0.115,
-        length: 11,
-        scaleHeight: 0.52,
-        hugFade: 0.09,
-        nearFade: 1.35,
-        segments: pick({ high: 22, mid: 18, low: 12 }),
-        rings: pick({ high: 14, mid: 12, low: 8 }),
-      },
-      dust: {
-        gravity: 3.71,
-        maxParticles: pick({ high: 640, mid: 420, low: 192 }),
-        maxEmitPerFrame: pick({ high: 12, mid: 8, low: 5 }),
-        minSpeed: 0.18,
-        emitPerMetre: 26,
-        slamBoost: 2.4,
-        kickBase: 0.55,
-        kickSpeed: 0.22,
-        kickShock: 0.7,
-        liftBase: 1.05,
-        liftVariance: 0.65,
-        liftShock: 0.85,
-        releaseHeight: 0.045,
-        lateral: 0.24,
-        spread: 0.34,
-        life: 1.6,
-        size: 2.2,
-        opacity: 0.44,
-        color: [0.42, 0.37, 0.34],
-      },
-      power: {
-        array: 6.2,
-        base: 0.16,
-        lamps: 0.26,
-        drive: 0.22,
-        slam: 0.34,
-        deckHeight: 1,
-        horizon: [2, 5, 10, 18, 30, 46, 62, 80],
-        deadHold: 3e4,
-        lampBus: {
-          sag: 0.45,
-          flickerAt: 0.14,
-          flickerDepth: 0.45,
-          flickerHz: 38,
-          duty: 0.26,
-          attack: 90,
-          release: 7,
-          brownout: 0.16,
-        },
-      },
-      atmosphere: { fogDensity: 0.0165, skyRadius: 900, far: 2200, fov: 46 },
-      sun: [-0.42, 0.115, -0.9],
-      color: {
-        void: [0.0031, 0.0031, 0.0035],
-        horizon: [0.0064, 0.0075, 0.0106],
-        rock: [0.023, 0.025, 0.03],
-        dust: [0.088, 0.094, 0.105],
-        fil: [0.034, 0.037, 0.043],
-        crimson: [0.54, 0.007, 0.023],
-        beacon: [1, 0.34, 0.015],
-      },
-      post: {
-        bloomStrength: 0.72,
-        bloomRadius: 0.85,
-        bloomThreshold: 0.16,
-        focusMin: 18,
-        focusMax: 150,
-        focalLength: 0.22,
-        bokeh: 2.6,
-      },
-      audio: { droneBase: 300, droneEmitR: 0, droneGain: 0.16, noiseGain: 0.02, breath: 0.055 },
-      kiosk: { idleMs: 9e4 },
-      dprCeiling: () =>
-        Math.min(devicePixelRatio, tier === "high" ? 1.5 : tier === "mid" ? 1 : 0.75),
-    };
-  }
-  var deepMerge = (a, b) => {
-      let out = { ...a };
-      for (let [k, v] of Object.entries(b ?? {}))
-        out[k] =
-          v &&
-          typeof v == "object" &&
-          !Array.isArray(v) &&
-          typeof v != "function" &&
-          a[k] &&
-          typeof a[k] == "object" &&
-          !Array.isArray(a[k])
-            ? deepMerge(a[k], v)
-            : v;
-      return out;
-    },
-    CURRENT = null;
-  function configure(work = {}) {
-    CURRENT = deepMerge(defaults(work.tier), work);
-    let c = CURRENT.clipmap;
-    if (
-      ((c.count = c.grid * c.grid),
-      (c.cell = c.span / (c.grid - 1)),
-      (CURRENT.snap = c.cell * c.snapCells),
-      (CURRENT.wake.cell = CURRENT.snap / CURRENT.wake.cellsPerSnap),
-      CURRENT.scatter?.rings)
-    ) {
-      for (let r of CURRENT.scatter.rings)
-        ((r.side = Math.round((r.r1 * 2) / r.cell)), (r.count = r.side * r.side));
-      ((CURRENT.scatter.count = CURRENT.scatter.rings.reduce((a, r) => a + r.count, 0)),
-        (CURRENT.scatter.vertices = CURRENT.scatter.rings.reduce(
-          (a, r) => a + r.count * (r.seg + 1) * 2,
-          0,
-        )));
-    }
-    return CURRENT;
-  }
-  function cfg() {
-    if (!CURRENT) throw new Error("engine: configure() must run before the world is built");
-    return CURRENT;
-  }
-  function universeSeed() {
-    let s = typeof window < "u" ? window.UNIVERSE_SEED : null,
-      n = s ? parseInt(String(s), 16) : NaN;
-    return Number.isFinite(n) ? n : 0;
-  }
-  var DEV = !1;
   var BRDF_GGX2 = TSL.BRDF_GGX,
     BRDF_Lambert2 = TSL.BRDF_Lambert,
     BasicPointShadowFilter2 = TSL.BasicPointShadowFilter,
@@ -50286,6 +50236,342 @@ var<${access}> ${name} : ${structName};`;
     workgroupId2 = TSL.workgroupId,
     workingToColorSpace2 = TSL.workingToColorSpace,
     xor2 = TSL.xor;
+  var ease = (x) => {
+      let p = Math.max(0, Math.min(1, x));
+      return p * p * p * (p * (p * 6 - 15) + 10);
+    },
+    FleetUplink = class {
+      constructor({ lander, camera, heightAt, tier = "mid" }) {
+        (Object.assign(this, { lander, camera, heightAt }),
+          (this.active = !1),
+          (this.received = !1));
+        let metal = new MeshBasicNodeMaterial();
+        ((metal.colorNode = vec42(
+          vec32(0.28, 0.33, 0.35).mul(
+            max2(dot2(normalWorld2, vec32(-0.35, 0.8, 0.48)), 0)
+              .mul(0.7)
+              .add(0.23),
+          ),
+          1,
+        )),
+          (metal.side = DoubleSide),
+          (this.rig = new Group()),
+          (this.rig.name = "fleet-uplink-gimbal"),
+          this.rig.position.set(-1, 0.73, 0),
+          lander.crown.add(this.rig));
+        let base = new Mesh(new CylinderGeometry(0.13, 0.18, 0.24, 12), metal);
+        (this.rig.add(base),
+          (this.azimuth = new Group()),
+          (this.azimuth.position.y = 0.15),
+          this.rig.add(this.azimuth),
+          (this.elevation = new Group()),
+          (this.elevation.rotation.z = -0.65),
+          this.azimuth.add(this.elevation));
+        let profile = Array.from({ length: 9 }, (_, j) => {
+            let r = (0.48 * j) / 8;
+            return new Vector2(r, (r * r) / 1.2);
+          }),
+          dish = new Mesh(new LatheGeometry(profile, tier === "low" ? 16 : 32), metal);
+        this.elevation.add(dish);
+        let feed = new Mesh(new CylinderGeometry(0.02, 0.025, 0.29, 6), metal);
+        ((feed.position.y = 0.2), this.elevation.add(feed));
+        let rim = new Mesh(new TorusGeometry(0.48, 0.018, 4, tier === "low" ? 16 : 32), metal);
+        ((rim.rotation.x = Math.PI / 2),
+          (rim.position.y = 0.192),
+          this.elevation.add(rim),
+          (this.panel = document.createElement("div")),
+          (this.panel.id = "ti-fleet-uplink"),
+          (this.panel.hidden = !0),
+          (this.panel.innerHTML =
+            '<small>TR-Q1 → MIGRATION FLEET</small><b></b><span></span><i><em></em></i><small class="uplink-detail"></small>'));
+        let style = document.createElement("style");
+        ((style.textContent =
+          "body.ti-fleet-return #fh-cap-line{opacity:1!important}#ti-fleet-uplink{position:fixed;z-index:22;top:max(90px,14vh);right:5vw;width:min(270px,80vw);color:#b4c7ca;pointer-events:none;font:10px/1.8 monospace;letter-spacing:.08em}#ti-fleet-uplink[hidden]{display:none}#ti-fleet-uplink b,#ti-fleet-uplink span,#ti-fleet-uplink small{display:block}#ti-fleet-uplink b{font-weight:400;font-size:12px;margin:10px 0 2px}#ti-fleet-uplink i{display:block;height:1px;background:#354448;margin:12px 0}#ti-fleet-uplink em{display:block;height:1px;background:#b4c7ca;transform-origin:left}"),
+          document.head.append(style),
+          document.body.append(this.panel),
+          (this.aim = new Vector3()),
+          (this.startPosition = new Vector3()),
+          (this.startAim = new Vector3()));
+      }
+      start(now2, archive, focus) {
+        ((this.t0 = now2),
+          (this.active = !0),
+          (this.received = !1),
+          (this.archive = archive),
+          (this.panel.hidden = !1),
+          this.startPosition.copy(this.camera.position),
+          this.startAim.copy(focus),
+          (this.startFov = this.camera.fov),
+          (this.panel.querySelector(".uplink-detail").textContent =
+            `${archive.captured} RECORDS / ${archive.images} IMAGES · BODY 01–03`));
+      }
+      update(now2, focus) {
+        if (!this.active) return !1;
+        let t = (now2 - this.t0) / 1e3,
+          pointing = ease(t / 5),
+          p = Math.max(0, Math.min(1, (t - 7) / 11));
+        ((this.azimuth.rotation.y = 0.72 * pointing),
+          (this.elevation.rotation.z = -0.65 + 1.1 * pointing));
+        let phase =
+            t < 5
+              ? "ANTENNA ALIGNMENT"
+              : t < 7
+                ? "CARRIER LOCK"
+                : t < 18
+                  ? "ARCHIVE UPLINK"
+                  : t < 22
+                    ? "FLEET ACKNOWLEDGED"
+                    : "LINK STANDBY",
+          ko =
+            t < 5
+              ? "통신 안테나 정렬"
+              : t < 7
+                ? "함대 통신 연결"
+                : t < 18
+                  ? "탐사 기록 송신 중"
+                  : t < 22
+                    ? "이주선 함대 수신 확인"
+                    : "송신 완료 · 항해 대기";
+        ((this.panel.querySelector("b").textContent = phase),
+          (this.panel.querySelector("span").textContent = ko),
+          (this.panel.querySelector("em").style.transform = `scaleX(${p})`),
+          (this.received = t >= 18),
+          this.lander.setBeaconOverride(
+            t >= 7 && t < 18 ? 0.35 + 0.45 * (0.5 + 0.5 * Math.sin(t * 7)) : t >= 18 ? 0.65 : 0.08,
+          ));
+        let blend = ease(t / 5),
+          dolly = ease((t - 5) / 19),
+          aspect2 = this.camera.aspect,
+          portrait = aspect2 < 0.85,
+          distance3 = portrait ? 1.3 : 1,
+          target = this.lander.dockingPoint(
+            (-14 + dolly * 1.4) * distance3,
+            (-8 + dolly * 0.6) * distance3,
+            8,
+          );
+        target.y = Math.max(target.y, this.heightAt(target.x, target.z) + 1);
+        let aimed = this.lander.dockingPoint(-0.2, -0.15, 4.3);
+        return (
+          this.camera.position.lerpVectors(this.startPosition, target, blend),
+          this.aim.lerpVectors(this.startAim, aimed, blend),
+          this.camera.up.set(0, 1, 0),
+          this.camera.lookAt(this.aim),
+          (this.camera.fov = this.startFov + ((aspect2 < 0.85 ? 56 : 42) - this.startFov) * blend),
+          this.camera.updateProjectionMatrix(),
+          focus.copy(aimed),
+          t >= 25
+        );
+      }
+      reset() {
+        ((this.active = !1),
+          (this.received = !1),
+          (this.panel.hidden = !0),
+          (this.azimuth.rotation.y = 0),
+          (this.elevation.rotation.z = -0.65),
+          this.lander.setBeaconOverride(null));
+      }
+      snapshot() {
+        return {
+          active: this.active,
+          received: this.received,
+          seconds: this.active ? (performance.now() - this.t0) / 1e3 : 0,
+        };
+      }
+    };
+  function deviceTier() {
+    let query = typeof location < "u" ? new URLSearchParams(location.search) : null,
+      forced = query?.get("quality");
+    if (query?.has("terminal") || forced === "critical" || forced === "low") return "low";
+    if (query?.has("full") || forced === "high") return "high";
+    if (forced === "mid") return "mid";
+    let mem = navigator.deviceMemory ?? 8,
+      cores = navigator.hardwareConcurrency ?? 4;
+    return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+      ? Number.isFinite(navigator.deviceMemory) && cores >= 8 && mem >= 8
+        ? "mid"
+        : "low"
+      : cores >= 8 && mem >= 8
+        ? "high"
+        : "mid";
+  }
+  function defaults(tier = deviceTier()) {
+    let pick = (o) => o[tier];
+    return {
+      tier,
+      lattice: { seed: 1, bias: 32768, stride: 65536, lacunarity: 2, gain: 0.5 },
+      clipmap: {
+        grid: pick({ high: 640, mid: 480, low: 320 }),
+        span: pick({ high: 560, mid: 460, low: 340 }),
+        edgeFade: [0.84, 0.995],
+        snapCells: 8,
+      },
+      field: { grid: pick({ high: 320, mid: 256, low: 192 }), span: 560, eps: 1.15 },
+      scatter: null,
+      wake: {
+        grid: pick({ high: 256, mid: 256, low: 128 }),
+        cellsPerSnap: 16,
+        radius: 1.45,
+        tau: 7,
+        gain: 2.4,
+        flatten: 1.15,
+        relief: 0.55,
+      },
+      metric: null,
+      vehicle: {
+        eye: 1.72,
+        cruise: 4.4,
+        boost: 15,
+        lookSpeed: 0.0028,
+        chassis: {
+          axles: [0.98, 0.33, -0.33, -0.98],
+          wheelBase: 0.98,
+          track: 0.62,
+          wheelR: 0.29,
+          wheelW: 0.19,
+          clearance: 0.28,
+          travel: 0.24,
+          camY: 0.92,
+          camZ: -0.7,
+          lidLen: 1.42,
+          lidWidth: 1,
+          lidMax: 1.2,
+          lidRate: 0.85,
+        },
+      },
+      headlight: {
+        count: 2,
+        reach: 9,
+        intensity: 1.7,
+        cosInner: 0.966,
+        cosOuter: 0.891,
+        tilt: 0.16,
+        offset: 0.42,
+        ahead: 0.98,
+        rise: 0.3,
+        colour: [0.6, 0.65, 0.76],
+      },
+      beam: {
+        strength: 0.115,
+        length: 11,
+        scaleHeight: 0.52,
+        hugFade: 0.09,
+        nearFade: 1.35,
+        segments: pick({ high: 22, mid: 18, low: 12 }),
+        rings: pick({ high: 14, mid: 12, low: 8 }),
+      },
+      dust: {
+        gravity: 3.71,
+        maxParticles: pick({ high: 640, mid: 420, low: 192 }),
+        maxEmitPerFrame: pick({ high: 12, mid: 8, low: 5 }),
+        minSpeed: 0.18,
+        emitPerMetre: 26,
+        slamBoost: 2.4,
+        kickBase: 0.55,
+        kickSpeed: 0.22,
+        kickShock: 0.7,
+        liftBase: 1.05,
+        liftVariance: 0.65,
+        liftShock: 0.85,
+        releaseHeight: 0.045,
+        lateral: 0.24,
+        spread: 0.34,
+        life: 1.6,
+        size: 2.2,
+        opacity: 0.44,
+        color: [0.42, 0.37, 0.34],
+      },
+      power: {
+        array: 6.2,
+        base: 0.16,
+        lamps: 0.26,
+        drive: 0.22,
+        slam: 0.34,
+        deckHeight: 1,
+        horizon: [2, 5, 10, 18, 30, 46, 62, 80],
+        deadHold: 3e4,
+        lampBus: {
+          sag: 0.45,
+          flickerAt: 0.14,
+          flickerDepth: 0.45,
+          flickerHz: 38,
+          duty: 0.26,
+          attack: 90,
+          release: 7,
+          brownout: 0.16,
+        },
+      },
+      atmosphere: { fogDensity: 0.0165, skyRadius: 900, far: 2200, fov: 46 },
+      sun: [-0.42, 0.115, -0.9],
+      color: {
+        void: [0.0031, 0.0031, 0.0035],
+        horizon: [0.0064, 0.0075, 0.0106],
+        rock: [0.023, 0.025, 0.03],
+        dust: [0.088, 0.094, 0.105],
+        fil: [0.034, 0.037, 0.043],
+        crimson: [0.54, 0.007, 0.023],
+        beacon: [1, 0.34, 0.015],
+      },
+      post: {
+        bloomStrength: 0.72,
+        bloomRadius: 0.85,
+        bloomThreshold: 0.16,
+        focusMin: 18,
+        focusMax: 150,
+        focalLength: 0.22,
+        bokeh: 2.6,
+      },
+      audio: { droneBase: 300, droneEmitR: 0, droneGain: 0.16, noiseGain: 0.02, breath: 0.055 },
+      kiosk: { idleMs: 9e4 },
+      dprCeiling: () =>
+        Math.min(devicePixelRatio, tier === "high" ? 1.5 : tier === "mid" ? 1 : 0.75),
+    };
+  }
+  var deepMerge = (a, b) => {
+      let out = { ...a };
+      for (let [k, v] of Object.entries(b ?? {}))
+        out[k] =
+          v &&
+          typeof v == "object" &&
+          !Array.isArray(v) &&
+          typeof v != "function" &&
+          a[k] &&
+          typeof a[k] == "object" &&
+          !Array.isArray(a[k])
+            ? deepMerge(a[k], v)
+            : v;
+      return out;
+    },
+    CURRENT = null;
+  function configure(work = {}) {
+    CURRENT = deepMerge(defaults(work.tier), work);
+    let c = CURRENT.clipmap;
+    if (
+      ((c.count = c.grid * c.grid),
+      (c.cell = c.span / (c.grid - 1)),
+      (CURRENT.snap = c.cell * c.snapCells),
+      (CURRENT.wake.cell = CURRENT.snap / CURRENT.wake.cellsPerSnap),
+      CURRENT.scatter?.rings)
+    ) {
+      for (let r of CURRENT.scatter.rings)
+        ((r.side = Math.round((r.r1 * 2) / r.cell)), (r.count = r.side * r.side));
+      ((CURRENT.scatter.count = CURRENT.scatter.rings.reduce((a, r) => a + r.count, 0)),
+        (CURRENT.scatter.vertices = CURRENT.scatter.rings.reduce(
+          (a, r) => a + r.count * (r.seg + 1) * 2,
+          0,
+        )));
+    }
+    return CURRENT;
+  }
+  function cfg() {
+    if (!CURRENT) throw new Error("engine: configure() must run before the world is built");
+    return CURRENT;
+  }
+  function universeSeed() {
+    let s = typeof window < "u" ? window.UNIVERSE_SEED : null,
+      n = s ? parseInt(String(s), 16) : NaN;
+    return Number.isFinite(n) ? n : 0;
+  }
+  var DEV = !1;
   var fbmNorm = (oct, gain3) => {
       let n = 0,
         a = 0.5;
@@ -53565,18 +53851,18 @@ var<${access}> ${name} : ${structName};`;
       }
     },
     deprecated = ["steps(", "irregular(", "linear(", "cubicBezier("],
-    parseEase = (ease) => {
-      if (isStr(ease)) {
+    parseEase = (ease2) => {
+      if (isStr(ease2)) {
         for (let i = 0, l = deprecated.length; i < l; i++)
-          if (stringStartsWith(ease, deprecated[i]))
+          if (stringStartsWith(ease2, deprecated[i]))
             return (
               console.warn(
-                `String syntax for \`ease: "${ease}"\` has been removed from the core and replaced by importing and passing the easing function directly: \`ease: ${ease}\``,
+                `String syntax for \`ease: "${ease2}"\` has been removed from the core and replaced by importing and passing the easing function directly: \`ease: ${ease2}\``,
               ),
               none
             );
       }
-      return isFnc(ease) ? ease : isStr(ease) ? parseEaseString(ease) : none;
+      return isFnc(ease2) ? ease2 : isStr(ease2) ? parseEaseString(ease2) : none;
     };
   var fromTargetObject = createDecomposedValueTargetObject(),
     toTargetObject = createDecomposedValueTargetObject(),
@@ -53661,15 +53947,24 @@ var<${access}> ${name} : ${structName};`;
           params = kfParams
             ? mergeObjects(generateKeyframes(kfParams, parameters), parameters)
             : parameters,
-          { id, delay, duration, ease, playbackEase, modifier, composition, onRender } = params,
+          {
+            id,
+            delay,
+            duration,
+            ease: ease2,
+            playbackEase,
+            modifier,
+            composition,
+            onRender,
+          } = params,
           animDefaults = parent ? parent.defaults : globals.defaults,
-          animEase = setValue(ease, animDefaults.ease),
+          animEase = setValue(ease2, animDefaults.ease),
           animPlaybackEase = setValue(playbackEase, animDefaults.playbackEase),
           parsedAnimPlaybackEase = animPlaybackEase ? parseEase(animPlaybackEase) : null,
           hasSpring = !isUnd(animEase.ease),
           tEasing = hasSpring
             ? animEase.ease
-            : setValue(ease, parsedAnimPlaybackEase ? "linear" : animDefaults.ease),
+            : setValue(ease2, parsedAnimPlaybackEase ? "linear" : animDefaults.ease),
           tDuration = hasSpring
             ? animEase.settlingDuration
             : setValue(duration, animDefaults.duration),
@@ -54722,7 +55017,7 @@ var<${access}> ${name} : ${structName};`;
       L = normalize3(vec32(...C.sun)),
       mat = new MeshBasicNodeMaterial({ side: BackSide, depthWrite: !1 }),
       vDir = varying2(normalize3(positionLocal2)),
-      paint =
+      paint2 =
         shade ??
         (({ dir, elev, sunDot }) => {
           let base = mix2(
@@ -54746,7 +55041,7 @@ var<${access}> ${name} : ${structName};`;
         });
     mat.colorNode = Fn2(() => {
       let dir = normalize3(vDir),
-        sky2 = paint({ dir, elev: dir.y, sunDot: saturate2(dot2(dir, L)), sun: L });
+        sky2 = paint2({ dir, elev: dir.y, sunDot: saturate2(dot2(dir, L)), sun: L });
       return vec42(redshift(sky2, nuRatio(float2(1e7), uObserverR)), 1);
     })();
     let sky = new Mesh(new SphereGeometry(C.atmosphere.skyRadius, 48, 32), mat);
@@ -58235,12 +58530,14 @@ body.tx-active #fh-keys {
       get active() {
         return this.phase !== "idle" && this.phase !== "docked";
       }
-      start(now2 = performance.now()) {
+      start(now2 = performance.now(), { physicalReturn = !1 } = {}) {
         return this.started || !this.lander.restorationComplete
           ? !1
           : ((this.started = !0),
             (this.docked = !1),
-            (this.phase = "compress-out"),
+            (this.phase = physicalReturn ? "returning" : "compress-out"),
+            (this.returnLeg = 0),
+            (this.returnPath = physicalReturn ? this.buildReturnPath() : []),
             this.lander.setHoldDown(0),
             (this.t0 = now2),
             (this.rover.auto = !1),
@@ -58249,14 +58546,61 @@ body.tx-active #fh-keys {
             (this.rover.scriptedDrive = { throttle: 0, steer: 0 }),
             (this.rover.surfaceOverride = null),
             this.rover.setViewMode("cinematic", { yaw: 0, pitch: 0.18, dist: 12 }),
-            this.effect.beginDeparture("recall"),
+            physicalReturn || this.effect.beginDeparture("recall"),
             this.onCue?.("recall", now2),
             !0);
+      }
+      buildReturnPath() {
+        let start = this.lander.dockingLocal(this.rover.pos.x, this.rover.pos.z),
+          entry = this.lander.dock.entryZ ?? this.lander.dock.toeZ,
+          gate = entry - 28,
+          dx = -start.x,
+          dz = gate - start.z,
+          length22 = dx * dx + dz * dz,
+          t = length22 ? clamp013(-(start.x * dx + start.z * dz) / length22) : 0,
+          path = [];
+        if (
+          Math.hypot(start.x + dx * t, start.z + dz * t) < 14 &&
+          Math.hypot(start.x, start.z) > 14
+        ) {
+          let angle = Math.atan2(start.z, start.x),
+            turn = wrap(-Math.PI / 2 - angle),
+            steps = Math.max(1, Math.ceil(Math.abs(turn) / (Math.PI / 6)));
+          for (let i = 0; i <= steps; i++) {
+            let a = angle + (turn * i) / steps;
+            path.push(this.lander.dockingPoint(Math.sin(a) * 20, Math.cos(a) * 20));
+          }
+        }
+        return (
+          path.push(this.lander.dockingPoint(gate, 0), this.lander.dockingPoint(entry - 10, 0)),
+          path
+        );
       }
       beforeRover(now2, dt) {
         if (!this.active) return;
         let elapsed = now2 - this.t0;
-        if (((this.rover.missionHold = !0), this.phase === "compress-out")) {
+        if (((this.rover.missionHold = !0), this.phase === "returning")) {
+          this._target.copy(this.returnPath[this.returnLeg]);
+          let dx = this._target.x - this.rover.pos.x,
+            dz = this._target.z - this.rover.pos.z,
+            distance3 = Math.hypot(dx, dz),
+            error2 = wrap(Math.atan2(-dx, -dz) - this.rover.heading),
+            last = this.returnLeg === this.returnPath.length - 1,
+            alignment = Math.max(0, 1 - Math.abs(error2) / 0.65);
+          ((this.rover.scriptedDrive = {
+            throttle: Math.min(0.8, distance3 * (last ? 0.12 : 0.22)) * alignment,
+            steer: Math.max(-0.38, Math.min(0.38, error2 * 1.65)),
+          }),
+            (last ? distance3 < 0.3 && Math.abs(this.rover.speed) < 0.15 : distance3 < 1.3) &&
+              (this.returnLeg < this.returnPath.length - 1
+                ? this.returnLeg++
+                : ((this.phase = "lowering"),
+                  (this.t0 = now2),
+                  (this.rover.scriptedDrive = { throttle: 0, steer: 0 }),
+                  this.onCue?.("ramp", now2))));
+          return;
+        }
+        if (this.phase === "compress-out") {
           let p = clamp013(elapsed / 760);
           if ((this.effect.depart(p), p >= 1)) {
             this.effect.finish();
@@ -59642,6 +59986,28 @@ body.ti-voyage #ti-transfer-trigger {
       capture: archiveCaptureProfile(source),
     };
   }
+  function archiveData(value, depth3 = 0) {
+    return depth3 > 5
+      ? null
+      : typeof value == "number"
+        ? Number.isFinite(value)
+          ? value
+          : null
+        : typeof value == "boolean" || value === null
+          ? value
+          : typeof value == "string"
+            ? value.slice(0, 240)
+            : Array.isArray(value)
+              ? value.slice(0, 24).map((v) => archiveData(v, depth3 + 1))
+              : value && typeof value == "object"
+                ? Object.fromEntries(
+                    Object.entries(value)
+                      .filter(([k]) => !["__proto__", "constructor", "prototype"].includes(k))
+                      .slice(0, 32)
+                      .map(([k, v]) => [k, archiveData(v, depth3 + 1)]),
+                  )
+                : null;
+  }
   function cleanRecord(source) {
     let image = archiveImage(source?.image),
       capture = archiveCaptureProfile(source),
@@ -59661,13 +60027,20 @@ body.ti-voyage #ti-transfer-trigger {
       capturedAt: Math.max(0, finite2(source?.capturedAt)),
       kind: source?.kind === "resource-evidence" ? "resource-evidence" : "camera-return",
       image,
+      data: archiveData(source?.data),
+      capturePosition: archiveData(source?.capturePosition),
       imageWidth,
       imageHeight,
       capture,
     };
   }
   function capturePayload(image, capture, station) {
-    let result = typeof image == "function" ? image(capture, station) : image;
+    let result;
+    try {
+      result = typeof image == "function" ? image(capture, station) : image;
+    } catch {
+      return { image: null, capture };
+    }
     return result && typeof result == "object"
       ? {
           image: result.image ?? null,
@@ -59677,8 +60050,30 @@ body.ti-voyage #ti-transfer-trigger {
         }
       : { image: result, capture };
   }
+  function repairResourceLabels(data) {
+    for (let station of data.stations) {
+      if (station.body !== "terra" || !/^P01-\d{3}$/.test(station.id)) continue;
+      let item = station.resourceItem ?? Math.floor(station.order / 2),
+        sample3 =
+          data.records.find((record2) => record2.body === "terra" && record2.data?.item === item)
+            ?.data?.sample ?? data.missions.terra?.samples?.[item]?.sample;
+      if (!sample3) continue;
+      if (station.label === "UNRESOLVED DATUM") {
+        let suffix =
+          station.archiveRole === "potential"
+            ? `MODEL CANDIDATE ×${station.potentialCount}`
+            : station.archiveRole === "evidence"
+              ? "SAMPLE RECORD"
+              : `SITE ${station.resourceVariant ?? 0}`;
+        station.label = `${archiveEnglish(sample3)} · ${suffix}`;
+      }
+      let record = data.records.find((entry) => entry.id === station.id);
+      record?.label === "UNRESOLVED DATUM" && (record.label = station.label);
+    }
+    return data;
+  }
   function readFieldArchive(storage4, key3 = DEFAULT_FIELD_ARCHIVE_KEY) {
-    let empty = { version: 4, stations: [], records: [] },
+    let empty = { version: 4, stations: [], records: [], missions: {}, transmission: null },
       keys =
         key3 === DEFAULT_FIELD_ARCHIVE_KEY
           ? [key3, "terra-incognita:field-archive:v3", "terra-incognita:field-archive:v2"]
@@ -59700,11 +60095,13 @@ body.ti-voyage #ti-transfer-trigger {
           !Array.isArray(source.records)
         )
           continue;
-        return {
+        return repairResourceLabels({
           version: 4,
           stations: cleanList(source.stations, cleanStation),
           records: cleanList(source.records, cleanRecord),
-        };
+          missions: archiveData(source.missions) || {},
+          transmission: archiveData(source.transmission),
+        });
       } catch {}
     return empty;
   }
@@ -59712,7 +60109,7 @@ body.ti-voyage #ti-transfer-trigger {
     constructor(options = {}) {
       ((this.key = options.key ?? DEFAULT_FIELD_ARCHIVE_KEY),
         (this.storage = storageOrNull2(options.storage)),
-        (this.data = { version: 4, stations: [], records: [] }),
+        (this.data = { version: 4, stations: [], records: [], missions: {}, transmission: null }),
         this.load());
     }
     load() {
@@ -59724,8 +60121,39 @@ body.ti-voyage #ti-transfer-trigger {
     }
     persist() {
       try {
-        this.storage?.setItem(this.key, JSON.stringify(this.data));
-      } catch {}
+        if (!this.storage) throw new Error("Storage unavailable");
+        return (
+          this.storage.setItem(this.key, JSON.stringify(this.data)),
+          (this.storageState = "saved"),
+          !0
+        );
+      } catch {
+        return ((this.storageState = "unavailable"), !1);
+      }
+    }
+    recordData(station, data, now2) {
+      let record = this.data.records.find((r) => r.id === station.id);
+      return (
+        record
+          ? (record.data = archiveData(data))
+          : this.data.records.length < 24 &&
+            ((record = cleanRecord({
+              ...station,
+              data,
+              capturedAt: now2,
+              frame: Math.max(0, ...this.data.records.map((r) => r.frame)) + 1,
+            })),
+            this.data.records.push(record)),
+        this.persist(),
+        record
+      );
+    }
+    setMission(body, data) {
+      ["terra", "desert", "granite"].includes(body) &&
+        ((this.data.missions[body] = archiveData(data)), this.persist());
+    }
+    setTransmission(data) {
+      return ((this.data.transmission = archiveData(data)), this.persist());
     }
     registerStations(stations = []) {
       let changed = !1;
@@ -59762,13 +60190,9 @@ body.ti-voyage #ti-transfer-trigger {
       now: now2 = performance.now(),
       image = null,
       minSpeed = 0,
+      data = null,
     } = {}) {
-      if (
-        !rover?.pos ||
-        !body ||
-        this.data.records.length >= 24 ||
-        Math.abs(finite2(rover.speed)) < Math.max(0, finite2(minSpeed))
-      )
+      if (!rover?.pos || !body || Math.abs(finite2(rover.speed)) < Math.max(0, finite2(minSpeed)))
         return null;
       for (let source of stations) {
         let station = cleanStation(
@@ -59777,25 +60201,29 @@ body.ti-voyage #ti-transfer-trigger {
         if (
           station.body !== body ||
           station.archiveRole === "potential" ||
-          this.has(station.id) ||
+          this.data.records.some((r) => r.id === station.id && r.image) ||
           Math.hypot(rover.pos.x - station.x, rover.pos.z - station.z) > station.radius
         )
           continue;
+        let previous = this.data.records.find((r) => r.id === station.id);
+        if (!previous && this.data.records.length >= 24) continue;
         let capture = archiveCaptureProfile(station),
           record = cleanRecord({
             ...station,
             heading: rover.heading,
+            kind: previous?.kind,
             shot,
-            frame: this.data.records.length + 1,
+            frame: previous?.frame ?? Math.max(0, ...this.data.records.map((r) => r.frame)) + 1,
+            data: (typeof data == "function" ? data(station) : data) ?? previous?.data,
+            capturePosition: { x: rover.pos.x, z: rover.pos.z },
             capturedAt: now2,
             ...capturePayload(image, capture, station),
           });
-        return (
-          this.data.records.push(record),
-          this.data.records.sort((a, b) => a.frame - b.frame),
-          this.persist(),
-          { ...record }
-        );
+        if (previous) {
+          if (!record.image) return null;
+          this.data.records[this.data.records.indexOf(previous)] = record;
+        } else this.data.records.push(record);
+        return (this.data.records.sort((a, b) => a.frame - b.frame), this.persist(), { ...record });
       }
       return null;
     }
@@ -59807,6 +60235,7 @@ body.ti-voyage #ti-transfer-trigger {
       shot,
       now: now2 = performance.now(),
       image = null,
+      data = null,
     } = {}) {
       let resourceItem = Math.floor(finite2(itemIndex, -1));
       if (resourceItem < 0 || !site) return null;
@@ -59863,9 +60292,11 @@ body.ti-voyage #ti-transfer-trigger {
           ...evidence,
           heading: rover?.heading,
           shot,
-          frame: this.data.records.length + 1,
+          frame: Math.max(0, ...this.data.records.map((r) => r.frame)) + 1,
           capturedAt: now2,
           kind: "resource-evidence",
+          data: archiveData(data),
+          capturePosition: rover?.pos ? { x: rover.pos.x, z: rover.pos.z } : null,
           ...capturePayload(image, capture, evidence),
         });
       return (
@@ -59884,10 +60315,14 @@ body.ti-voyage #ti-transfer-trigger {
         })),
         records: this.data.records.map((record) => ({ ...record, capture: { ...record.capture } })),
         captured: this.data.records.length,
+        images: this.data.records.filter((r) => r.image).length,
+        missions: archiveData(this.data.missions),
+        transmission: archiveData(this.data.transmission),
+        storage: this.storageState ?? "empty",
       };
     }
     clear() {
-      this.data = { version: 4, stations: [], records: [] };
+      this.data = { version: 4, stations: [], records: [], missions: {}, transmission: null };
       try {
         for (let key3 of this.key === DEFAULT_FIELD_ARCHIVE_KEY
           ? [this.key, "terra-incognita:field-archive:v3", "terra-incognita:field-archive:v2"]
@@ -60599,7 +61034,7 @@ body.ti-voyage #ti-transfer-trigger {
           (this.mast(), this.camera.updateProjectionMatrix());
           return;
         }
-        ((this.rover.group.visible = !0),
+        ((this.rover.group.visible = !["closing", "docked"].includes(this.docking.phase)),
           shot === "rear"
             ? this.rear(now2)
             : shot === "macro"
@@ -60607,7 +61042,9 @@ body.ti-voyage #ti-transfer-trigger {
               : shot === "tele"
                 ? this.telephoto(now2)
                 : shot === "return"
-                  ? this.lowSide(now2)
+                  ? this.docking.phase === "returning"
+                    ? this.rear(now2)
+                    : this.lowSide(now2)
                   : shot === "ascent"
                     ? this.underside(now2)
                     : this.ultrawide(now2),
@@ -60984,9 +61421,9 @@ body.ti-voyage #ti-transfer-trigger {
   var cache3 = new Map(),
     AEROSPACE_FINISH = Object.freeze({
       white: { color: 14211541, roughness: 0.76, metalness: 0.025, bump: 0.0015 },
-      steel: { color: 10267054, roughness: 0.46, metalness: 0.92, bump: 8e-4 },
-      titanium: { color: 7831947, roughness: 0.58, metalness: 0.88, bump: 0.001 },
-      foil: { color: 11967064, roughness: 0.52, metalness: 0.86, bump: 0.009 },
+      steel: { color: 10267054, roughness: 0.42, metalness: 0.92, bump: 8e-4 },
+      titanium: { color: 7831947, roughness: 0.55, metalness: 0.88, bump: 0.001 },
+      foil: { color: 11967064, roughness: 0.48, metalness: 0.86, bump: 0.009 },
       thermal: { color: 2435888, roughness: 0.92, metalness: 0.03, bump: 0.003 },
       rubber: { color: 2106151, roughness: 0.96, metalness: 0, bump: 0.0018 },
       radiator: { color: 12897482, roughness: 0.68, metalness: 0.18, bump: 0.001 },
@@ -61019,44 +61456,53 @@ body.ti-voyage #ti-transfer-trigger {
       for (let x = 0; x < size; x++) {
         let u = (x + 0.5) / size,
           v = (y + 0.5) / size,
-          n = hash10(x, y),
+          n = hash10(Math.floor(u * 128), Math.floor(v * 128)),
           broad = noise(u, v, 8),
           fine = noise(u, v, 48),
-          edge = Math.min(u, 1 - u, v, 1 - v),
           tone = 1,
           height = 0.5,
-          rough = 0.9;
+          rough = 0.9,
+          tint = 0;
         if (kind === "foil") {
-          let warp = (broad - 0.5) * 0.42,
-            fold = Math.sin(2 * Math.PI * (u * 7 + v * 2 + warp)),
-            cross3 = Math.sin(2 * Math.PI * (v * 13 - u * 3 + warp * 0.55)),
-            crease = Math.exp(-Math.abs(fold) * 10),
-            seam = edge < 0.015;
+          let warp = (broad - 0.5) * 0.65,
+            fold = Math.sin(2 * Math.PI * (u * 4 + v * 2 + warp)),
+            cross3 = Math.sin(2 * Math.PI * (v * 9 - u * 3 + warp * 0.55)),
+            crease = Math.exp(-Math.abs(fold) * 15),
+            crinkle = Math.exp(-Math.abs(cross3) * 12);
           ((height = clamp7(
-            0.48 + fold * 0.14 + cross3 * 0.055 - crease * 0.16 + (fine - 0.5) * 0.075,
+            0.5 +
+              fold * 0.19 +
+              cross3 * 0.065 -
+              crease * 0.2 -
+              crinkle * 0.065 +
+              (fine - 0.5) * 0.05,
           )),
-            (tone = seam ? 0.72 : 0.94 + (broad - 0.5) * 0.045),
-            (rough = clamp7(0.83 + (broad - 0.5) * 0.13 + crease * 0.08)));
-        } else if (kind === "steel" || kind === "titanium") {
-          let brush = Math.sin(2 * Math.PI * (v * 38 + 0.06 * Math.sin(u * 6 * Math.PI))),
-            machining = Math.sin(2 * Math.PI * v * 12),
-            joint = edge < 0.0035,
-            weld = edge < 0.013,
+            (tone = 0.955 + (broad - 0.5) * 0.025),
+            (rough = clamp7(0.72 + (broad - 0.5) * 0.23 + crease * 0.16 + crinkle * 0.08)),
+            (tint = (broad - 0.5) * 0.025));
+        } else if (
+          kind === "steel" ||
+          kind === "titanium" ||
+          kind === "ship-steel" ||
+          kind === "ship-titanium"
+        ) {
+          let brush =
+              (noise(u, v, 64) - 0.5) * 0.28 +
+              Math.sin(2 * Math.PI * (v * 43 + 0.025 * Math.sin(u * 6 * Math.PI))) * 0.36,
+            machining = (noise(u, v, 32) - 0.5) * 0.2 + (noise(0, v, 64) - 0.5) * 0.8,
             scratch =
               Math.pow(Math.max(0, Math.sin(2 * Math.PI * (v * 23 + u))), 42) *
               Math.max(0, broad - 0.57);
-          ((tone = joint ? 0.76 : weld ? 0.93 : 0.965 + (broad - 0.5) * 0.035 - scratch * 0.08),
-            (height = joint
-              ? 0.33
-              : weld
-                ? 0.52
-                : 0.5 + brush * 0.022 + machining * 0.006 + (fine - 0.5) * 0.014 - scratch * 0.09),
+          ((tone = 0.962 + (broad - 0.5) * 0.04 - scratch * 0.06),
+            (height =
+              0.5 + brush * 0.033 + machining * 0.02 + (fine - 0.5) * 0.01 - scratch * 0.08),
             (rough = clamp7(
-              (kind === "steel" ? 0.82 : 0.9) +
-                brush * 0.045 +
-                (broad - 0.5) * 0.11 +
-                scratch * 0.14,
-            )));
+              (kind.endsWith("steel") ? 0.82 : 0.9) +
+                brush * 0.13 +
+                (broad - 0.5) * 0.17 +
+                scratch * 0.18,
+            )),
+            (tint = (broad - 0.5) * 0.016));
         } else if (kind === "thermal") {
           let px2 = u * 6 * Math.sqrt(3),
             py2 = v * 9,
@@ -61080,19 +61526,18 @@ body.ti-voyage #ti-transfer-trigger {
           ((tone = channel ? 0.66 : 0.955 + (broad - 0.5) * 0.025),
             (height = channel ? 0.27 : 0.52 + (fine - 0.5) * 0.012),
             (rough = 0.91 + (broad - 0.5) * 0.09));
-        } else if (kind === "rubber")
-          ((tone = 0.94 + (broad - 0.5) * 0.045),
-            (height = 0.5 + (fine - 0.5) * 0.08),
-            (rough = 0.96 + n * 0.035));
-        else {
-          let joint = edge < 0.004;
-          ((tone = joint ? 0.76 : 0.975 + (broad - 0.5) * 0.025),
-            (height = joint ? 0.31 : 0.5 + (fine - 0.5) * 0.04 + (n - 0.5) * 0.009),
-            (rough = 0.94 + (fine - 0.5) * 0.065 + (broad - 0.5) * 0.025));
-        }
-        let i = (y * size + x) * 4,
-          c = Math.round(clamp7(tone) * 255);
-        ((color3[i] = color3[i + 1] = color3[i + 2] = c),
+        } else
+          kind === "rubber"
+            ? ((tone = 0.94 + (broad - 0.5) * 0.045),
+              (height = 0.5 + (fine - 0.5) * 0.08),
+              (rough = 0.96 + n * 0.035))
+            : ((tone = 0.973 + (broad - 0.5) * 0.035),
+              (height = 0.5 + (fine - 0.5) * 0.042 + (n - 0.5) * 0.008),
+              (rough = 0.91 + (fine - 0.5) * 0.09 + (broad - 0.5) * 0.11));
+        let i = (y * size + x) * 4;
+        ((color3[i] = Math.round(clamp7(tone + tint) * 255)),
+          (color3[i + 1] = Math.round(clamp7(tone) * 255)),
+          (color3[i + 2] = Math.round(clamp7(tone - tint) * 255)),
           (color3[i + 3] = 255),
           (data[i] = Math.round(clamp7(height) * 255)),
           (data[i + 1] = Math.round(clamp7(rough) * 255)),
@@ -61122,19 +61567,199 @@ body.ti-voyage #ti-transfer-trigger {
         n.x.greaterThan(n.y).and(n.x.greaterThan(n.z)),
         positionLocal2.zy,
         select2(n.y.greaterThan(n.z), positionLocal2.xz, positionLocal2.xy),
-      ).mul(scale2);
+      ).mul(scale2),
+      finish = AEROSPACE_FINISH[kind];
     return {
       normal:
         tier === "low"
           ? normalWorld2
           : bumpMap2(
               texture2(maps.data, coords).r,
-              float2(kind === "foil" ? 0.18 : kind === "thermal" ? 0.07 : 0.045),
+              float2(kind === "foil" ? 0.025 : kind === "thermal" ? 0.004 : 0.0025),
             ).transformDirection(cameraWorldMatrix2),
       color: texture2(maps.color, coords).rgb,
-      roughness: texture2(maps.data, coords).g,
+      roughness: texture2(maps.data, coords).g.mul(finish.roughness),
+      metalness: float2(finish.metalness),
       resolution: maps.size,
     };
+  }
+  function aerospaceLighting(surface, normal2, view, light, finish, dust = float2(0)) {
+    let nl = max2(dot2(normal2, light), 0),
+      nv = max2(dot2(normal2, view), 0.001),
+      half = normalize3(light.add(view)),
+      nh = max2(dot2(normal2, half), 0),
+      vh = max2(dot2(view, half), 0),
+      rough = clamp3(finish.roughness.add(dust.mul(0.3)), 0.27, 0.98),
+      metal = finish.metalness.mul(float2(1).sub(dust)),
+      a2 = pow5(rough, 4),
+      d = a2.div(pow5(nh.mul(nh).mul(a2.sub(1)).add(1), 2).mul(Math.PI)),
+      k = pow5(rough.add(1), 2).div(8),
+      visibility = nl
+        .div(nl.mul(float2(1).sub(k)).add(k))
+        .mul(nv.div(nv.mul(float2(1).sub(k)).add(k))),
+      f0 = mix2(vec32(0.04), surface, metal),
+      fresnel = f0.add(
+        vec32(1)
+          .sub(f0)
+          .mul(pow5(float2(1).sub(vh), 5)),
+      ),
+      specular = fresnel
+        .mul(d)
+        .mul(visibility)
+        .div(max2(nl.mul(nv).mul(4), 0.001)),
+      direct = surface
+        .mul(float2(1).sub(metal))
+        .mul(vec32(1).sub(fresnel))
+        .div(Math.PI)
+        .add(specular)
+        .mul(nl)
+        .mul(vec32(4.24, 4.11, 3.86)),
+      hemi = clamp3(normal2.y.mul(0.5).add(0.5), 0, 1),
+      fill = mix2(vec32(0.032, 0.03, 0.027), vec32(0.068, 0.078, 0.094), hemi),
+      grazing = pow5(float2(1).sub(nv), 5).mul(float2(1).sub(rough).mul(0.25)),
+      reflection = f0.add(vec32(1).sub(f0).mul(grazing)).mul(fill).mul(1.6);
+    return direct.add(surface.mul(fill).mul(float2(1).sub(metal))).add(reflection);
+  }
+  var _tempNormal = new Vector3();
+  function getUv(faceDirVector, normal2, uvAxis, projectionAxis, radius, sideLength) {
+    let totArcLength = (2 * Math.PI * radius) / 4,
+      centerLength = Math.max(sideLength - 2 * radius, 0),
+      halfArc = Math.PI / 4;
+    (_tempNormal.copy(normal2), (_tempNormal[projectionAxis] = 0), _tempNormal.normalize());
+    let arcUvRatio = (0.5 * totArcLength) / (totArcLength + centerLength),
+      arcAngleRatio = 1 - _tempNormal.angleTo(faceDirVector) / halfArc;
+    return Math.sign(_tempNormal[uvAxis]) === 1
+      ? arcAngleRatio * arcUvRatio
+      : centerLength / (totArcLength + centerLength) +
+          arcUvRatio +
+          arcUvRatio * (1 - arcAngleRatio);
+  }
+  var RoundedBoxGeometry = class _RoundedBoxGeometry extends BoxGeometry {
+    constructor(width = 1, height = 1, depth3 = 1, segments = 2, radius = 0.1) {
+      let totalSegments = segments * 2 + 1;
+      if (
+        ((radius = Math.min(width / 2, height / 2, depth3 / 2, radius)),
+        super(1, 1, 1, totalSegments, totalSegments, totalSegments),
+        (this.type = "RoundedBoxGeometry"),
+        (this.parameters = { width, height, depth: depth3, segments, radius }),
+        totalSegments === 1)
+      )
+        return;
+      let geometry2 = this.toNonIndexed();
+      ((this.index = null),
+        (this.attributes.position = geometry2.attributes.position),
+        (this.attributes.normal = geometry2.attributes.normal),
+        (this.attributes.uv = geometry2.attributes.uv));
+      let position = new Vector3(),
+        normal2 = new Vector3(),
+        box = new Vector3(width, height, depth3).divideScalar(2).subScalar(radius),
+        positions = this.attributes.position.array,
+        normals = this.attributes.normal.array,
+        uvs = this.attributes.uv.array,
+        faceTris = positions.length / 6,
+        faceDirVector = new Vector3(),
+        halfSegmentSize = 0.5 / totalSegments;
+      for (let i = 0, j = 0; i < positions.length; i += 3, j += 2)
+        switch (
+          (position.fromArray(positions, i),
+          normal2.copy(position),
+          (normal2.x -= Math.sign(normal2.x) * halfSegmentSize),
+          (normal2.y -= Math.sign(normal2.y) * halfSegmentSize),
+          (normal2.z -= Math.sign(normal2.z) * halfSegmentSize),
+          normal2.normalize(),
+          (positions[i + 0] = box.x * Math.sign(position.x) + normal2.x * radius),
+          (positions[i + 1] = box.y * Math.sign(position.y) + normal2.y * radius),
+          (positions[i + 2] = box.z * Math.sign(position.z) + normal2.z * radius),
+          (normals[i + 0] = normal2.x),
+          (normals[i + 1] = normal2.y),
+          (normals[i + 2] = normal2.z),
+          Math.floor(i / faceTris))
+        ) {
+          case 0:
+            (faceDirVector.set(1, 0, 0),
+              (uvs[j + 0] = getUv(faceDirVector, normal2, "z", "y", radius, depth3)),
+              (uvs[j + 1] = 1 - getUv(faceDirVector, normal2, "y", "z", radius, height)));
+            break;
+          case 1:
+            (faceDirVector.set(-1, 0, 0),
+              (uvs[j + 0] = 1 - getUv(faceDirVector, normal2, "z", "y", radius, depth3)),
+              (uvs[j + 1] = 1 - getUv(faceDirVector, normal2, "y", "z", radius, height)));
+            break;
+          case 2:
+            (faceDirVector.set(0, 1, 0),
+              (uvs[j + 0] = 1 - getUv(faceDirVector, normal2, "x", "z", radius, width)),
+              (uvs[j + 1] = getUv(faceDirVector, normal2, "z", "x", radius, depth3)));
+            break;
+          case 3:
+            (faceDirVector.set(0, -1, 0),
+              (uvs[j + 0] = 1 - getUv(faceDirVector, normal2, "x", "z", radius, width)),
+              (uvs[j + 1] = 1 - getUv(faceDirVector, normal2, "z", "x", radius, depth3)));
+            break;
+          case 4:
+            (faceDirVector.set(0, 0, 1),
+              (uvs[j + 0] = 1 - getUv(faceDirVector, normal2, "x", "y", radius, width)),
+              (uvs[j + 1] = 1 - getUv(faceDirVector, normal2, "y", "x", radius, height)));
+            break;
+          case 5:
+            (faceDirVector.set(0, 0, -1),
+              (uvs[j + 0] = getUv(faceDirVector, normal2, "x", "y", radius, width)),
+              (uvs[j + 1] = 1 - getUv(faceDirVector, normal2, "y", "x", radius, height)));
+            break;
+        }
+    }
+    static fromJSON(data) {
+      return new _RoundedBoxGeometry(
+        data.width,
+        data.height,
+        data.depth,
+        data.segments,
+        data.radius,
+      );
+    }
+  };
+  function fabricatedPanel(corners, thickness3, bevel) {
+    let centre = corners.reduce((v, p) => v.add(p), new Vector3()).multiplyScalar(0.25),
+      normal2 = corners[1]
+        .clone()
+        .sub(corners[0])
+        .cross(corners[3].clone().sub(corners[0]))
+        .normalize(),
+      shortest = Math.min(...corners.map((p, i) => p.distanceTo(corners[(i + 1) % 4]))),
+      inset = Math.min(0.12, (2 * bevel) / shortest),
+      rings = [
+        corners,
+        corners.map((p) => p.clone().addScaledVector(normal2, thickness3 * 0.55)),
+        corners.map((p) => p.clone().lerp(centre, inset).addScaledVector(normal2, thickness3)),
+      ],
+      positions = [],
+      tri2 = (a, b, c) => positions.push(...a.toArray(), ...b.toArray(), ...c.toArray());
+    (tri2(rings[0][0], rings[0][2], rings[0][1]),
+      tri2(rings[0][0], rings[0][3], rings[0][2]),
+      tri2(rings[2][0], rings[2][1], rings[2][2]),
+      tri2(rings[2][0], rings[2][2], rings[2][3]));
+    for (let r = 0; r < 2; r++)
+      for (let i = 0; i < 4; i++) {
+        let j = (i + 1) % 4,
+          a = rings[r],
+          b = rings[r + 1];
+        (tri2(a[i], a[j], b[j]), tri2(a[i], b[j], b[i]));
+      }
+    let geometry = new BufferGeometry();
+    return (
+      geometry.setAttribute("position", new Float32BufferAttribute(positions, 3)),
+      geometry.computeVertexNormals(),
+      (geometry.userData.fabricatedPanel = !0),
+      geometry
+    );
+  }
+  function formedBox(width, height, depth3, radius = 0.015) {
+    return new RoundedBoxGeometry(
+      width,
+      height,
+      depth3,
+      1,
+      Math.min(radius, width * 0.2, height * 0.2, depth3 * 0.2),
+    );
   }
   var B2 = {
       turnRate: 1.15,
@@ -61822,7 +62447,7 @@ body.ti-voyage #ti-transfer-trigger {
       chassis = new Group();
     group.add(chassis);
     let L = normalize3(vec32(...C.sun)),
-      paint = (
+      paint2 = (
         rgb,
         emissive3 = 0,
         sheen3 = 0.08,
@@ -61846,13 +62471,11 @@ body.ti-voyage #ti-transfer-trigger {
               grainHash = fract2(
                 sin2(dot2(positionLocal2, vec32(91.17, 47.31, 113.53))).mul(43758.5453),
               ),
-              surface = vec32(...rgb)
-                .mul(finish ? finish.color : float2(1))
-                .mul(grainHash.mul(grain2 * 2).add(1 - grain2)),
-              dustMask = pow5(max2(n.y, float2(0)), float2(4))
-                .mul(dust)
-                .mul(grainHash.mul(0.45).add(0.55)),
-              coated = mix2(surface, vec32(0.3, 0.215, 0.145), dustMask),
+              surface = vec32(...rgb).mul(
+                finish ? finish.color : grainHash.mul(grain2 * 2).add(1 - grain2),
+              ),
+              dustMask = pow5(max2(n.y, float2(0)), float2(4)).mul(dust),
+              coated = mix2(surface, vec32(...C.color.dust), dustMask),
               specular = pow5(
                 max2(dot2(n, halfVector), float2(0)),
                 finish ? finish.roughness.mul(-gloss * 0.5).add(gloss) : float2(gloss),
@@ -61861,25 +62484,28 @@ body.ti-voyage #ti-transfer-trigger {
                 .mul(ndl.add(0.12))
                 .mul(grainHash.mul(0.28).add(0.82)),
               rim = pow5(float2(1).sub(abs2(dot2(n, v))), float2(3)).mul(sheen3 * 0.16),
-              lit = coated
-                .mul(ndl.mul(1.35).add(0.085))
-                .add(vec32(1, 0.97, 0.91).mul(specular))
-                .add(vec32(0.34, 0.4, 0.46).mul(rim))
-                .add(vec32(...C.color.crimson).mul(emissive3)),
+              lit = (
+                finish
+                  ? aerospaceLighting(coated, n, v, L, finish, dustMask)
+                  : coated
+                      .mul(ndl.mul(1.35).add(0.085))
+                      .add(vec32(1, 0.97, 0.91).mul(specular))
+                      .add(vec32(0.34, 0.4, 0.46).mul(rim))
+              ).add(vec32(...C.color.crimson).mul(emissive3)),
               fog3 = float2(1).sub(exp3(positionView2.length().mul(-C.atmosphere.fogDensity)));
             return vec42(mix2(lit, vec32(...C.color.horizon), smoothstep3(0, 1, fog3)), 1);
           })()),
           mat
         );
       },
-      hull = paint([0.43, 0.455, 0.46], 0, 0.11, 30, 0.008, 0.035, "white"),
-      dark = paint([0.022, 0.023, 0.027], 0, 0.035, 18, 0.012, 0.075, "rubber"),
-      metal = paint([0.24, 0.28, 0.32], 0, 0.4, 68, 0.012, 0.022, "titanium"),
-      armour = paint([0.54, 0.55, 0.525], 0, 0.12, 36, 0.008, 0.025, "white"),
-      wheelTread = paint([0.205, 0.225, 0.25], 0, 0.26, 48, 0.028, 0.075, "steel"),
-      wheelMetal = paint([0.3, 0.325, 0.35], 0, 0.35, 62, 0.012, 0.045, "titanium"),
-      foil = paint([0.48, 0.3, 0.085], 0, 0.32, 48, 0.01, 0.012, "foil"),
-      mark = paint(C.color.crimson, 0.85, 0.12, 34, 0.025, 0.015),
+      hull = paint2([0.43, 0.455, 0.46], 0, 0.11, 30, 0.008, 0.035, "white"),
+      dark = paint2([0.022, 0.023, 0.027], 0, 0.035, 18, 0.012, 0.075, "rubber"),
+      metal = paint2([0.24, 0.28, 0.32], 0, 0.4, 68, 0.012, 0.022, "titanium"),
+      armour = paint2([0.54, 0.55, 0.525], 0, 0.12, 36, 0.008, 0.025, "white"),
+      wheelTread = paint2([0.205, 0.225, 0.25], 0, 0.26, 48, 0.028, 0.075, "steel"),
+      wheelMetal = paint2([0.3, 0.325, 0.35], 0, 0.35, 62, 0.012, 0.045, "titanium"),
+      foil = paint2([0.48, 0.3, 0.085], 0, 0.32, 48, 0.01, 0.012, "foil"),
+      mark = paint2(C.color.crimson, 0.85, 0.12, 34, 0.025, 0.015),
       beaconPulse = uniform2(0),
       beaconGlow = new MeshBasicNodeMaterial();
     beaconGlow.colorNode = vec42(vec32(...C.color.beacon).mul(beaconPulse.mul(4.4).add(0.018)), 1);
@@ -61914,7 +62540,7 @@ body.ti-voyage #ti-transfer-trigger {
       W = D.track * 2,
       LEN = D.wheelBase * 2,
       tub = Merged();
-    (tub.add(new BoxGeometry(W * 0.84, 0.34, LEN * 0.58), xf([0, deck + 0.03, LEN * 0.09])),
+    (tub.add(formedBox(W * 0.84, 0.34, LEN * 0.58, 0.018), xf([0, deck + 0.03, LEN * 0.09])),
       tub.add(wedgeGeometry(W * 0.84, 0.34, LEN * 0.43), xf([0, deck + 0.03, -LEN * 0.35])),
       tub.add(new BoxGeometry(W * 0.66, 0.1, LEN * 0.94), xf([0, deck - 0.17, 0])));
     for (let side of [-1, 1])
@@ -61951,7 +62577,7 @@ body.ti-voyage #ti-transfer-trigger {
     for (let side of [-1, 1])
       for (let z of [-LEN * 0.13, LEN * 0.31]) {
         (panelPlate.add(
-          new BoxGeometry(0.018, 0.215, 0.34),
+          formedBox(0.018, 0.215, 0.34, 0.004),
           xf([side * W * 0.514, deck + 0.025, z]),
         ),
           panelRecess.add(
@@ -61967,7 +62593,7 @@ body.ti-voyage #ti-transfer-trigger {
       }
     for (let x of [-W * 0.22, W * 0.22])
       (panelPlate.add(
-        new BoxGeometry(W * 0.3, 0.025, LEN * 0.24),
+        formedBox(W * 0.3, 0.025, LEN * 0.24, 0.005),
         xf([x, deck + 0.215, LEN * 0.03]),
       ),
         panelFastener.add(
@@ -62242,7 +62868,7 @@ body.ti-voyage #ti-transfer-trigger {
         lid.add(wing),
         wings.push(wing));
     }
-    let avionics = new Mesh(new BoxGeometry(W * 0.58, 0.25, LEN * 0.25), armour);
+    let avionics = new Mesh(formedBox(W * 0.58, 0.25, LEN * 0.25, 0.012), armour);
     (avionics.position.set(0, deck + 0.3, LEN * 0.34),
       (avionics.userData.designRole = "avionics-pod"),
       chassis.add(transferTag(avionics, "body", 6910073)));
@@ -62313,7 +62939,7 @@ body.ti-voyage #ti-transfer-trigger {
     for (let x of [-0.085, 0.085])
       tower.add(new BoxGeometry(0.075, 0.42, 0.12), xf([x, deck + 0.345, baseZ - 0.025]));
     (tower.add(new BoxGeometry(0.38, 0.08, 0.22), xf([0, deck + 0.555, D.camZ + 0.035])),
-      tower.add(new BoxGeometry(0.46, 0.18, 0.2), xf([0, deck + D.camY, D.camZ])),
+      tower.add(formedBox(0.46, 0.18, 0.2, 0.009), xf([0, deck + D.camY, D.camZ])),
       mastMount.add(new Mesh(tower.build(), hull)));
     for (let side of [-1, 1])
       (mastMount.add(
@@ -62345,7 +62971,7 @@ body.ti-voyage #ti-transfer-trigger {
     (cableDuct.position.set(0, deck + 0.33, baseZ + 0.08),
       mastMount.add(cableDuct),
       chassis.add(mastMount));
-    let lidar = new Mesh(new BoxGeometry(0.17, 0.12, 0.15), armour);
+    let lidar = new Mesh(formedBox(0.17, 0.12, 0.15, 0.006), armour);
     (lidar.position.set(0, deck + D.camY + 0.145, D.camZ + 0.015),
       (lidar.userData.designRole = "lidar-cluster"),
       chassis.add(transferTag(lidar, "signal", 6910073, !0)));
@@ -62372,29 +62998,61 @@ body.ti-voyage #ti-transfer-trigger {
       let n = normalize3(normalWorld2),
         v = normalize3(cameraPosition2.sub(positionWorld2)),
         halfVector = normalize3(L.add(v)),
-        glint = pow5(max2(dot2(n, halfVector), float2(0)), float2(70)).mul(0.72),
-        edge = pow5(float2(1).sub(abs2(dot2(n, v))), float2(2));
+        glint = pow5(max2(dot2(n, halfVector), float2(0)), float2(96)).mul(0.42),
+        edge = pow5(float2(1).sub(abs2(dot2(n, v))), float2(5));
       return vec42(
-        vec32(0.015, 0.04, 0.052)
-          .add(vec32(0.18, 0.34, 0.38).mul(edge))
+        vec32(0.002, 0.006, 0.009)
+          .add(vec32(0.055, 0.075, 0.09).mul(edge))
           .add(vec32(0.82, 0.93, 0.9).mul(glint)),
         1,
       );
     })();
-    let lensGeo = new CylinderGeometry(0.047, 0.047, 0.04, 20),
+    let optic = (radius, depth3) => {
+        let group2 = new Group(),
+          segments2 = C.tier === "low" ? 12 : 24,
+          profile = [
+            [radius * 1.12, depth3 * 0.5],
+            [radius * 1.12, -depth3 * 0.5],
+            [radius * 0.92, -depth3 * 0.5],
+            [radius * 0.92, depth3 * 0.2],
+            [radius * 1.12, depth3 * 0.5],
+          ],
+          barrel = new LatheGeometry(
+            profile.map((p) => new Vector2(...p)),
+            segments2,
+          );
+        barrel.rotateX(Math.PI / 2);
+        let baffle = new Mesh(barrel, dark);
+        group2.add(baffle);
+        let lensSurface = new SphereGeometry(
+          radius * 0.925,
+          segments2,
+          C.tier === "low" ? 4 : 8,
+          0,
+          Math.PI * 2,
+          0,
+          Math.PI / 2,
+        );
+        (lensSurface.scale(1, 0.13, 1), lensSurface.rotateX(-Math.PI / 2));
+        let window2 = new Mesh(lensSurface, glass);
+        return (
+          (window2.position.z = -depth3 * 0.18),
+          group2.add(window2),
+          (group2.userData.designRole = "recessed-optical-window"),
+          group2
+        );
+      },
       lensBezelGeo = new TorusGeometry(0.057, 0.009, 7, 24);
     for (let sx of [-0.135, 0.135]) {
-      let l = new Mesh(lensGeo, glass);
-      ((l.rotation.x = Math.PI / 2),
-        l.position.set(sx, deck + D.camY, D.camZ - 0.11),
+      let l = optic(0.047, 0.04);
+      (l.position.set(sx, deck + D.camY, D.camZ - 0.11),
         chassis.add(transferTag(l, "signal", 8885157, !0)));
       let bezel = new Mesh(lensBezelGeo, metal);
       (bezel.position.set(sx, deck + D.camY, D.camZ - 0.134),
         chassis.add(transferTag(bezel, "signal", 10133928, !0)));
     }
-    let lidarLens = new Mesh(new CylinderGeometry(0.06, 0.06, 0.042, 24), glass);
-    ((lidarLens.rotation.x = Math.PI / 2),
-      lidarLens.position.set(0, deck + D.camY + 0.145, D.camZ - 0.067),
+    let lidarLens = optic(0.06, 0.042);
+    (lidarLens.position.set(0, deck + D.camY + 0.145, D.camZ - 0.067),
       chassis.add(transferTag(lidarLens, "signal", 8885157, !0)));
     let lidarBezel = new Mesh(new TorusGeometry(0.071, 0.01, 7, 28), metal);
     (lidarBezel.position.set(0, deck + D.camY + 0.145, D.camZ - 0.092),
@@ -62404,18 +63062,13 @@ body.ti-voyage #ti-transfer-trigger {
       chassis.add(transferTag(sensorBrow, "signal", 6910073, !0)));
     let crown = transferTag(new Group(), "signal", 6910073, !0);
     crown.userData.designRole = "panoramic-optical-crown";
-    let crownShell = new Mesh(new BoxGeometry(0.68, 0.105, 0.19), armour);
+    let crownShell = new Mesh(formedBox(0.68, 0.105, 0.19, 0.007), armour);
     (crownShell.position.set(0, deck + D.camY + 0.035, D.camZ - 0.015), crown.add(crownShell));
     let visor = new Mesh(new BoxGeometry(0.72, 0.03, 0.075), dark);
     (visor.position.set(0, deck + D.camY + 0.095, D.camZ - 0.105), crown.add(visor));
     for (let x of [-0.255, 0, 0.255]) {
-      let optic = new Mesh(
-        new CylinderGeometry(x ? 0.042 : 0.052, x ? 0.042 : 0.052, 0.045, 20),
-        glass,
-      );
-      ((optic.rotation.x = Math.PI / 2),
-        optic.position.set(x, deck + D.camY + 0.03, D.camZ - 0.125),
-        crown.add(optic));
+      let lens = optic(x ? 0.042 : 0.052, 0.045);
+      (lens.position.set(x, deck + D.camY + 0.03, D.camZ - 0.125), crown.add(lens));
     }
     chassis.add(crown);
     for (let x of [-0.38, 0.38]) {
@@ -62468,6 +63121,194 @@ body.ti-voyage #ti-transfer-trigger {
       let t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)));
       return t * t * (3 - 2 * t);
     };
+  var words = [
+      "TR-Q1",
+      "TR-X01",
+      "TR-X02",
+      "TR-X03",
+      "TR-X04",
+      "TR-X05",
+      "TR-X06",
+      "TERRAFORMING_PROJECT",
+      "SURVEY / 01",
+      "F2345",
+      "F1021",
+      "F2406",
+      "F3108",
+      "I77",
+      "I62",
+      "I63",
+      "I81",
+    ],
+    atlases = new Map();
+  function paint(tier) {
+    if (atlases.has(tier)) return atlases.get(tier);
+    if (typeof document > "u") {
+      let material2 = new MeshStandardMaterial({ roughness: 0.86, metalness: 0 });
+      return (
+        (material2.name = "mission-stencil-paint"),
+        (material2.userData = { vehicleMarking: !0, geometryOnly: !0 }),
+        atlases.set(tier, material2),
+        material2
+      );
+    }
+    let canvas = document.createElement("canvas"),
+      scale2 = tier === "low" ? 1 : 2;
+    ((canvas.width = 512 * scale2), (canvas.height = 2048 * scale2));
+    let c = canvas.getContext("2d");
+    c.scale(scale2, scale2);
+    for (let ink = 0; ink < 2; ink++)
+      words.forEach((word, i) => {
+        let row = ink * words.length + i,
+          y = row * 56;
+        ((c.fillStyle = ink ? "#20282d" : "#d9dfdf"),
+          (c.textAlign = "center"),
+          (c.textBaseline = "middle"),
+          (c.font = `${word === "TERRAFORMING_PROJECT" ? 600 : 900} ${word.length > 14 ? 30 : 42}px Arial, sans-serif`),
+          c.save(),
+          c.translate(256, y + 28),
+          c.scale(470 / c.measureText(word).width, 1),
+          c.fillText(word, 0, 0),
+          c.restore(),
+          c.save(),
+          (c.globalCompositeOperation = "destination-out"));
+        for (let j = 0; j < 7; j++)
+          c.fillRect(24 + ((i * 37 + j * 71) % 465), y + 12 + ((j * 11) % 30), 0.6, 1.3);
+        c.restore();
+      });
+    let map = new CanvasTexture(canvas);
+    ((map.colorSpace = SRGBColorSpace), (map.anisotropy = tier === "high" ? 8 : 2));
+    let material = new MeshStandardMaterial({
+      map,
+      roughness: 0.86,
+      metalness: 0,
+      alphaTest: 0.35,
+      transparent: !0,
+      depthWrite: !1,
+      polygonOffset: !0,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
+    });
+    return (
+      (material.name = "mission-stencil-paint"),
+      (material.userData.vehicleMarking = !0),
+      atlases.set(tier, material),
+      material
+    );
+  }
+  function markingBatch(parent, tier = "mid") {
+    let positions = [],
+      normals = [],
+      uvs = [],
+      labels = [],
+      ray = new Raycaster(),
+      normalMatrix = new Matrix3();
+    return {
+      project(text, targets, centre, right, up, width, height, dark = !1, offset = 0.08) {
+        parent.updateWorldMatrix(!0, !0);
+        let origin = new Vector3(...centre),
+          u = new Vector3(...right),
+          v = new Vector3(...up),
+          n = new Vector3().crossVectors(u, v).normalize(),
+          inverse3 = parent.matrixWorld.clone().invert(),
+          steps = tier === "low" ? 8 : 16,
+          rows = 4,
+          points = [],
+          row = words.indexOf(text) + (dark ? words.length : 0);
+        if (words.indexOf(text) < 0) throw Error("Unknown vehicle marking: " + text);
+        for (let y = 0; y <= rows; y++)
+          for (let x = 0; x <= steps; x++) {
+            let start = origin
+              .clone()
+              .addScaledVector(u, (x / steps - 0.5) * width)
+              .addScaledVector(v, (y / rows - 0.5) * height)
+              .clone()
+              .addScaledVector(n, Math.max(width, height) * 4 + 10)
+              .applyMatrix4(parent.matrixWorld);
+            ray.set(start, n.clone().negate().transformDirection(parent.matrixWorld));
+            let hit = ray.intersectObjects(targets, !1)[0];
+            if (!hit) {
+              points.push(null);
+              continue;
+            }
+            let face = hit.face.normal
+              .clone()
+              .applyMatrix3(normalMatrix.getNormalMatrix(hit.object.matrixWorld))
+              .normalize();
+            if (face.dot(ray.ray.direction) > -0.15) {
+              points.push(null);
+              continue;
+            }
+            let local2 = hit.point.clone().applyMatrix4(inverse3).addScaledVector(n, offset);
+            points.push({
+              p: local2,
+              n: face.transformDirection(inverse3),
+              uv: [x / steps, 1 - (row * 56 + (1 - y / rows) * 56) / 2048],
+            });
+          }
+        let before = positions.length;
+        for (let y = 0; y < rows; y++)
+          for (let x = 0; x < steps; x++) {
+            let a = y * (steps + 1) + x,
+              b = a + 1,
+              d = a + steps + 1,
+              e = d + 1;
+            for (let tri2 of [
+              [a, b, e],
+              [a, e, d],
+            ])
+              if (tri2.every((i) => points[i]))
+                for (let i of tri2) {
+                  let q = points[i];
+                  (positions.push(...q.p.toArray()),
+                    normals.push(...q.n.toArray()),
+                    uvs.push(...q.uv));
+                }
+          }
+        positions.length > before && labels.push(text);
+      },
+      finish() {
+        if (!positions.length) return null;
+        let g = new BufferGeometry();
+        (g.setAttribute("position", new Float32BufferAttribute(positions, 3)),
+          g.setAttribute("normal", new Float32BufferAttribute(normals, 3)),
+          g.setAttribute("uv", new Float32BufferAttribute(uvs, 2)),
+          g.computeBoundingSphere());
+        let mesh = new Mesh(g, paint(tier));
+        return (
+          (mesh.name = "mission-markings"),
+          (mesh.receiveShadow = !0),
+          (mesh.userData = { vehicleMarking: !0, blueprintOmit: !0, flightHardware: !0, labels }),
+          parent.add(mesh),
+          mesh
+        );
+      },
+    };
+  }
+  function markSurveyor(parent, targets, tier = "mid") {
+    let b = markingBatch(parent, tier);
+    b.project("TR-Q1", targets, [-2.2, 4.79, 0], [-1, 0, 0], [0, 1, 0], 1.25, 0.28, !0, 0.006);
+    for (let side of [-1, 1])
+      (b.project("TR-Q1", targets, [0, 4.18, 1.5], [0, 0, -side], [0, 1, 0], 0.7, 0.19, !0, 0.006),
+        b.project(
+          "TERRAFORMING_PROJECT",
+          targets,
+          [0, 4.03, 1.5],
+          [0, 0, -side],
+          [0, 1, 0],
+          0.7,
+          0.07,
+          !0,
+          0.006,
+        ));
+    return b.finish();
+  }
+  function markSurveyorEngine(parent, targets, tier = "mid") {
+    let b = markingBatch(parent, tier);
+    for (let side of [-1, 1])
+      b.project("I77", targets, [0, 0.69, 0], [side, 0, 0], [0, 1, 0], 0.58, 0.18, !1, 0.004);
+    return b.finish();
+  }
   var LANDER_NOZZLES = Object.freeze([
       [0, 0, 2],
       [-1.45, -1.25, 0.65],
@@ -62661,11 +63502,13 @@ body.ti-voyage #ti-transfer-trigger {
             finish ? finish.roughness.mul(-gloss * 0.5).add(gloss) : float2(gloss),
           ).mul(sheen3),
           rim = pow5(float2(1).sub(abs2(dot2(n, v))), float2(3)).mul(sheen3 * 0.14),
-          lit = vec32(...rgb)
-            .mul(finish ? finish.color : float2(1))
-            .mul(ndl.mul(1.36).add(0.052))
-            .add(vec32(1, 0.97, 0.91).mul(spec))
-            .add(vec32(0.28, 0.34, 0.4).mul(rim)),
+          surface = vec32(...rgb).mul(finish ? finish.color : float2(1)),
+          lit = finish
+            ? aerospaceLighting(surface, n, v, L, finish)
+            : surface
+                .mul(ndl.mul(1.36).add(0.052))
+                .add(vec32(1, 0.97, 0.91).mul(spec))
+                .add(vec32(0.28, 0.34, 0.4).mul(rim)),
           fog3 = float2(1).sub(exp3(positionView2.length().mul(-C.atmosphere.fogDensity)));
         return vec42(mix2(lit, vec32(...C.color.horizon), smoothstep3(0, 1, fog3)), 1);
       })()),
@@ -63068,7 +63911,14 @@ body.ti-voyage #ti-transfer-trigger {
         (this._wireInverse = new Matrix4()),
         (this._wireRelative = new Matrix4()),
         this.group.add(this.core),
-        this._build(),
+        this._build());
+      let markingConfig = cfg(),
+        markingTargets = [];
+      (this.core.traverse((o) => {
+        o.isMesh && markingTargets.push(o);
+      }),
+        this._track(3, markSurveyor(this.core, markingTargets, markingConfig.tier)),
+        this._track(0, markSurveyorEngine(this.core, markingTargets, markingConfig.tier)),
         this.setLegFold(0),
         this._prepareRestoration(),
         (this.exhaust = new LanderExhaust()),
@@ -63449,7 +64299,7 @@ body.ti-voyage #ti-transfer-trigger {
             batches.get(key3).geometries.push(flat));
         },
         box = (part, mat, size, pos, yaw = 0) =>
-          add3(part, mat, new BoxGeometry(...size), pos, yaw),
+          add3(part, mat, formedBox(...size, 0.012), pos, yaw),
         grid = cfg().clipmap.grid,
         tier = grid >= 600 ? "high" : grid >= 450 ? "mid" : "low",
         fins = tier === "high" ? 9 : tier === "mid" ? 6 : 4;
@@ -63505,19 +64355,8 @@ body.ti-voyage #ti-transfer-trigger {
               let middle = quad.reduce((sum, p) => sum.add(p), new Vector3()).multiplyScalar(0.25);
               for (let p of quad)
                 p.sub(middle).multiplyScalar(0.974).add(middle).addScaledVector(normal2, 0.012);
-              let tile = new BufferGeometry();
-              if (
-                (tile.setAttribute(
-                  "position",
-                  new Float32BufferAttribute(
-                    [0, 1, 3, 3, 1, 2].flatMap((j) => quad[j].toArray()),
-                    3,
-                  ),
-                ),
-                tile.computeVertexNormals(),
-                add3(3, (row + col) % 3 === 0 ? metal : ceramic, tile),
-                tier !== "low")
-              )
+              let tile = fabricatedPanel(quad, 0.012, 0.005);
+              if ((add3(3, ceramic, tile), tier !== "low"))
                 for (let q of [quad[0], quad[2]]) {
                   let bolt = q.clone().lerp(middle, 0.13).addScaledVector(normal2, 0.009);
                   add3(3, dark, new SphereGeometry(0.015, 5, 3), bolt.toArray());
@@ -63632,6 +64471,7 @@ body.ti-voyage #ti-transfer-trigger {
       for (let part of this.parts) {
         let vertices = [];
         for (let object of part.objects) {
+          if (object.userData.vehicleMarking) continue;
           (object.updateWorldMatrix(!0, !1),
             this._wireRelative.multiplyMatrices(this._wireInverse, object.matrixWorld));
           let edges = new EdgesGeometry(object.geometry, 18),
@@ -66279,10 +67119,16 @@ body.ti-voyage #ti-transfer-trigger {
           return (hash12 >>> 0) / 4294967295;
         });
   }
-  var MIGRATION_CUTS = Object.freeze([28, 48, 76, 82]);
+  var MIGRATION_CUTS = Object.freeze([30, 50, 102, 115]),
+    MIGRATION_DURATION = MIGRATION_CUTS[3] + 18;
   var POST_KEY = "beyond-known:post-mission:v1",
     POST_PHASES = Object.freeze({
-      migration: { file: "migration.html", start: 0, duration: 100, next: "arrival" },
+      migration: {
+        file: "migration.html",
+        start: 0,
+        duration: MIGRATION_DURATION,
+        next: "arrival",
+      },
       arrival: { file: "arrival.html", start: 68, duration: 64, next: "ending" },
       ending: { file: "ending.html", start: 0, duration: 18, next: null },
     }),
@@ -66925,6 +67771,7 @@ body.ti-voyage #ti-transfer-trigger {
       waterMission,
       missionMemory,
       geologicalMemory,
+      fleetUplink,
       docking,
       voyage,
       shotDirector,
@@ -67087,6 +67934,7 @@ body.ti-voyage #ti-transfer-trigger {
               phase === "recall" && (kiosk.last = now2));
           },
         })),
+        (fleetUplink = new FleetUplink({ lander, camera, heightAt: heightCPU, tier: CFG.tier })),
         (voyage = new VoyageSequence({
           rover,
           lander,
@@ -67212,56 +68060,73 @@ body.ti-voyage #ti-transfer-trigger {
           if ((e.preventDefault(), !released)) return;
           cycleCameraView(now2);
         }
-        if (!e.repeat && (e.code === "Equal" || e.code === "NumpadEqual" || e.key === "=")) {
-          if (
-            (e.preventDefault(),
-            !released || voyage.active || docking.started || pendingArrival || finalTableau)
-          )
-            return;
-          if (world === "terra" && !docking.started && !voyage.active && !restoration.complete) {
-            let now22 = performance.now();
-            ((openingShot = null),
-              shotDirector.setOpening(!1),
-              rover.setViewMode("rear"),
-              restoration.acquireAll(
-                {
-                  x: rover.pos.x,
-                  z: rover.pos.z,
-                  heading: rover.heading,
-                  ground: heightCPU(rover.pos.x, rover.pos.z),
-                },
-                now22,
-              ) &&
-                (rover.flashAcquisition(now22),
-                captions.force(
-                  {
-                    r: 0,
-                    ko: "외피 구조재 4종 · 원료 2종 일괄 적재",
-                    en: "FOUR STRUCTURES · TWO RAW MATERIALS ACQUIRED",
-                  },
-                  now22,
-                  5200,
-                ),
-                (kiosk.last = now22)));
-          }
-          if (world === "desert" && waterMission.active && !docking.started) {
-            let now22 = performance.now();
-            waterMission.forceAcquire(now22) &&
-              (rover.flashAcquisition(now22), (kiosk.last = now22));
-          }
-          if (world === "granite" && geologicalMemory.active && !docking.started) {
-            let now22 = performance.now(),
-              acquired = !1;
-            for (; geologicalMemory.active && geologicalMemory.forceAcquire(now22); ) acquired = !0;
-            acquired && (rover.flashAcquisition(now22), (kiosk.last = now22));
-          }
-        }
-        if (TEST && e.code === "KeyG") {
+        if (
+          (!e.repeat &&
+            (e.code === "Equal" || e.code === "NumpadEqual" || e.key === "=") &&
+            (e.preventDefault(), completeCurrentMission(now2)),
+          TEST && e.code === "KeyG")
+        ) {
           let on = !ground.mesh.material.wireframe;
           ground.mesh.material.wireframe = on;
           for (let m of scatter.meshes) m.visible = !on;
         }
       }));
+    function completeCurrentMission(now2 = performance.now()) {
+      if (!released || voyage.active || docking.started || pendingArrival || finalTableau)
+        return !1;
+      if (world === "terra" && !docking.started && !voyage.active && !restoration.complete) {
+        let now22 = now2;
+        ((openingShot = null),
+          shotDirector.setOpening(!1),
+          rover.setViewMode("rear"),
+          restoration.acquireAll(
+            {
+              x: rover.pos.x,
+              z: rover.pos.z,
+              heading: rover.heading,
+              ground: heightCPU(rover.pos.x, rover.pos.z),
+            },
+            now22,
+          ) &&
+            (rover.flashAcquisition(now22),
+            captions.force(
+              {
+                r: 0,
+                ko: "외피 구조재 4종 · 원료 2종 일괄 적재",
+                en: "FOUR STRUCTURES · TWO RAW MATERIALS ACQUIRED",
+              },
+              now22,
+              5200,
+            ),
+            (kiosk.last = now22)));
+      }
+      if (world === "desert" && waterMission.active && !docking.started) {
+        let now22 = now2;
+        waterMission.forceAcquire(now22) && (rover.flashAcquisition(now22), (kiosk.last = now22));
+      }
+      if (world === "granite" && geologicalMemory.active && !docking.started) {
+        let now22 = now2,
+          acquired = !1;
+        for (; geologicalMemory.active && geologicalMemory.forceAcquire(now22); ) acquired = !0;
+        acquired && (rover.flashAcquisition(now22), (kiosk.last = now22));
+      }
+      return world === "terra"
+        ? restoration.complete
+        : world === "desert"
+          ? waterMission.complete
+          : geologicalMemory.complete;
+    }
+    bindMissionTripleTap({
+      target: document,
+      enabled: () =>
+        mobileControl.active &&
+        released &&
+        !voyage.active &&
+        !docking.started &&
+        !pendingArrival &&
+        !finalTableau,
+      onComplete: () => completeCurrentMission(),
+    });
     function authoredExperienceLock() {
       return prologuePhase !== "released" ||
         completionTableau ||
@@ -67296,16 +68161,30 @@ body.ti-voyage #ti-transfer-trigger {
       ((rover.auto = !1),
         (rover.missionHold = !0),
         (rover.operatorHold = !0),
-        (finalTableau = { t0: now2, requested: !1 }),
+        (finalTableau = { t0: now2, requested: !1, phase: "survey-hold" }),
         document.body.classList.add("ti-memory-tableau"),
         captions.rearm(),
         (kiosk.last = now2));
     }
     function updateFinalTableau(now2) {
-      if (finalTableau && now2 - finalTableau.t0 >= 1500 && !finalTableau.requested) {
+      if (
+        finalTableau &&
+        (finalTableau.phase === "survey-hold" &&
+          now2 - finalTableau.t0 >= 2400 &&
+          docking.start(now2, { physicalReturn: !0 }) &&
+          ((finalTableau.phase = "return"), document.body.classList.add("ti-fleet-return")),
+        finalTableau.phase === "return" &&
+          docking.docked &&
+          (fieldArchive.persist(),
+          fleetUplink.start(now2, fieldArchive.snapshot(), shotDirector.focus),
+          (finalTableau.phase = "uplink"),
+          document.body.classList.remove("ti-fleet-return")),
+        finalTableau.phase === "complete" && !finalTableau.requested)
+      ) {
         ((finalTableau.requested = !0),
           clearCheckpoint(),
           missionMemory.persist(),
+          fieldArchive.persist(),
           beginPostMission(
             window.UNIVERSE_SEED,
             missionMemory.snapshot(),
@@ -67547,8 +68426,29 @@ body.ti-voyage #ti-transfer-trigger {
         ledger: missionMemory.snapshot(),
         geological: geologicalMemory.snapshot(),
       })),
-      (window.TI_FINALE = () => ({ active: !!finalTableau, standalone: !0 })),
+      (window.TI_FINALE = () => ({
+        active: !!finalTableau,
+        phase: finalTableau?.phase ?? "idle",
+        uplink: fleetUplink.snapshot(),
+        standalone: !0,
+      })),
       (window.TI_FIELD_ARCHIVE = () => fieldArchive.snapshot()),
+      TEST &&
+        (window.TI_ARCHIVE_TEST = {
+          stations: () => fieldArchiveStationsFor(),
+          visit: (id) => {
+            let site = fieldArchiveStationsFor().find((s) => s.id === id);
+            return site
+              ? ((rover.auto = !1),
+                (rover.operatorHold = !0),
+                (rover.scriptedDrive = null),
+                rover.teleport(site.x, site.z, rover.heading),
+                !0)
+              : !1;
+          },
+          survey: () =>
+            geologicalMemory.active ? geologicalMemory.forceAcquire(performance.now()) : !1,
+        }),
       (window.TI_RESTORATION = TEST
         ? (level) => (level == null || restoration.reset(level), restoration.snapshot())
         : void 0),
@@ -67677,6 +68577,7 @@ body.ti-voyage #ti-transfer-trigger {
       (window.addEventListener("pagehide", () => {
         (saveMissionCheckpoint(performance.now(), !0),
           missionMemory.persist(),
+          fieldArchive.persist(),
           planetState.persist());
         try {
           sessionStorage.setItem(
@@ -67789,7 +68690,10 @@ body.ti-voyage #ti-transfer-trigger {
         let now2 = performance.now();
         if (finalTableau?.pausedAt != null) {
           let paused = now2 - finalTableau.pausedAt;
-          ((finalTableau.t0 += paused), (finalTableau.pausedAt = null));
+          ((finalTableau.t0 += paused),
+            docking.active && (docking.t0 += paused),
+            fleetUplink.active && (fleetUplink.t0 += paused),
+            (finalTableau.pausedAt = null));
         }
         if (completionTableau?.pausedAt != null) {
           ((completionTableau.t0 += now2 - completionTableau.pausedAt),
@@ -68113,6 +69017,23 @@ body.ti-voyage #ti-transfer-trigger {
         (restoration.setCompletionRegistration(highlight, tableauProgress),
           tableauProgress >= 0.7 && animeRituals.beginCompletionSilence());
       }
+      if (
+        ((fleetUplink.rig.visible = world === "granite" && lander.restorationComplete),
+        fleetUplink.active)
+      ) {
+        let done = fleetUplink.update(now2, shotDirector.focus);
+        (fleetUplink.received &&
+          !finalTableau.receipt &&
+          ((finalTableau.receipt = !0),
+          fieldArchive.setTransmission({
+            status: "received",
+            receiver: "MIGRATION FLEET",
+            records: fieldArchive.snapshot().captured,
+            images: fieldArchive.snapshot().images,
+            simulation: !0,
+          })),
+          done && (finalTableau.phase = "complete"));
+      }
       if ((sky.position.copy(camera.position), lens)) {
         let focusTarget = shotDirector.focus;
         (lens.focusAt(camera.position.distanceTo(focusTarget)),
@@ -68170,7 +69091,7 @@ body.ti-voyage #ti-transfer-trigger {
             CFG.power.deadHold,
           )),
         (rover.disabled = pw.dead && !docking.active && !voyage.active),
-        (rover.transmitting = !1),
+        (rover.transmitting = !!fleetUplink.active),
         syncRoverUtilityControls());
       let roverVisibleForFlight =
         !voyage.active || voyage.phase === "egress" || voyage.phase === "close";
@@ -68290,7 +69211,9 @@ body.ti-voyage #ti-transfer-trigger {
       if (!fieldArchiveControl) return;
       let label3 = fieldArchiveControl.querySelector("[data-field-archive-label]");
       ((fieldArchiveControl.dataset.archiveState = "recording"),
-        label3 && (label3.textContent = "NEW FRAME"),
+        label3 &&
+          (label3.textContent =
+            fieldArchive.storageState === "unavailable" ? "SAVE UNAVAILABLE" : "NEW RECORD"),
         clearTimeout(archiveRecordTimer),
         (archiveRecordTimer = setTimeout(() => {
           (delete fieldArchiveControl.dataset.archiveState,
@@ -68512,16 +69435,51 @@ body.ti-voyage #ti-transfer-trigger {
         return null;
       }
     }
+    let archiveMissionSignature = "";
+    function syncArchiveMissionData(now2) {
+      let memory = missionMemory.snapshot(),
+        signature = `${world}/${restoration.count}/${memory.samples.length}/${!!memory.water?.confirmed}/${geologicalMemory.current}`;
+      if (
+        signature !== archiveMissionSignature &&
+        ((archiveMissionSignature = signature),
+        memory.samples.length && fieldArchive.setMission("terra", { samples: memory.samples }),
+        memory.water?.confirmed &&
+          (fieldArchive.setMission("desert", { water: memory.water }),
+          fieldArchive.recordData(FIELD_ARCHIVE_STATIONS.desert.at(-1), memory.water, now2)),
+        world === "granite" && geologicalMemory.model)
+      ) {
+        let sites = geologicalMemory.model.sites.slice(0, geologicalMemory.current);
+        fieldArchive.setMission("granite", {
+          sites,
+          complete: geologicalMemory.complete,
+          sources: geologicalMemory.model.source,
+        });
+        let stations = fieldArchiveStationsFor("granite");
+        sites.forEach((site, i) =>
+          fieldArchive.recordData(
+            stations[[1, 3, 4][i]],
+            {
+              objective: site.objective,
+              coherence: site.coherence,
+              reflectance: site.reflectance,
+              density: site.density,
+              phaseDelta: site.phaseDelta,
+            },
+            now2,
+          ),
+        );
+      }
+    }
     function captureFieldArchiveObservation(now2, missionEnding) {
       if (
         !released ||
         pendingArrival ||
-        completionTableau ||
         docking.started ||
         voyage.active ||
-        missionEnding
+        (missionEnding && finalTableau?.phase !== "survey-hold")
       )
         return;
+      syncArchiveMissionData(now2);
       let resourceEvents = restoration.consumeAcquisitions();
       for (let acquisition of resourceEvents) {
         let selected = restoration.sites[acquisition.siteIndex];
@@ -68530,12 +69488,19 @@ body.ti-voyage #ti-transfer-trigger {
           itemIndex: acquisition.itemIndex,
           site: {
             ...selected.data,
-            label: restoration.items[acquisition.itemIndex]?.ko.sample ?? "현장 시료",
+            label: restoration.items[acquisition.itemIndex]?.sample ?? "FIELD SAMPLE",
           },
           alternatives: restoration.sites.map((site) => site.data),
           rover,
           shot: shotDirector.rendered,
           now: acquisition.at,
+          data: {
+            sample: restoration.items[acquisition.itemIndex]?.sample,
+            item: acquisition.itemIndex,
+            variant: selected.data.variant,
+            x: selected.data.x,
+            z: selected.data.z,
+          },
           image: captureArchiveFrame,
         }) && flashArchiveRecord();
       }
@@ -68548,7 +69513,7 @@ body.ti-voyage #ti-transfer-trigger {
         shot: shotDirector.rendered,
         now: now2,
         image: captureArchiveFrame,
-        minSpeed: 0.035,
+        minSpeed: 0,
       }) && (hud.flash(), flashArchiveRecord());
     }
     function orbitEase(p) {
@@ -68600,6 +69565,8 @@ body.ti-voyage #ti-transfer-trigger {
       let planet = PLANETS[destination.key];
       if (!planet) throw new Error(`Unknown voyage destination: ${destination.key}`);
       (docking.reset(),
+        fleetUplink?.reset(),
+        document.body.classList.remove("ti-fleet-return"),
         (dockedHoldUntil = 0),
         (pendingArrival = null),
         (landerPresent = !0),
@@ -68656,6 +69623,8 @@ body.ti-voyage #ti-transfer-trigger {
         voyage.reset(),
         shotDirector.reset(),
         docking.reset(),
+        fleetUplink?.reset(),
+        document.body.classList.remove("ti-fleet-return"),
         (completionTableau = null),
         (finalTableau = null),
         ambient.endFinale(),

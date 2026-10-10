@@ -166,6 +166,52 @@
           bottom: 19vh;
         }
       }
+      #arrival-intro {
+        position: fixed;
+        left: 7vw;
+        right: 7vw;
+        top: 39%;
+        z-index: 3;
+        text-align: center;
+        pointer-events: none;
+        opacity: 0;
+        text-shadow: 0 2px 16px #000;
+      }
+      #arrival-intro span,
+      #line span {
+        display: block;
+      }
+      #arrival-intro [lang="en"],
+      #line [lang="en"] {
+        font-size: clamp(18px, 2.1vw, 30px);
+        font-weight: 300;
+        letter-spacing: 0.15em;
+        color: #e0e0dc;
+      }
+      #arrival-intro [lang="ko"],
+      #line [lang="ko"] {
+        margin-top: 14px;
+        font-size: clamp(12px, 1vw, 16px);
+        font-weight: 300;
+        letter-spacing: 0.2em;
+        color: #c5c5c1;
+      }
+      @media (max-width: 600px) {
+        #arrival-intro {
+          top: 39%;
+        }
+        #arrival-intro [lang="en"],
+        #line [lang="en"] {
+          font-size: 18px;
+          letter-spacing: 0.07em;
+        }
+        #arrival-intro [lang="ko"],
+        #line [lang="ko"] {
+          margin-top: 10px;
+          font-size: 13px;
+          letter-spacing: 0.12em;
+        }
+      }
       #sound {
         width: 44px;
         min-height: 44px;
@@ -199,8 +245,13 @@
     ><header
       >BEYOND THE KNOWN <span>BEYOND THE KNOWN - A Terraforming Project / EPILOGUE</span></header
     >
-    <div id="loading">첫 번째 여명</div><div id="error" hidden></div
-    ><div id="line">우리는 이제 여기서 시작한다</div>
+    <div id="loading">불러오는 중</div><div id="error" hidden></div
+    ><div id="arrival-intro" aria-label="A Terraforming Project, 테라포밍 프로젝트"
+      ><span lang="en">A Terraforming Project</span><span lang="ko">테라포밍 프로젝트</span></div
+    ><div id="line"
+      ><span lang="en">We begin here now</span
+      ><span lang="ko">우리는 이제 여기서 시작한다</span></div
+    >
     <footer
       ><span id="credit">© 2026 KIM GUNWOO</span
       ><nav
@@ -12318,8 +12369,8 @@
          * @param  callback  The callback to invoke when the event is emitted
          */
         on(event, callback) {
-          const events = event.split(/\W+/);
-          events.forEach((eventName) => {
+          const events2 = event.split(/\W+/);
+          events2.forEach((eventName) => {
             if (isUndef(this._events)) {
               this._events = {};
             }
@@ -12350,8 +12401,8 @@
          *                   If no callback is given, all callbacks events are removed.
          */
         off(event, callback) {
-          const events = event.split(/\W+/);
-          events.forEach((eventName) => {
+          const events2 = event.split(/\W+/);
+          events2.forEach((eventName) => {
             if (isUndef(this._events)) {
               this._events = {};
             }
@@ -22650,6 +22701,34 @@
       var Draw = getContext().draw;
       var context = getContext();
 
+      // works/shared/voyage-resonance.js
+      var events = [14.5, 19, 46, 52, 65, 74, 81, 98];
+      function propulsionLoad(t) {
+        let load = 0.24;
+        for (const at of events) {
+          const u = (t - at) / 1.8;
+          if (u > 0 && u < 1) load += 0.62 * Math.sin(Math.PI * u) ** 4;
+        }
+        return load;
+      }
+
+      // works/shared/arrival-handoff.js
+      var ARRIVAL_HANDOFF = Object.freeze({
+        settleAt: 100,
+        stillAt: 104,
+        traceAt: 108,
+        recoverAt: 114,
+      });
+      var smooth = (t, a, b) => {
+        const u = Math.max(0, Math.min(1, (t - a) / (b - a)));
+        return u * u * u * (u * (u * 6 - 15) + 10);
+      };
+      function arrivalHandoffGain(elapsed) {
+        const t = elapsed + 68,
+          h = ARRIVAL_HANDOFF;
+        return 1 - smooth(t, h.settleAt, h.stillAt) + smooth(t, h.traceAt, h.recoverAt);
+      }
+
       // works/shared/journey-score.js
       var clamp2 = (x) => Math.max(0, Math.min(1, x));
       var swell = (t, start2, end) => {
@@ -22692,7 +22771,10 @@
         if (phase === "migration") {
           return {
             ...base,
-            body: (0.18 + 0.24 * proximity) * (1 - 0.65 * swell(t, 30, 80)),
+            body:
+              (0.18 + 0.24 * proximity) *
+              (1 - 0.65 * swell(t, 30, 80)) *
+              (0.75 + 0.25 * propulsionLoad(t)),
             sub: 0.42 + 0.15 * window3(t, 32, 48, 60, 78),
             resonance: 0.32 + 0.58 * swell(t, 4, 40),
             tension: 0.5 * window3(t, 16, 44, 67, 96),
@@ -22706,6 +22788,7 @@
         if (phase === "arrival") {
           return {
             ...base,
+            envelope: base.envelope * arrivalHandoffGain(t),
             body: 0.1 * (1 - swell(t, 8, 32)),
             sub: 0.46 - 0.18 * swell(t, 24, 58),
             resonance: 0.85 - 0.32 * swell(t, 24, 60),
@@ -22716,7 +22799,14 @@
             air: 0.025,
             wet: 0.86 - 0.12 * swell(t, 32, 60),
             cutoff: 1400 + 800 * swell(t, 12, 56),
-            chapter: t < 24 ? "resonant-arrival" : t < 48 ? "opening-horizon" : "first-light",
+            chapter:
+              t >= 36 && t <= 40
+                ? "stillness"
+                : t < 24
+                  ? "resonant-arrival"
+                  : t < 48
+                    ? "opening-horizon"
+                    : "first-light",
           };
         }
         return {
@@ -23026,15 +23116,25 @@
       }
 
       // works/first_dawn/migration-sequence.js
-      var MIGRATION_OPENING = 28;
+      var MIGRATION_OPENING_SPEED = 0.7;
+      var OPENING_PATH_DURATION = 28 / MIGRATION_OPENING_SPEED;
+      var OPENING_PASS_SPEED = 8960 / OPENING_PATH_DURATION;
+      var APPROACH_DURATION = 16;
+      var APPROACH_INITIAL_SPEED = 24;
+      var OPENING_START_OFFSET =
+        8960 - (OPENING_PASS_SPEED - APPROACH_INITIAL_SPEED) * APPROACH_DURATION * 0.5;
+      var MIGRATION_OPENING = OPENING_PATH_DURATION - 10;
       var MIGRATION_EXTENSION = MIGRATION_OPENING - 3;
-      var MIGRATION_DURATION = 75 + MIGRATION_EXTENSION;
+      var RING_PASSAGE_DURATION = 52;
+      var RING_REAR_DURATION = 13;
+      var ringStart = 23 + MIGRATION_EXTENSION;
       var MIGRATION_CUTS = Object.freeze([
         MIGRATION_OPENING,
-        23 + MIGRATION_EXTENSION,
-        51 + MIGRATION_EXTENSION,
-        57 + MIGRATION_EXTENSION,
+        ringStart,
+        ringStart + RING_PASSAGE_DURATION,
+        ringStart + RING_PASSAGE_DURATION + RING_REAR_DURATION,
       ]);
+      var MIGRATION_DURATION = MIGRATION_CUTS[3] + 18;
 
       // works/shared/post-mission-state.js
       var POST_KEY = "beyond-known:post-mission:v1";
@@ -23192,8 +23292,7 @@
       document.getElementById("return").href = path("index.html");
       archive.href = path("field-archive.html");
       Object.assign(title.style, { top: "40%", bottom: "auto", zIndex: "4" });
-      title.textContent = "우리는 이제 여기서 시작한다";
-      var smooth = (x) => {
+      var smooth2 = (x) => {
         x = Math.max(0, Math.min(1, x));
         return x * x * (3 - 2 * x);
       };
@@ -23203,7 +23302,7 @@
       }
       function render(t) {
         seconds = Math.max(0, Math.min(18, t));
-        title.style.opacity = String(smooth((seconds - 4) / 6));
+        title.style.opacity = String(smooth2((seconds - 4) / 6));
         archive.hidden = replay.hidden = seconds < 12;
         audio.update(seconds);
       }

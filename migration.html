@@ -166,6 +166,52 @@
           bottom: 19vh;
         }
       }
+      #arrival-intro {
+        position: fixed;
+        left: 7vw;
+        right: 7vw;
+        top: 39%;
+        z-index: 3;
+        text-align: center;
+        pointer-events: none;
+        opacity: 0;
+        text-shadow: 0 2px 16px #000;
+      }
+      #arrival-intro span,
+      #line span {
+        display: block;
+      }
+      #arrival-intro [lang="en"],
+      #line [lang="en"] {
+        font-size: clamp(18px, 2.1vw, 30px);
+        font-weight: 300;
+        letter-spacing: 0.15em;
+        color: #e0e0dc;
+      }
+      #arrival-intro [lang="ko"],
+      #line [lang="ko"] {
+        margin-top: 14px;
+        font-size: clamp(12px, 1vw, 16px);
+        font-weight: 300;
+        letter-spacing: 0.2em;
+        color: #c5c5c1;
+      }
+      @media (max-width: 600px) {
+        #arrival-intro {
+          top: 39%;
+        }
+        #arrival-intro [lang="en"],
+        #line [lang="en"] {
+          font-size: 18px;
+          letter-spacing: 0.07em;
+        }
+        #arrival-intro [lang="ko"],
+        #line [lang="ko"] {
+          margin-top: 10px;
+          font-size: 13px;
+          letter-spacing: 0.12em;
+        }
+      }
       #sound {
         width: 44px;
         min-height: 44px;
@@ -197,8 +243,13 @@
     <div id="cut" aria-hidden="true"></div><div class="frame top"></div
     ><div class="frame bottom"></div
     ><header>MIGRATION <span>BEYOND THE KNOWN - A Terraforming Project / EPILOGUE</span></header>
-    <div id="loading">첫 번째 여명</div><div id="error" hidden></div
-    ><div id="line">우리는 이제 여기서 시작한다</div>
+    <div id="loading">불러오는 중</div><div id="error" hidden></div
+    ><div id="arrival-intro" aria-label="A Terraforming Project, 테라포밍 프로젝트"
+      ><span lang="en">A Terraforming Project</span><span lang="ko">테라포밍 프로젝트</span></div
+    ><div id="line"
+      ><span lang="en">We begin here now</span
+      ><span lang="ko">우리는 이제 여기서 시작한다</span></div
+    >
     <footer
       ><span id="credit">© 2026 KIM GUNWOO</span
       ><nav
@@ -1119,34 +1170,6 @@
           });
         },
       });
-
-      // works/shared/journey-controls.js
-      function installJourneyControls(audio2, button) {
-        const chosen = () => {
-          try {
-            return sessionStorage.getItem("ti_audio_muted");
-          } catch {
-            return null;
-          }
-        };
-        function unlock(event) {
-          if (
-            chosen() === "1" ||
-            event.target.closest?.("button,a") ||
-            (event.type === "keydown" &&
-              ["Shift", "Control", "Alt", "Meta", "Tab", "Escape"].includes(event.key))
-          )
-            return;
-          if (!audio2.enabled || audio2.snapshot().context !== "running") audio2.enable();
-        }
-        button.addEventListener("click", () => {
-          if (audio2.enabled && audio2.snapshot().context === "running") audio2.mute();
-          else audio2.enable();
-        });
-        addEventListener("pointerdown", unlock);
-        addEventListener("keydown", unlock);
-        if (chosen() === "0") audio2.enable();
-      }
 
       // node_modules/three/build/three.core.js
       var REVISION = "185";
@@ -8908,7 +8931,7 @@
           }
           if (isRootObject) {
             const geometries = extractFromCache(meta.geometries);
-            const materials = extractFromCache(meta.materials);
+            const materials2 = extractFromCache(meta.materials);
             const textures = extractFromCache(meta.textures);
             const images = extractFromCache(meta.images);
             const shapes = extractFromCache(meta.shapes);
@@ -8916,7 +8939,7 @@
             const animations = extractFromCache(meta.animations);
             const nodes = extractFromCache(meta.nodes);
             if (geometries.length > 0) output.geometries = geometries;
-            if (materials.length > 0) output.materials = materials;
+            if (materials2.length > 0) output.materials = materials2;
             if (textures.length > 0) output.textures = textures;
             if (images.length > 0) output.images = images;
             if (shapes.length > 0) output.shapes = shapes;
@@ -13908,13 +13931,13 @@
         }
       };
       function checkIntersection$1(object, material, raycaster, ray, pA, pB, pC, point) {
-        let intersect;
+        let intersect2;
         if (material.side === BackSide) {
-          intersect = ray.intersectTriangle(pC, pB, pA, true, point);
+          intersect2 = ray.intersectTriangle(pC, pB, pA, true, point);
         } else {
-          intersect = ray.intersectTriangle(pA, pB, pC, material.side === FrontSide, point);
+          intersect2 = ray.intersectTriangle(pA, pB, pC, material.side === FrontSide, point);
         }
-        if (intersect === null) return null;
+        if (intersect2 === null) return null;
         _intersectionPointWorld.copy(point);
         _intersectionPointWorld.applyMatrix4(object.matrixWorld);
         const distance = raycaster.ray.origin.distanceTo(_intersectionPointWorld);
@@ -14210,10 +14233,10 @@
             _mesh$1.matrixWorld = _instanceWorldMatrix;
             _mesh$1.raycast(raycaster, _instanceIntersects);
             for (let i = 0, l = _instanceIntersects.length; i < l; i++) {
-              const intersect = _instanceIntersects[i];
-              intersect.instanceId = instanceId;
-              intersect.object = this;
-              intersects2.push(intersect);
+              const intersect2 = _instanceIntersects[i];
+              intersect2.instanceId = instanceId;
+              intersect2.object = this;
+              intersects2.push(intersect2);
             }
             _instanceIntersects.length = 0;
           }
@@ -14963,6 +14986,26 @@
           this.image = value;
         }
       };
+      var CanvasTexture = class extends Texture {
+        /**
+         * Constructs a new texture.
+         *
+         * @param {HTMLCanvasElement} [canvas] - The HTML canvas element.
+         * @param {number} [mapping=Texture.DEFAULT_MAPPING] - The texture mapping.
+         * @param {number} [wrapS=ClampToEdgeWrapping] - The wrapS value.
+         * @param {number} [wrapT=ClampToEdgeWrapping] - The wrapT value.
+         * @param {number} [magFilter=LinearFilter] - The mag filter value.
+         * @param {number} [minFilter=LinearMipmapLinearFilter] - The min filter value.
+         * @param {number} [format=RGBAFormat] - The texture format.
+         * @param {number} [type=UnsignedByteType] - The texture type.
+         * @param {number} [anisotropy=Texture.DEFAULT_ANISOTROPY] - The anisotropy value.
+         */
+        constructor(canvas, mapping, wrapS, wrapT, magFilter, minFilter, format, type, anisotropy) {
+          super(canvas, mapping, wrapS, wrapT, magFilter, minFilter, format, type, anisotropy);
+          this.isCanvasTexture = true;
+          this.needsUpdate = true;
+        }
+      };
       var DepthTexture = class extends Texture {
         /**
          * Constructs a new depth texture.
@@ -15217,134 +15260,6 @@
           );
         }
       };
-      var CapsuleGeometry = class _CapsuleGeometry extends BufferGeometry {
-        /**
-         * Constructs a new capsule geometry.
-         *
-         * @param {number} [radius=1] - Radius of the capsule.
-         * @param {number} [height=1] - Height of the middle section.
-         * @param {number} [capSegments=4] - Number of curve segments used to build each cap.
-         * @param {number} [radialSegments=8] - Number of segmented faces around the circumference of the capsule. Must be an integer >= 3.
-         * @param {number} [heightSegments=1] - Number of rows of faces along the height of the middle section. Must be an integer >= 1.
-         */
-        constructor(
-          radius = 1,
-          height = 1,
-          capSegments = 4,
-          radialSegments = 8,
-          heightSegments = 1,
-        ) {
-          super();
-          this.type = "CapsuleGeometry";
-          this.parameters = {
-            radius,
-            height,
-            capSegments,
-            radialSegments,
-            heightSegments,
-          };
-          height = Math.max(0, height);
-          capSegments = Math.max(1, Math.floor(capSegments));
-          radialSegments = Math.max(3, Math.floor(radialSegments));
-          heightSegments = Math.max(1, Math.floor(heightSegments));
-          const indices = [];
-          const vertices = [];
-          const normals = [];
-          const uvs = [];
-          const halfHeight = height / 2;
-          const capArcLength = (Math.PI / 2) * radius;
-          const cylinderPartLength = height;
-          const totalArcLength = 2 * capArcLength + cylinderPartLength;
-          const numVerticalSegments = capSegments * 2 + heightSegments;
-          const verticesPerRow = radialSegments + 1;
-          const normal = new Vector3();
-          const vertex2 = new Vector3();
-          for (let iy = 0; iy <= numVerticalSegments; iy++) {
-            let currentArcLength = 0;
-            let profileY = 0;
-            let profileRadius = 0;
-            let normalYComponent = 0;
-            if (iy <= capSegments) {
-              const segmentProgress = iy / capSegments;
-              const angle = (segmentProgress * Math.PI) / 2;
-              profileY = -halfHeight - radius * Math.cos(angle);
-              profileRadius = radius * Math.sin(angle);
-              normalYComponent = -radius * Math.cos(angle);
-              currentArcLength = segmentProgress * capArcLength;
-            } else if (iy <= capSegments + heightSegments) {
-              const segmentProgress = (iy - capSegments) / heightSegments;
-              profileY = -halfHeight + segmentProgress * height;
-              profileRadius = radius;
-              normalYComponent = 0;
-              currentArcLength = capArcLength + segmentProgress * cylinderPartLength;
-            } else {
-              const segmentProgress = (iy - capSegments - heightSegments) / capSegments;
-              const angle = (segmentProgress * Math.PI) / 2;
-              profileY = halfHeight + radius * Math.sin(angle);
-              profileRadius = radius * Math.cos(angle);
-              normalYComponent = radius * Math.sin(angle);
-              currentArcLength = capArcLength + cylinderPartLength + segmentProgress * capArcLength;
-            }
-            const v = Math.max(0, Math.min(1, currentArcLength / totalArcLength));
-            let uOffset = 0;
-            if (iy === 0) {
-              uOffset = 0.5 / radialSegments;
-            } else if (iy === numVerticalSegments) {
-              uOffset = -0.5 / radialSegments;
-            }
-            for (let ix = 0; ix <= radialSegments; ix++) {
-              const u = ix / radialSegments;
-              const theta = u * Math.PI * 2;
-              const sinTheta = Math.sin(theta);
-              const cosTheta = Math.cos(theta);
-              vertex2.x = -profileRadius * cosTheta;
-              vertex2.y = profileY;
-              vertex2.z = profileRadius * sinTheta;
-              vertices.push(vertex2.x, vertex2.y, vertex2.z);
-              normal.set(-profileRadius * cosTheta, normalYComponent, profileRadius * sinTheta);
-              normal.normalize();
-              normals.push(normal.x, normal.y, normal.z);
-              uvs.push(u + uOffset, v);
-            }
-            if (iy > 0) {
-              const prevIndexRow = (iy - 1) * verticesPerRow;
-              for (let ix = 0; ix < radialSegments; ix++) {
-                const i1 = prevIndexRow + ix;
-                const i2 = prevIndexRow + ix + 1;
-                const i3 = iy * verticesPerRow + ix;
-                const i4 = iy * verticesPerRow + ix + 1;
-                indices.push(i1, i2, i3);
-                indices.push(i2, i4, i3);
-              }
-            }
-          }
-          this.setIndex(indices);
-          this.setAttribute("position", new Float32BufferAttribute(vertices, 3));
-          this.setAttribute("normal", new Float32BufferAttribute(normals, 3));
-          this.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
-        }
-        copy(source) {
-          super.copy(source);
-          this.parameters = Object.assign({}, source.parameters);
-          return this;
-        }
-        /**
-         * Factory method for creating an instance of this class from the given
-         * JSON object.
-         *
-         * @param {Object} data - A JSON object representing the serialized geometry.
-         * @return {CapsuleGeometry} A new instance.
-         */
-        static fromJSON(data) {
-          return new _CapsuleGeometry(
-            data.radius,
-            data.height,
-            data.capSegments,
-            data.radialSegments,
-            data.heightSegments,
-          );
-        }
-      };
       var CircleGeometry = class _CircleGeometry extends BufferGeometry {
         /**
          * Constructs a new circle geometry.
@@ -15567,68 +15482,6 @@
           return new _CylinderGeometry(
             data.radiusTop,
             data.radiusBottom,
-            data.height,
-            data.radialSegments,
-            data.heightSegments,
-            data.openEnded,
-            data.thetaStart,
-            data.thetaLength,
-          );
-        }
-      };
-      var ConeGeometry = class _ConeGeometry extends CylinderGeometry {
-        /**
-         * Constructs a new cone geometry.
-         *
-         * @param {number} [radius=1] - Radius of the cone base.
-         * @param {number} [height=1] - Height of the cone.
-         * @param {number} [radialSegments=32] - Number of segmented faces around the circumference of the cone.
-         * @param {number} [heightSegments=1] - Number of rows of faces along the height of the cone.
-         * @param {boolean} [openEnded=false] - Whether the base of the cone is open or capped.
-         * @param {number} [thetaStart=0] - Start angle for first segment, in radians.
-         * @param {number} [thetaLength=Math.PI*2] - The central angle, often called theta, of the circular sector, in radians.
-         * The default value results in a complete cone.
-         */
-        constructor(
-          radius = 1,
-          height = 1,
-          radialSegments = 32,
-          heightSegments = 1,
-          openEnded = false,
-          thetaStart = 0,
-          thetaLength = Math.PI * 2,
-        ) {
-          super(
-            0,
-            radius,
-            height,
-            radialSegments,
-            heightSegments,
-            openEnded,
-            thetaStart,
-            thetaLength,
-          );
-          this.type = "ConeGeometry";
-          this.parameters = {
-            radius,
-            height,
-            radialSegments,
-            heightSegments,
-            openEnded,
-            thetaStart,
-            thetaLength,
-          };
-        }
-        /**
-         * Factory method for creating an instance of this class from the given
-         * JSON object.
-         *
-         * @param {Object} data - A JSON object representing the serialized geometry.
-         * @return {ConeGeometry} A new instance.
-         */
-        static fromJSON(data) {
-          return new _ConeGeometry(
-            data.radius,
             data.height,
             data.radialSegments,
             data.heightSegments,
@@ -17927,6 +17780,476 @@
           vertices.push(contour[i].x);
           vertices.push(contour[i].y);
         }
+      }
+      var ExtrudeGeometry = class _ExtrudeGeometry extends BufferGeometry {
+        /**
+         * Constructs a new extrude geometry.
+         *
+         * @param {Shape|Array<Shape>} [shapes] - A shape or an array of shapes.
+         * @param {ExtrudeGeometry~Options} [options] - The extrude settings.
+         */
+        constructor(
+          shapes = new Shape([
+            new Vector2(0.5, 0.5),
+            new Vector2(-0.5, 0.5),
+            new Vector2(-0.5, -0.5),
+            new Vector2(0.5, -0.5),
+          ]),
+          options = {},
+        ) {
+          super();
+          this.type = "ExtrudeGeometry";
+          this.parameters = {
+            shapes,
+            options,
+          };
+          shapes = Array.isArray(shapes) ? shapes : [shapes];
+          const scope2 = this;
+          const verticesArray = [];
+          const uvArray = [];
+          for (let i = 0, l = shapes.length; i < l; i++) {
+            const shape = shapes[i];
+            addShape(shape);
+          }
+          this.setAttribute("position", new Float32BufferAttribute(verticesArray, 3));
+          this.setAttribute("uv", new Float32BufferAttribute(uvArray, 2));
+          this.computeVertexNormals();
+          function addShape(shape) {
+            const placeholder = [];
+            const curveSegments = options.curveSegments !== void 0 ? options.curveSegments : 12;
+            const steps = options.steps !== void 0 ? options.steps : 1;
+            const depth = options.depth !== void 0 ? options.depth : 1;
+            let bevelEnabled = options.bevelEnabled !== void 0 ? options.bevelEnabled : true;
+            let bevelThickness = options.bevelThickness !== void 0 ? options.bevelThickness : 0.2;
+            let bevelSize = options.bevelSize !== void 0 ? options.bevelSize : bevelThickness - 0.1;
+            let bevelOffset = options.bevelOffset !== void 0 ? options.bevelOffset : 0;
+            let bevelSegments = options.bevelSegments !== void 0 ? options.bevelSegments : 3;
+            const extrudePath = options.extrudePath;
+            const uvgen = options.UVGenerator !== void 0 ? options.UVGenerator : WorldUVGenerator;
+            let extrudePts,
+              extrudeByPath = false;
+            let splineTube, binormal, normal, position2;
+            if (extrudePath) {
+              extrudePts = extrudePath.getSpacedPoints(steps);
+              extrudeByPath = true;
+              bevelEnabled = false;
+              const isClosed = extrudePath.isCatmullRomCurve3 ? extrudePath.closed : false;
+              splineTube = extrudePath.computeFrenetFrames(steps, isClosed);
+              binormal = new Vector3();
+              normal = new Vector3();
+              position2 = new Vector3();
+            }
+            if (!bevelEnabled) {
+              bevelSegments = 0;
+              bevelThickness = 0;
+              bevelSize = 0;
+              bevelOffset = 0;
+            }
+            const shapePoints = shape.extractPoints(curveSegments);
+            let vertices = shapePoints.shape;
+            const holes = shapePoints.holes;
+            const reverse = !ShapeUtils.isClockWise(vertices);
+            if (reverse) {
+              vertices = vertices.reverse();
+              for (let h = 0, hl = holes.length; h < hl; h++) {
+                const ahole = holes[h];
+                if (ShapeUtils.isClockWise(ahole)) {
+                  holes[h] = ahole.reverse();
+                }
+              }
+            }
+            function mergeOverlappingPoints(points) {
+              const THRESHOLD = 1e-10;
+              const THRESHOLD_SQ = THRESHOLD * THRESHOLD;
+              let prevPos = points[0];
+              for (let i = 1; i <= points.length; i++) {
+                const currentIndex = i % points.length;
+                const currentPos = points[currentIndex];
+                const dx = currentPos.x - prevPos.x;
+                const dy = currentPos.y - prevPos.y;
+                const distSq = dx * dx + dy * dy;
+                const scalingFactorSqrt = Math.max(
+                  Math.abs(currentPos.x),
+                  Math.abs(currentPos.y),
+                  Math.abs(prevPos.x),
+                  Math.abs(prevPos.y),
+                );
+                const thresholdSqScaled = THRESHOLD_SQ * scalingFactorSqrt * scalingFactorSqrt;
+                if (distSq <= thresholdSqScaled) {
+                  points.splice(currentIndex, 1);
+                  i--;
+                  continue;
+                }
+                prevPos = currentPos;
+              }
+            }
+            mergeOverlappingPoints(vertices);
+            holes.forEach(mergeOverlappingPoints);
+            const numHoles = holes.length;
+            const contour = vertices;
+            for (let h = 0; h < numHoles; h++) {
+              const ahole = holes[h];
+              vertices = vertices.concat(ahole);
+            }
+            function scalePt2(pt, vec, size) {
+              if (!vec) error("ExtrudeGeometry: vec does not exist");
+              return pt.clone().addScaledVector(vec, size);
+            }
+            const vlen = vertices.length;
+            function getBevelVec(inPt, inPrev, inNext) {
+              let v_trans_x, v_trans_y, shrink_by;
+              const v_prev_x = inPt.x - inPrev.x,
+                v_prev_y = inPt.y - inPrev.y;
+              const v_next_x = inNext.x - inPt.x,
+                v_next_y = inNext.y - inPt.y;
+              const v_prev_lensq = v_prev_x * v_prev_x + v_prev_y * v_prev_y;
+              const collinear0 = v_prev_x * v_next_y - v_prev_y * v_next_x;
+              if (Math.abs(collinear0) > Number.EPSILON) {
+                const v_prev_len = Math.sqrt(v_prev_lensq);
+                const v_next_len = Math.sqrt(v_next_x * v_next_x + v_next_y * v_next_y);
+                const ptPrevShift_x = inPrev.x - v_prev_y / v_prev_len;
+                const ptPrevShift_y = inPrev.y + v_prev_x / v_prev_len;
+                const ptNextShift_x = inNext.x - v_next_y / v_next_len;
+                const ptNextShift_y = inNext.y + v_next_x / v_next_len;
+                const sf =
+                  ((ptNextShift_x - ptPrevShift_x) * v_next_y -
+                    (ptNextShift_y - ptPrevShift_y) * v_next_x) /
+                  (v_prev_x * v_next_y - v_prev_y * v_next_x);
+                v_trans_x = ptPrevShift_x + v_prev_x * sf - inPt.x;
+                v_trans_y = ptPrevShift_y + v_prev_y * sf - inPt.y;
+                const v_trans_lensq = v_trans_x * v_trans_x + v_trans_y * v_trans_y;
+                if (v_trans_lensq <= 2) {
+                  return new Vector2(v_trans_x, v_trans_y);
+                } else {
+                  shrink_by = Math.sqrt(v_trans_lensq / 2);
+                }
+              } else {
+                let direction_eq = false;
+                if (v_prev_x > Number.EPSILON) {
+                  if (v_next_x > Number.EPSILON) {
+                    direction_eq = true;
+                  }
+                } else {
+                  if (v_prev_x < -Number.EPSILON) {
+                    if (v_next_x < -Number.EPSILON) {
+                      direction_eq = true;
+                    }
+                  } else {
+                    if (Math.sign(v_prev_y) === Math.sign(v_next_y)) {
+                      direction_eq = true;
+                    }
+                  }
+                }
+                if (direction_eq) {
+                  v_trans_x = -v_prev_y;
+                  v_trans_y = v_prev_x;
+                  shrink_by = Math.sqrt(v_prev_lensq);
+                } else {
+                  v_trans_x = v_prev_x;
+                  v_trans_y = v_prev_y;
+                  shrink_by = Math.sqrt(v_prev_lensq / 2);
+                }
+              }
+              return new Vector2(v_trans_x / shrink_by, v_trans_y / shrink_by);
+            }
+            const contourMovements = [];
+            for (let i = 0, il = contour.length, j = il - 1, k = i + 1; i < il; i++, j++, k++) {
+              if (j === il) j = 0;
+              if (k === il) k = 0;
+              contourMovements[i] = getBevelVec(contour[i], contour[j], contour[k]);
+            }
+            const holesMovements = [];
+            let oneHoleMovements,
+              verticesMovements = contourMovements.concat();
+            for (let h = 0, hl = numHoles; h < hl; h++) {
+              const ahole = holes[h];
+              oneHoleMovements = [];
+              for (let i = 0, il = ahole.length, j = il - 1, k = i + 1; i < il; i++, j++, k++) {
+                if (j === il) j = 0;
+                if (k === il) k = 0;
+                oneHoleMovements[i] = getBevelVec(ahole[i], ahole[j], ahole[k]);
+              }
+              holesMovements.push(oneHoleMovements);
+              verticesMovements = verticesMovements.concat(oneHoleMovements);
+            }
+            let faces;
+            if (bevelSegments === 0) {
+              faces = ShapeUtils.triangulateShape(contour, holes);
+            } else {
+              const contractedContourVertices = [];
+              const expandedHoleVertices = [];
+              for (let b = 0; b < bevelSegments; b++) {
+                const t = b / bevelSegments;
+                const z = bevelThickness * Math.cos((t * Math.PI) / 2);
+                const bs2 = bevelSize * Math.sin((t * Math.PI) / 2) + bevelOffset;
+                for (let i = 0, il = contour.length; i < il; i++) {
+                  const vert = scalePt2(contour[i], contourMovements[i], bs2);
+                  v(vert.x, vert.y, -z);
+                  if (t === 0) contractedContourVertices.push(vert);
+                }
+                for (let h = 0, hl = numHoles; h < hl; h++) {
+                  const ahole = holes[h];
+                  oneHoleMovements = holesMovements[h];
+                  const oneHoleVertices = [];
+                  for (let i = 0, il = ahole.length; i < il; i++) {
+                    const vert = scalePt2(ahole[i], oneHoleMovements[i], bs2);
+                    v(vert.x, vert.y, -z);
+                    if (t === 0) oneHoleVertices.push(vert);
+                  }
+                  if (t === 0) expandedHoleVertices.push(oneHoleVertices);
+                }
+              }
+              faces = ShapeUtils.triangulateShape(contractedContourVertices, expandedHoleVertices);
+            }
+            const flen = faces.length;
+            const bs = bevelSize + bevelOffset;
+            for (let i = 0; i < vlen; i++) {
+              const vert = bevelEnabled
+                ? scalePt2(vertices[i], verticesMovements[i], bs)
+                : vertices[i];
+              if (!extrudeByPath) {
+                v(vert.x, vert.y, 0);
+              } else {
+                normal.copy(splineTube.normals[0]).multiplyScalar(vert.x);
+                binormal.copy(splineTube.binormals[0]).multiplyScalar(vert.y);
+                position2.copy(extrudePts[0]).add(normal).add(binormal);
+                v(position2.x, position2.y, position2.z);
+              }
+            }
+            for (let s = 1; s <= steps; s++) {
+              for (let i = 0; i < vlen; i++) {
+                const vert = bevelEnabled
+                  ? scalePt2(vertices[i], verticesMovements[i], bs)
+                  : vertices[i];
+                if (!extrudeByPath) {
+                  v(vert.x, vert.y, (depth / steps) * s);
+                } else {
+                  normal.copy(splineTube.normals[s]).multiplyScalar(vert.x);
+                  binormal.copy(splineTube.binormals[s]).multiplyScalar(vert.y);
+                  position2.copy(extrudePts[s]).add(normal).add(binormal);
+                  v(position2.x, position2.y, position2.z);
+                }
+              }
+            }
+            for (let b = bevelSegments - 1; b >= 0; b--) {
+              const t = b / bevelSegments;
+              const z = bevelThickness * Math.cos((t * Math.PI) / 2);
+              const bs2 = bevelSize * Math.sin((t * Math.PI) / 2) + bevelOffset;
+              for (let i = 0, il = contour.length; i < il; i++) {
+                const vert = scalePt2(contour[i], contourMovements[i], bs2);
+                v(vert.x, vert.y, depth + z);
+              }
+              for (let h = 0, hl = holes.length; h < hl; h++) {
+                const ahole = holes[h];
+                oneHoleMovements = holesMovements[h];
+                for (let i = 0, il = ahole.length; i < il; i++) {
+                  const vert = scalePt2(ahole[i], oneHoleMovements[i], bs2);
+                  if (!extrudeByPath) {
+                    v(vert.x, vert.y, depth + z);
+                  } else {
+                    v(vert.x, vert.y + extrudePts[steps - 1].y, extrudePts[steps - 1].x + z);
+                  }
+                }
+              }
+            }
+            buildLidFaces();
+            buildSideFaces();
+            function buildLidFaces() {
+              const start2 = verticesArray.length / 3;
+              if (bevelEnabled) {
+                let layer = 0;
+                let offset = vlen * layer;
+                for (let i = 0; i < flen; i++) {
+                  const face = faces[i];
+                  f3(face[2] + offset, face[1] + offset, face[0] + offset);
+                }
+                layer = steps + bevelSegments * 2;
+                offset = vlen * layer;
+                for (let i = 0; i < flen; i++) {
+                  const face = faces[i];
+                  f3(face[0] + offset, face[1] + offset, face[2] + offset);
+                }
+              } else {
+                for (let i = 0; i < flen; i++) {
+                  const face = faces[i];
+                  f3(face[2], face[1], face[0]);
+                }
+                for (let i = 0; i < flen; i++) {
+                  const face = faces[i];
+                  f3(face[0] + vlen * steps, face[1] + vlen * steps, face[2] + vlen * steps);
+                }
+              }
+              scope2.addGroup(start2, verticesArray.length / 3 - start2, 0);
+            }
+            function buildSideFaces() {
+              const start2 = verticesArray.length / 3;
+              let layeroffset = 0;
+              sidewalls(contour, layeroffset);
+              layeroffset += contour.length;
+              for (let h = 0, hl = holes.length; h < hl; h++) {
+                const ahole = holes[h];
+                sidewalls(ahole, layeroffset);
+                layeroffset += ahole.length;
+              }
+              scope2.addGroup(start2, verticesArray.length / 3 - start2, 1);
+            }
+            function sidewalls(contour2, layeroffset) {
+              let i = contour2.length;
+              while (--i >= 0) {
+                const j = i;
+                let k = i - 1;
+                if (k < 0) k = contour2.length - 1;
+                for (let s = 0, sl = steps + bevelSegments * 2; s < sl; s++) {
+                  const slen1 = vlen * s;
+                  const slen2 = vlen * (s + 1);
+                  const a = layeroffset + j + slen1,
+                    b = layeroffset + k + slen1,
+                    c = layeroffset + k + slen2,
+                    d = layeroffset + j + slen2;
+                  f4(a, b, c, d);
+                }
+              }
+            }
+            function v(x, y, z) {
+              placeholder.push(x);
+              placeholder.push(y);
+              placeholder.push(z);
+            }
+            function f3(a, b, c) {
+              addVertex(a);
+              addVertex(b);
+              addVertex(c);
+              const nextIndex = verticesArray.length / 3;
+              const uvs = uvgen.generateTopUV(
+                scope2,
+                verticesArray,
+                nextIndex - 3,
+                nextIndex - 2,
+                nextIndex - 1,
+              );
+              addUV(uvs[0]);
+              addUV(uvs[1]);
+              addUV(uvs[2]);
+            }
+            function f4(a, b, c, d) {
+              addVertex(a);
+              addVertex(b);
+              addVertex(d);
+              addVertex(b);
+              addVertex(c);
+              addVertex(d);
+              const nextIndex = verticesArray.length / 3;
+              const uvs = uvgen.generateSideWallUV(
+                scope2,
+                verticesArray,
+                nextIndex - 6,
+                nextIndex - 3,
+                nextIndex - 2,
+                nextIndex - 1,
+              );
+              addUV(uvs[0]);
+              addUV(uvs[1]);
+              addUV(uvs[3]);
+              addUV(uvs[1]);
+              addUV(uvs[2]);
+              addUV(uvs[3]);
+            }
+            function addVertex(index) {
+              verticesArray.push(placeholder[index * 3 + 0]);
+              verticesArray.push(placeholder[index * 3 + 1]);
+              verticesArray.push(placeholder[index * 3 + 2]);
+            }
+            function addUV(vector2) {
+              uvArray.push(vector2.x);
+              uvArray.push(vector2.y);
+            }
+          }
+        }
+        copy(source) {
+          super.copy(source);
+          this.parameters = Object.assign({}, source.parameters);
+          return this;
+        }
+        toJSON() {
+          const data = super.toJSON();
+          const shapes = this.parameters.shapes;
+          const options = this.parameters.options;
+          return toJSON$1(shapes, options, data);
+        }
+        /**
+         * Factory method for creating an instance of this class from the given
+         * JSON object.
+         *
+         * @param {Object} data - A JSON object representing the serialized geometry.
+         * @param {Array<Shape>} shapes - An array of shapes.
+         * @return {ExtrudeGeometry} A new instance.
+         */
+        static fromJSON(data, shapes) {
+          const geometryShapes = [];
+          for (let j = 0, jl = data.shapes.length; j < jl; j++) {
+            const shape = shapes[data.shapes[j]];
+            geometryShapes.push(shape);
+          }
+          const extrudePath = data.options.extrudePath;
+          if (extrudePath !== void 0) {
+            data.options.extrudePath = new Curves[extrudePath.type]().fromJSON(extrudePath);
+          }
+          return new _ExtrudeGeometry(geometryShapes, data.options);
+        }
+      };
+      var WorldUVGenerator = {
+        generateTopUV: function (geometry, vertices, indexA, indexB, indexC) {
+          const a_x = vertices[indexA * 3];
+          const a_y = vertices[indexA * 3 + 1];
+          const b_x = vertices[indexB * 3];
+          const b_y = vertices[indexB * 3 + 1];
+          const c_x = vertices[indexC * 3];
+          const c_y = vertices[indexC * 3 + 1];
+          return [new Vector2(a_x, a_y), new Vector2(b_x, b_y), new Vector2(c_x, c_y)];
+        },
+        generateSideWallUV: function (geometry, vertices, indexA, indexB, indexC, indexD) {
+          const a_x = vertices[indexA * 3];
+          const a_y = vertices[indexA * 3 + 1];
+          const a_z = vertices[indexA * 3 + 2];
+          const b_x = vertices[indexB * 3];
+          const b_y = vertices[indexB * 3 + 1];
+          const b_z = vertices[indexB * 3 + 2];
+          const c_x = vertices[indexC * 3];
+          const c_y = vertices[indexC * 3 + 1];
+          const c_z = vertices[indexC * 3 + 2];
+          const d_x = vertices[indexD * 3];
+          const d_y = vertices[indexD * 3 + 1];
+          const d_z = vertices[indexD * 3 + 2];
+          if (Math.abs(a_y - b_y) < Math.abs(a_x - b_x)) {
+            return [
+              new Vector2(a_x, 1 - a_z),
+              new Vector2(b_x, 1 - b_z),
+              new Vector2(c_x, 1 - c_z),
+              new Vector2(d_x, 1 - d_z),
+            ];
+          } else {
+            return [
+              new Vector2(a_y, 1 - a_z),
+              new Vector2(b_y, 1 - b_z),
+              new Vector2(c_y, 1 - c_z),
+              new Vector2(d_y, 1 - d_z),
+            ];
+          }
+        },
+      };
+      function toJSON$1(shapes, options, data) {
+        data.shapes = [];
+        if (Array.isArray(shapes)) {
+          for (let i = 0, l = shapes.length; i < l; i++) {
+            const shape = shapes[i];
+            data.shapes.push(shape.uuid);
+          }
+        } else {
+          data.shapes.push(shapes.uuid);
+        }
+        data.options = Object.assign({}, options);
+        if (options.extrudePath !== void 0) data.options.extrudePath = options.extrudePath.toJSON();
+        return data;
       }
       var IcosahedronGeometry = class _IcosahedronGeometry extends PolyhedronGeometry {
         /**
@@ -21498,6 +21821,151 @@
         ],
       ];
       var _controlInterpolantsResultBuffer = new Float32Array(1);
+      var _matrix = /* @__PURE__ */ new Matrix4();
+      var Raycaster = class {
+        /**
+         * Constructs a new raycaster.
+         *
+         * @param {Vector3} origin - The origin vector where the ray casts from.
+         * @param {Vector3} direction - The (normalized) direction vector that gives direction to the ray.
+         * @param {number} [near=0] - All results returned are further away than near. Near can't be negative.
+         * @param {number} [far=Infinity] - All results returned are closer than far. Far can't be lower than near.
+         */
+        constructor(origin, direction, near = 0, far = Infinity) {
+          this.ray = new Ray(origin, direction);
+          this.near = near;
+          this.far = far;
+          this.camera = null;
+          this.layers = new Layers();
+          this.params = {
+            Mesh: {},
+            Line: { threshold: 1 },
+            LOD: {},
+            Points: { threshold: 1 },
+            Sprite: {},
+          };
+        }
+        /**
+         * Updates the ray with a new origin and direction by copying the values from the arguments.
+         *
+         * @param {Vector3} origin - The origin vector where the ray casts from.
+         * @param {Vector3} direction - The (normalized) direction vector that gives direction to the ray.
+         */
+        set(origin, direction) {
+          this.ray.set(origin, direction);
+        }
+        /**
+         * Uses the given coordinates and camera to compute a new origin and direction for the internal ray.
+         *
+         * @param {Vector2} coords - 2D coordinates of the mouse, in normalized device coordinates (NDC).
+         * X and Y components should be between `-1` and `1`.
+         * @param {Camera} camera - The camera from which the ray should originate.
+         */
+        setFromCamera(coords, camera2) {
+          if (camera2.isPerspectiveCamera) {
+            this.ray.origin.setFromMatrixPosition(camera2.matrixWorld);
+            this.ray.direction
+              .set(coords.x, coords.y, 0.5)
+              .unproject(camera2)
+              .sub(this.ray.origin)
+              .normalize();
+            this.camera = camera2;
+          } else if (camera2.isOrthographicCamera) {
+            this.ray.origin
+              .set(coords.x, coords.y, camera2.projectionMatrix.elements[14])
+              .unproject(camera2);
+            this.ray.direction.set(0, 0, -1).transformDirection(camera2.matrixWorld);
+            this.camera = camera2;
+          } else {
+            error("Raycaster: Unsupported camera type: " + camera2.type);
+          }
+        }
+        /**
+         * Uses the given WebXR controller to compute a new origin and direction for the internal ray.
+         *
+         * @param {WebXRController} controller - The controller to copy the position and direction from.
+         * @return {Raycaster} A reference to this raycaster.
+         */
+        setFromXRController(controller) {
+          _matrix.identity().extractRotation(controller.matrixWorld);
+          this.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+          this.ray.direction.set(0, 0, -1).applyMatrix4(_matrix);
+          return this;
+        }
+        /**
+         * The intersection point of a raycaster intersection test.
+         * @typedef {Object} Raycaster~Intersection
+         * @property {number} distance - The distance from the ray's origin to the intersection point.
+         * @property {number} distanceToRay -  Some 3D objects e.g. {@link Points} provide the distance of the
+         * intersection to the nearest point on the ray. For other objects it will be `undefined`.
+         * @property {Vector3} point - The intersection point, in world coordinates.
+         * @property {Object} face - The face that has been intersected.
+         * @property {number} faceIndex - The face index.
+         * @property {Object3D} object - The 3D object that has been intersected.
+         * @property {Vector2} uv - U,V coordinates at point of intersection.
+         * @property {Vector2} uv1 - Second set of U,V coordinates at point of intersection.
+         * @property {Vector3} normal - Interpolated normal vector at point of intersection.
+         * @property {number} instanceId - The index number of the instance where the ray
+         * intersects the {@link InstancedMesh}.
+         */
+        /**
+         * Checks all intersection between the ray and the object with or without the
+         * descendants. Intersections are returned sorted by distance, closest first.
+         *
+         * `Raycaster` delegates to the `raycast()` method of the passed 3D object, when
+         * evaluating whether the ray intersects the object or not. This allows meshes to respond
+         * differently to ray casting than lines or points.
+         *
+         * Note that for meshes, faces must be pointed towards the origin of the ray in order
+         * to be detected; intersections of the ray passing through the back of a face will not
+         * be detected. To raycast against both faces of an object, you'll want to set  {@link Material#side}
+         * to `THREE.DoubleSide`.
+         *
+         * @param {Object3D} object - The 3D object to check for intersection with the ray.
+         * @param {boolean} [recursive=true] - If set to `true`, it also checks all descendants.
+         * Otherwise it only checks intersection with the object.
+         * @param {Array<Raycaster~Intersection>} [intersects=[]] The target array that holds the result of the method.
+         * @return {Array<Raycaster~Intersection>} An array holding the intersection points.
+         */
+        intersectObject(object, recursive = true, intersects2 = []) {
+          intersect(object, this, intersects2, recursive);
+          intersects2.sort(ascSort);
+          return intersects2;
+        }
+        /**
+         * Checks all intersection between the ray and the objects with or without
+         * the descendants. Intersections are returned sorted by distance, closest first.
+         *
+         * @param {Array<Object3D>} objects - The 3D objects to check for intersection with the ray.
+         * @param {boolean} [recursive=true] - If set to `true`, it also checks all descendants.
+         * Otherwise it only checks intersection with the object.
+         * @param {Array<Raycaster~Intersection>} [intersects=[]] The target array that holds the result of the method.
+         * @return {Array<Raycaster~Intersection>} An array holding the intersection points.
+         */
+        intersectObjects(objects, recursive = true, intersects2 = []) {
+          for (let i = 0, l = objects.length; i < l; i++) {
+            intersect(objects[i], this, intersects2, recursive);
+          }
+          intersects2.sort(ascSort);
+          return intersects2;
+        }
+      };
+      function ascSort(a, b) {
+        return a.distance - b.distance;
+      }
+      function intersect(object, raycaster, intersects2, recursive) {
+        let propagate = true;
+        if (object.layers.test(raycaster.layers)) {
+          const result = object.raycast(raycaster, intersects2);
+          if (result === false) propagate = false;
+        }
+        if (propagate === true && recursive === true) {
+          const children = object.children;
+          for (let i = 0, l = children.length; i < l; i++) {
+            intersect(children[i], raycaster, intersects2, true);
+          }
+        }
+      }
       var Matrix2 = class _Matrix2 {
         static {
           _Matrix2.prototype.isMatrix2 = true;
@@ -32953,7 +33421,7 @@ void main() {
           }
           let extensions, capabilities, state2, info;
           let properties, textures, environments, attributes, geometries, objects;
-          let programCache, materials, renderLists, renderStates, clipping, shadowMap;
+          let programCache, materials2, renderLists, renderStates, clipping, shadowMap;
           let background, morphtargets, bufferRenderer, indexedBufferRenderer;
           let utils, bindingStates, uniformsGroups;
           function initGLContext() {
@@ -32994,7 +33462,7 @@ void main() {
               bindingStates,
               clipping,
             );
-            materials = new WebGLMaterials(_this, properties);
+            materials2 = new WebGLMaterials(_this, properties);
             renderLists = new WebGLRenderLists();
             renderStates = new WebGLRenderStates(extensions);
             background = new WebGLBackground(
@@ -33405,7 +33873,7 @@ void main() {
               });
             }
             currentRenderState.setupLights();
-            const materials2 = /* @__PURE__ */ new Set();
+            const materials3 = /* @__PURE__ */ new Set();
             scene2.traverse(function (object) {
               if (!(object.isMesh || object.isPoints || object.isLine || object.isSprite)) {
                 return;
@@ -33416,29 +33884,29 @@ void main() {
                   for (let i = 0; i < material.length; i++) {
                     const material2 = material[i];
                     prepareMaterial(material2, targetScene, object);
-                    materials2.add(material2);
+                    materials3.add(material2);
                   }
                 } else {
                   prepareMaterial(material, targetScene, object);
-                  materials2.add(material);
+                  materials3.add(material);
                 }
               }
             });
             currentRenderState = renderStateStack.pop();
-            return materials2;
+            return materials3;
           };
           this.compileAsync = function (scene2, camera2, targetScene = null) {
-            const materials2 = this.compile(scene2, camera2, targetScene);
+            const materials3 = this.compile(scene2, camera2, targetScene);
             return new Promise((resolve) => {
               function checkMaterialsReady() {
-                materials2.forEach(function (material) {
+                materials3.forEach(function (material) {
                   const materialProperties = properties.get(material);
                   const program = materialProperties.currentProgram;
                   if (program.isReady()) {
-                    materials2.delete(material);
+                    materials3.delete(material);
                   }
                 });
-                if (materials2.size === 0) {
+                if (materials3.size === 0) {
                   resolve(scene2);
                   return;
                 }
@@ -34213,9 +34681,9 @@ void main() {
                 markUniformsLightsNeedsUpdate(m_uniforms, refreshLights);
               }
               if (fog && material.fog === true) {
-                materials.refreshFogUniforms(m_uniforms, fog);
+                materials2.refreshFogUniforms(m_uniforms, fog);
               }
-              materials.refreshMaterialUniforms(
+              materials2.refreshMaterialUniforms(
                 m_uniforms,
                 material,
                 _pixelRatio,
@@ -34917,127 +35385,6 @@ void main() {
         }
       };
 
-      // node_modules/three/examples/jsm/geometries/RoundedBoxGeometry.js
-      var _tempNormal = new Vector3();
-      function getUv(faceDirVector, normal, uvAxis, projectionAxis, radius, sideLength) {
-        const totArcLength = (2 * Math.PI * radius) / 4;
-        const centerLength = Math.max(sideLength - 2 * radius, 0);
-        const halfArc = Math.PI / 4;
-        _tempNormal.copy(normal);
-        _tempNormal[projectionAxis] = 0;
-        _tempNormal.normalize();
-        const arcUvRatio = (0.5 * totArcLength) / (totArcLength + centerLength);
-        const arcAngleRatio = 1 - _tempNormal.angleTo(faceDirVector) / halfArc;
-        if (Math.sign(_tempNormal[uvAxis]) === 1) {
-          return arcAngleRatio * arcUvRatio;
-        } else {
-          const lenUv = centerLength / (totArcLength + centerLength);
-          return lenUv + arcUvRatio + arcUvRatio * (1 - arcAngleRatio);
-        }
-      }
-      var RoundedBoxGeometry = class _RoundedBoxGeometry extends BoxGeometry {
-        /**
-         * Constructs a new rounded box geometry.
-         *
-         * @param {number} [width=1] - The width. That is, the length of the edges parallel to the X axis.
-         * @param {number} [height=1] - The height. That is, the length of the edges parallel to the Y axis.
-         * @param {number} [depth=1] - The depth. That is, the length of the edges parallel to the Z axis.
-         * @param {number} [segments=2] - Number of segments that form the rounded corners.
-         * @param {number} [radius=0.1] - The radius of the rounded corners.
-         */
-        constructor(width = 1, height = 1, depth = 1, segments = 2, radius = 0.1) {
-          const totalSegments = segments * 2 + 1;
-          radius = Math.min(width / 2, height / 2, depth / 2, radius);
-          super(1, 1, 1, totalSegments, totalSegments, totalSegments);
-          this.type = "RoundedBoxGeometry";
-          this.parameters = {
-            width,
-            height,
-            depth,
-            segments,
-            radius,
-          };
-          if (totalSegments === 1) return;
-          const geometry2 = this.toNonIndexed();
-          this.index = null;
-          this.attributes.position = geometry2.attributes.position;
-          this.attributes.normal = geometry2.attributes.normal;
-          this.attributes.uv = geometry2.attributes.uv;
-          const position = new Vector3();
-          const normal = new Vector3();
-          const box = new Vector3(width, height, depth).divideScalar(2).subScalar(radius);
-          const positions = this.attributes.position.array;
-          const normals = this.attributes.normal.array;
-          const uvs = this.attributes.uv.array;
-          const faceTris = positions.length / 6;
-          const faceDirVector = new Vector3();
-          const halfSegmentSize = 0.5 / totalSegments;
-          for (let i = 0, j = 0; i < positions.length; i += 3, j += 2) {
-            position.fromArray(positions, i);
-            normal.copy(position);
-            normal.x -= Math.sign(normal.x) * halfSegmentSize;
-            normal.y -= Math.sign(normal.y) * halfSegmentSize;
-            normal.z -= Math.sign(normal.z) * halfSegmentSize;
-            normal.normalize();
-            positions[i + 0] = box.x * Math.sign(position.x) + normal.x * radius;
-            positions[i + 1] = box.y * Math.sign(position.y) + normal.y * radius;
-            positions[i + 2] = box.z * Math.sign(position.z) + normal.z * radius;
-            normals[i + 0] = normal.x;
-            normals[i + 1] = normal.y;
-            normals[i + 2] = normal.z;
-            const side = Math.floor(i / faceTris);
-            switch (side) {
-              case 0:
-                faceDirVector.set(1, 0, 0);
-                uvs[j + 0] = getUv(faceDirVector, normal, "z", "y", radius, depth);
-                uvs[j + 1] = 1 - getUv(faceDirVector, normal, "y", "z", radius, height);
-                break;
-              case 1:
-                faceDirVector.set(-1, 0, 0);
-                uvs[j + 0] = 1 - getUv(faceDirVector, normal, "z", "y", radius, depth);
-                uvs[j + 1] = 1 - getUv(faceDirVector, normal, "y", "z", radius, height);
-                break;
-              case 2:
-                faceDirVector.set(0, 1, 0);
-                uvs[j + 0] = 1 - getUv(faceDirVector, normal, "x", "z", radius, width);
-                uvs[j + 1] = getUv(faceDirVector, normal, "z", "x", radius, depth);
-                break;
-              case 3:
-                faceDirVector.set(0, -1, 0);
-                uvs[j + 0] = 1 - getUv(faceDirVector, normal, "x", "z", radius, width);
-                uvs[j + 1] = 1 - getUv(faceDirVector, normal, "z", "x", radius, depth);
-                break;
-              case 4:
-                faceDirVector.set(0, 0, 1);
-                uvs[j + 0] = 1 - getUv(faceDirVector, normal, "x", "y", radius, width);
-                uvs[j + 1] = 1 - getUv(faceDirVector, normal, "y", "x", radius, height);
-                break;
-              case 5:
-                faceDirVector.set(0, 0, -1);
-                uvs[j + 0] = getUv(faceDirVector, normal, "x", "y", radius, width);
-                uvs[j + 1] = 1 - getUv(faceDirVector, normal, "y", "x", radius, height);
-                break;
-            }
-          }
-        }
-        /**
-         * Factory method for creating an instance of this class from the given
-         * JSON object.
-         *
-         * @param {Object} data - A JSON object representing the serialized geometry.
-         * @returns {RoundedBoxGeometry} A new instance.
-         */
-        static fromJSON(data) {
-          return new _RoundedBoxGeometry(
-            data.width,
-            data.height,
-            data.depth,
-            data.segments,
-            data.radius,
-          );
-        }
-      };
-
       // node_modules/three/examples/jsm/utils/BufferGeometryUtils.js
       function mergeGeometries(geometries, useGroups = false) {
         const isIndexed = geometries[0].index !== null;
@@ -35230,13 +35577,824 @@ void main() {
         return result;
       }
 
+      // works/first_dawn/attitude-jets.js
+      var smooth = (x, a, b) => {
+        const p = Math.max(0, Math.min(1, (x - a) / (b - a)));
+        return p * p * (3 - 2 * p);
+      };
+      var ATTITUDE_PROFILES = {
+        carrier: {
+          period: 19.5,
+          response: 4.1,
+          valve: 0.38,
+          tail: 0.62,
+          length: 100,
+          width: 22,
+          opacity: 0.26,
+        },
+        escort: {
+          period: 16.8,
+          response: 2.4,
+          valve: 0.13,
+          tail: 0.36,
+          length: 66,
+          width: 13,
+          opacity: 0.21,
+        },
+        capsule: {
+          period: 21.4,
+          response: 3.2,
+          valve: 0.22,
+          tail: 0.48,
+          length: 75,
+          width: 23,
+          opacity: 0.23,
+        },
+        habitat: {
+          period: 25.6,
+          response: 5.8,
+          valve: 0.62,
+          tail: 0.95,
+          length: 84,
+          width: 30,
+          opacity: 0.2,
+        },
+      };
+      function attitudePulse(seconds2, index, pair, kind = "carrier") {
+        const p = ATTITUDE_PROFILES[kind],
+          time = seconds2 - (6.4 + index * 1.87),
+          period = p.period + index * 0.73;
+        if (time < 0) return -1;
+        const cycle = Math.floor(time / period),
+          phase2 = time - cycle * period;
+        const age = phase2 - (pair === cycle % 2 ? 0 : p.response);
+        return age >= 0 && age < p.valve + p.tail ? age : -1;
+      }
+      function createAttitudeJets(ship, tier2, stations, kind = "carrier") {
+        const segments = tier2 === "high" ? 20 : tier2 === "mid" ? 14 : 10;
+        const metal = new MeshStandardMaterial({
+          color: 6714235,
+          metalness: 0.72,
+          roughness: 0.48,
+        });
+        const dark = new MeshStandardMaterial({ color: 461581, roughness: 0.92 });
+        const profile = [
+          [2.7, 0],
+          [2.7, 3],
+          [4.4, 8],
+          [3.4, 8],
+          [1.8, 3],
+          [1.8, 0],
+          [2.7, 0],
+        ];
+        const bell = new LatheGeometry(
+          profile.map(([r, y]) => new Vector2(r, y)),
+          segments,
+        );
+        const mount = new CylinderGeometry(5.5, 5.5, 3, segments),
+          throat = new CircleGeometry(2.5, segments);
+        const gas = new CylinderGeometry(1, 0.065, 1, segments, 4, true);
+        gas.translate(0, 0.5, 0);
+        const jets = [],
+          solids = [],
+          throats = [];
+        for (const [station, [z, x]] of stations.entries())
+          for (const side of [-1, 1]) {
+            const port = new Group();
+            port.name = "attitude-control-port";
+            port.position.set(side * x, 0, z);
+            port.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), new Vector3(side, 0, 0));
+            port.userData.blueprintPart = 3;
+            ship.add(port);
+            port.updateMatrix();
+            for (const [geometry, material2, y, name] of [
+              [mount, metal, 1.5, "rcs-mount"],
+              [bell, metal, 0, "rcs-nozzle"],
+              [throat, dark, 3.2, "rcs-throat"],
+            ]) {
+              const part = new Mesh(geometry, material2);
+              part.name = name;
+              part.position.y = y;
+              part.castShadow = part.receiveShadow = true;
+              part.userData.blueprintPart = 3;
+              if (name === "rcs-throat") {
+                part.rotation.x = -Math.PI / 2;
+                part.userData.blueprintOmit = true;
+              }
+              part.updateMatrix();
+              const transformed = geometry
+                .clone()
+                .applyMatrix4(new Matrix4().multiplyMatrices(port.matrix, part.matrix));
+              (name === "rcs-throat" ? throats : solids).push(transformed);
+            }
+            const material = new ShaderMaterial({
+              transparent: true,
+              depthWrite: false,
+              side: DoubleSide,
+              uniforms: { strength: { value: 0 }, release: { value: 0 } },
+              vertexShader: `varying float axial;varying vec3 normalView;varying vec3 towardEye;
+        void main(){axial=position.y;normalView=normalize(normalMatrix*normal);vec4 view=modelViewMatrix*vec4(position,1.);towardEye=-view.xyz;gl_Position=projectionMatrix*view;}`,
+              fragmentShader: `uniform float strength;uniform float release;varying float axial;varying vec3 normalView;varying vec3 towardEye;
+        void main(){float t=clamp(axial,0.,1.);float facing=abs(dot(normalize(normalView),normalize(towardEye)));
+          float density=smoothstep(0.,mix(.07,.28,release),t)*pow(1.-t,1.7)*pow(smoothstep(0.,.65,facing),1.4);
+          // Smooth rarefied expansion: no atmospheric smoke billows or periodic bands.
+          gl_FragColor=vec4(vec3(.66,.73,.77),strength*density);
+          #include <tonemapping_fragment>
+          #include <colorspace_fragment>
+        }`,
+            });
+            const jet = new Mesh(gas, material);
+            jet.name = "attitude-gas-puff";
+            jet.position.y = 8.2;
+            jet.visible = false;
+            jet.userData = {
+              blueprintOmit: true,
+              flightHardware: true,
+              kind,
+              pair: side === (station === 0 ? -1 : 1) ? 0 : 1,
+              station,
+              side,
+            };
+            port.add(jet);
+            jets.push(jet);
+          }
+        for (const [parts, material, name] of [
+          [solids, metal, "attitude-port-hardware"],
+          [throats, dark, "attitude-port-throats"],
+        ]) {
+          const geometry = mergeGeometries(parts);
+          parts.forEach((g) => g.dispose());
+          const mesh = new Mesh(geometry, material);
+          mesh.name = name;
+          mesh.castShadow = material === metal;
+          mesh.receiveShadow = true;
+          mesh.userData = { blueprintPart: 3, blueprintOmit: material === dark };
+          ship.add(mesh);
+        }
+        bell.dispose();
+        mount.dispose();
+        throat.dispose();
+        return jets;
+      }
+      function updateAttitudeJets(ship, index, seconds2) {
+        for (const jet of ship.userData.jets) {
+          const p = ATTITUDE_PROFILES[jet.userData.kind];
+          const age = attitudePulse(seconds2, index, jet.userData.pair, jet.userData.kind);
+          jet.visible = age >= 0;
+          if (!jet.visible) {
+            jet.material.uniforms.strength.value = 0;
+            jet.material.uniforms.release.value = 0;
+            jet.position.y = 8.2;
+            jet.scale.set(1, 1, 1);
+            continue;
+          }
+          const detached = Math.max(0, age - p.valve),
+            release = smooth(detached, 0, p.tail);
+          const strength = smooth(age, 0, Math.min(0.065, p.valve * 0.3)) * (1 - release);
+          jet.material.uniforms.strength.value = p.opacity * strength;
+          jet.material.uniforms.release.value = release;
+          const ramp = Math.min(1, detached / (p.tail * 0.3));
+          const travel =
+            detached < p.tail * 0.3
+              ? p.tail * 0.3 * (ramp ** 3 - 0.5 * ramp ** 4)
+              : detached - p.tail * 0.15;
+          jet.position.y = 8.2 + travel * (p.length / (p.valve + p.tail)) * 0.65;
+          const length = p.length * (0.24 + 0.76 * smooth(age, 0, p.valve + p.tail * 0.3));
+          const width = p.width * (0.45 + 0.55 * smooth(age, 0, p.valve + p.tail));
+          jet.scale.set(width, length, width);
+        }
+      }
+
+      // works/first_dawn/migration-sequence.js
+      var MIGRATION_OPENING_SPEED = 0.7;
+      var OPENING_PATH_DURATION = 28 / MIGRATION_OPENING_SPEED;
+      var OPENING_PASS_SPEED = 8960 / OPENING_PATH_DURATION;
+      var APPROACH_DURATION = 16;
+      var APPROACH_INITIAL_SPEED = 24;
+      var OPENING_START_OFFSET =
+        8960 - (OPENING_PASS_SPEED - APPROACH_INITIAL_SPEED) * APPROACH_DURATION * 0.5;
+      var MIGRATION_OPENING = OPENING_PATH_DURATION - 10;
+      var MIGRATION_EXTENSION = MIGRATION_OPENING - 3;
+      var RING_PASSAGE_DURATION = 52;
+      var RING_REAR_DURATION = 13;
+      var ringStart = 23 + MIGRATION_EXTENSION;
+      var MIGRATION_CUTS = Object.freeze([
+        MIGRATION_OPENING,
+        ringStart,
+        ringStart + RING_PASSAGE_DURATION,
+        ringStart + RING_PASSAGE_DURATION + RING_REAR_DURATION,
+      ]);
+      var MIGRATION_DURATION = MIGRATION_CUTS[3] + 18;
+      function migrationClock(t) {
+        if (t >= MIGRATION_CUTS[3]) return 57 + t - MIGRATION_CUTS[3];
+        if (t >= MIGRATION_CUTS[2]) return 51 + ((t - MIGRATION_CUTS[2]) * 6) / RING_REAR_DURATION;
+        if (t >= MIGRATION_CUTS[1])
+          return 23 + ((t - MIGRATION_CUTS[1]) * 28) / RING_PASSAGE_DURATION;
+        if (t >= MIGRATION_OPENING) return t - MIGRATION_EXTENSION;
+        const u = Math.max(0, t / MIGRATION_OPENING);
+        const a = MIGRATION_OPENING / 3,
+          n = 2 * a - 1;
+        return 3 * u ** n * (a + (1 - a) * u);
+      }
+      function openingPassageOffset(t) {
+        if (t >= MIGRATION_OPENING) return 0;
+        const time = Math.max(0, t);
+        if (time < APPROACH_DURATION) {
+          const u = time / APPROACH_DURATION;
+          const travel =
+            APPROACH_INITIAL_SPEED * time +
+            (OPENING_PASS_SPEED - APPROACH_INITIAL_SPEED) *
+              APPROACH_DURATION *
+              (u * u * u - 0.5 * u * u * u * u);
+          return OPENING_START_OFFSET - travel;
+        }
+        return 8960 * (1 - time / OPENING_PATH_DURATION);
+      }
+      function openingFlyby(position, index, t, attitude) {
+        if (index !== 0) return;
+        const offset = openingPassageOffset(t);
+        if (attitude) {
+          const { x, y, z, w } = attitude;
+          position.x -= offset * 2 * (x * z + w * y);
+          position.y -= offset * 2 * (y * z - w * x);
+          position.z -= offset * (1 - 2 * (x * x + y * y));
+        } else position.z -= offset;
+      }
+
+      // works/first_dawn/ring-motion.js
+      var HABITAT_RING_Z = Object.freeze([87.5, -146.5]);
+      var HABITAT_RING_SCALE = Object.freeze([1, 1]);
+      var HABITAT_RING_RADIUS = Object.freeze(HABITAT_RING_SCALE.map((s) => 176 * s));
+      var HABITAT_RING_PERIOD = Object.freeze([80, 80]);
+      var HABITAT_RING_RATE = (Math.PI * 2) / 80;
+      var HABITAT_RING_RATES = Object.freeze(HABITAT_RING_PERIOD.map((t) => (Math.PI * 2) / t));
+      function updateHabitatRings(ship, phase2, seconds2) {
+        const elapsed = phase2 === "arrival" ? MIGRATION_DURATION + seconds2 - 68 : seconds2;
+        const rings = ship.userData.habitatRings;
+        if (!rings) return;
+        for (let i = 0; i < rings.length; i++)
+          rings[i].rotation.z = (i === 0 ? 1 : -1) * elapsed * HABITAT_RING_RATES[i];
+      }
+
+      // works/shared/journey-controls.js
+      function installJourneyControls(audio2, button) {
+        const chosen = () => {
+          try {
+            return sessionStorage.getItem("ti_audio_muted");
+          } catch {
+            return null;
+          }
+        };
+        function unlock(event) {
+          if (
+            chosen() === "1" ||
+            event.target.closest?.("button,a") ||
+            (event.type === "keydown" &&
+              ["Shift", "Control", "Alt", "Meta", "Tab", "Escape"].includes(event.key))
+          )
+            return;
+          if (!audio2.enabled || audio2.snapshot().context !== "running") audio2.enable();
+        }
+        button.addEventListener("click", () => {
+          if (audio2.enabled && audio2.snapshot().context === "running") audio2.mute();
+          else audio2.enable();
+        });
+        addEventListener("pointerdown", unlock);
+        addEventListener("keydown", unlock);
+        if (chosen() === "0") audio2.enable();
+      }
+
+      // works/shared/voyage-resonance.js
+      var events = [14.5, 19, 46, 52, 65, 74, 81, 98];
+      function propulsionLoad(t) {
+        let load = 0.24;
+        for (const at of events) {
+          const u = (t - at) / 1.8;
+          if (u > 0 && u < 1) load += 0.62 * Math.sin(Math.PI * u) ** 4;
+        }
+        return load;
+      }
+      function dampedMode(t, hz, decay, delay = 0) {
+        let response2 = 0;
+        for (const at of events) {
+          const elapsed = t - at - delay;
+          if (elapsed > 0 && elapsed < 16)
+            response2 += Math.sin(2 * Math.PI * hz * elapsed) * Math.exp(-decay * elapsed);
+        }
+        return response2;
+      }
+
+      // works/first_dawn/approach-vibration.js
+      var smooth2 = (x) => {
+        x = Math.max(0, Math.min(1, x));
+        return x * x * (3 - 2 * x);
+      };
+      var wave = (t, hz, phase2 = 0) => Math.sin(t * Math.PI * 2 * hz + phase2);
+      function approachVibrationStrength(t, distance) {
+        return (
+          (smooth2(t / 3) * smooth2((MIGRATION_OPENING - t) / 4)) / (1 + (distance / 1050) ** 4)
+        );
+      }
+      function closePassVibrationStrength(t, start2, end, distance) {
+        return (
+          (0.85 * smooth2((t - start2) / 2.5) * smooth2((end - t) / 2.5)) /
+          (1 + (distance / 3e3) ** 4)
+        );
+      }
+      function createApproachVibration(ship) {
+        const wings = (ship.userData.deployables || []).map(({ pivot, side }) => ({
+          pivot,
+          side,
+          x: pivot.rotation.x,
+          y: pivot.rotation.y,
+        }));
+        const bells = [];
+        ship.traverse((part) => {
+          if (part.name === "engine-nozzle")
+            bells.push({ part, x: part.rotation.x, y: part.rotation.y });
+        });
+        let strength = 0;
+        return {
+          update(t, camera2, override = null) {
+            strength =
+              override ?? approachVibrationStrength(t, camera2.position.distanceTo(ship.position));
+            const load = propulsionLoad(t);
+            const flex = dampedMode(t, 0.88, 0.55, 0.35);
+            const chatter = dampedMode(t, 8.6, 4);
+            wings.forEach(({ pivot, side, x, y }, i) => {
+              pivot.rotation.x =
+                x + strength * 28e-4 * (0.3 * load * wave(t, 0.78, i * 0.25) + 0.7 * flex);
+              pivot.rotation.y =
+                y + strength * 7e-4 * side * (0.25 * load * wave(t, 1.18, 1 + i) + 0.6 * flex);
+            });
+            bells.forEach(({ part, x, y }, i) => {
+              part.rotation.x =
+                x +
+                strength *
+                  13e-4 *
+                  (load * (0.75 * wave(t, 7.3, i * 1.4) + 0.25 * wave(t, 10.7, i)) + 0.2 * chatter);
+              part.rotation.y = y + strength * 9e-4 * load * wave(t, 8.6, i * 1.1);
+            });
+            applyCameraVibration(t, camera2, strength);
+          },
+          snapshot: () => ({
+            strength,
+            wings: wings.map(({ pivot }) => [pivot.rotation.x, pivot.rotation.y]),
+            nozzles: bells.map(({ part }) => [part.rotation.x, part.rotation.y]),
+          }),
+        };
+      }
+      function applyCameraVibration(t, camera2, strength) {
+        strength *= 0.35 + 0.65 * propulsionLoad(t);
+        camera2.rotateX(strength * 58e-5 * (0.7 * wave(t, 3.1) + 0.3 * wave(t, 6.7, 0.8)));
+        camera2.rotateY(strength * 38e-5 * (0.75 * wave(t, 2.7, 1.3) + 0.25 * wave(t, 5.9)));
+        camera2.rotateZ(strength * 18e-5 * wave(t, 2.1, 0.4));
+        camera2.updateMatrixWorld();
+      }
+
+      // works/first_dawn/voyage-shadows.js
+      function createVoyageShadowFit(light, fleet2) {
+        const radii = /* @__PURE__ */ new Map();
+        for (const ship of fleet2) {
+          ship.updateMatrixWorld(true);
+          const sphere = new Box3().setFromObject(ship).getBoundingSphere(new Sphere());
+          radii.set(ship, sphere.radius + sphere.center.distanceTo(ship.position));
+        }
+        let lastSpan = -1;
+        return (ship) => {
+          const span =
+            Math.ceil(
+              ((radii.get(ship) || 900) * Math.max(ship.scale.x, ship.scale.y, ship.scale.z) + 32) /
+                8,
+            ) * 8;
+          if (span === lastSpan) return;
+          lastSpan = span;
+          Object.assign(light.shadow.camera, {
+            left: -span,
+            right: span,
+            top: span,
+            bottom: -span,
+          });
+          light.shadow.camera.updateProjectionMatrix();
+          const texel = (2 * span) / light.shadow.mapSize.x;
+          light.shadow.normalBias = Math.max(0.12, Math.min(1.1, texel * 0.16));
+          light.shadow.bias = -45e-6;
+        };
+      }
+
+      // works/shared/vehicle-markings.js
+      var words = [
+        "TR-Q1",
+        "TR-X01",
+        "TR-X02",
+        "TR-X03",
+        "TR-X04",
+        "TR-X05",
+        "TR-X06",
+        "TERRAFORMING_PROJECT",
+        "SURVEY / 01",
+        "F2345",
+        "F1021",
+        "F2406",
+        "F3108",
+        "I77",
+        "I62",
+        "I63",
+        "I81",
+      ];
+      var atlases = /* @__PURE__ */ new Map();
+      function paint(tier2) {
+        if (atlases.has(tier2)) return atlases.get(tier2);
+        if (typeof document === "undefined") {
+          const material2 = new MeshStandardMaterial({ roughness: 0.86, metalness: 0 });
+          material2.name = "mission-stencil-paint";
+          material2.userData = { vehicleMarking: true, geometryOnly: true };
+          atlases.set(tier2, material2);
+          return material2;
+        }
+        const canvas = document.createElement("canvas"),
+          scale = tier2 === "low" ? 1 : 2;
+        canvas.width = 512 * scale;
+        canvas.height = 2048 * scale;
+        const c = canvas.getContext("2d");
+        c.scale(scale, scale);
+        for (let ink = 0; ink < 2; ink++)
+          words.forEach((word, i) => {
+            const row = ink * words.length + i,
+              y = row * 56;
+            c.fillStyle = ink ? "#20282d" : "#d9dfdf";
+            c.textAlign = "center";
+            c.textBaseline = "middle";
+            c.font = `${word === "TERRAFORMING_PROJECT" ? 600 : 900} ${word.length > 14 ? 30 : 42}px Arial, sans-serif`;
+            c.save();
+            c.translate(256, y + 28);
+            c.scale(470 / c.measureText(word).width, 1);
+            c.fillText(word, 0, 0);
+            c.restore();
+            c.save();
+            c.globalCompositeOperation = "destination-out";
+            for (let j = 0; j < 7; j++)
+              c.fillRect(24 + ((i * 37 + j * 71) % 465), y + 12 + ((j * 11) % 30), 0.6, 1.3);
+            c.restore();
+          });
+        const map = new CanvasTexture(canvas);
+        map.colorSpace = SRGBColorSpace;
+        map.anisotropy = tier2 === "high" ? 8 : 2;
+        const material = new MeshStandardMaterial({
+          map,
+          roughness: 0.86,
+          metalness: 0,
+          alphaTest: 0.35,
+          transparent: true,
+          depthWrite: false,
+          polygonOffset: true,
+          polygonOffsetFactor: -1,
+          polygonOffsetUnits: -1,
+        });
+        material.name = "mission-stencil-paint";
+        material.userData.vehicleMarking = true;
+        atlases.set(tier2, material);
+        return material;
+      }
+      function markingBatch(parent, tier2 = "mid") {
+        const positions = [],
+          normals = [],
+          uvs = [],
+          labels = [];
+        const ray = new Raycaster(),
+          normalMatrix = new Matrix3();
+        return {
+          project(text, targets, centre, right, up, width, height, dark = false, offset = 0.08) {
+            parent.updateWorldMatrix(true, true);
+            const origin = new Vector3(...centre),
+              u = new Vector3(...right),
+              v = new Vector3(...up);
+            const n = new Vector3().crossVectors(u, v).normalize(),
+              inverse = parent.matrixWorld.clone().invert();
+            const steps = tier2 === "low" ? 8 : 16,
+              rows = 4,
+              points = [];
+            const row = words.indexOf(text) + (dark ? words.length : 0);
+            if (words.indexOf(text) < 0) throw Error("Unknown vehicle marking: " + text);
+            for (let y = 0; y <= rows; y++)
+              for (let x = 0; x <= steps; x++) {
+                const p = origin
+                  .clone()
+                  .addScaledVector(u, (x / steps - 0.5) * width)
+                  .addScaledVector(v, (y / rows - 0.5) * height);
+                const start2 = p
+                  .clone()
+                  .addScaledVector(n, Math.max(width, height) * 4 + 10)
+                  .applyMatrix4(parent.matrixWorld);
+                ray.set(start2, n.clone().negate().transformDirection(parent.matrixWorld));
+                const hit = ray.intersectObjects(targets, false)[0];
+                if (!hit) {
+                  points.push(null);
+                  continue;
+                }
+                const face = hit.face.normal
+                  .clone()
+                  .applyMatrix3(normalMatrix.getNormalMatrix(hit.object.matrixWorld))
+                  .normalize();
+                if (face.dot(ray.ray.direction) > -0.15) {
+                  points.push(null);
+                  continue;
+                }
+                const local = hit.point.clone().applyMatrix4(inverse).addScaledVector(n, offset);
+                points.push({
+                  p: local,
+                  n: face.transformDirection(inverse),
+                  uv: [x / steps, 1 - (row * 56 + (1 - y / rows) * 56) / 2048],
+                });
+              }
+            const before = positions.length;
+            for (let y = 0; y < rows; y++)
+              for (let x = 0; x < steps; x++) {
+                const a = y * (steps + 1) + x,
+                  b = a + 1,
+                  d = a + steps + 1,
+                  e = d + 1;
+                for (const tri of [
+                  [a, b, e],
+                  [a, e, d],
+                ])
+                  if (tri.every((i) => points[i]))
+                    for (const i of tri) {
+                      const q = points[i];
+                      positions.push(...q.p.toArray());
+                      normals.push(...q.n.toArray());
+                      uvs.push(...q.uv);
+                    }
+              }
+            if (positions.length > before) labels.push(text);
+          },
+          finish() {
+            if (!positions.length) return null;
+            const g = new BufferGeometry();
+            g.setAttribute("position", new Float32BufferAttribute(positions, 3));
+            g.setAttribute("normal", new Float32BufferAttribute(normals, 3));
+            g.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
+            g.computeBoundingSphere();
+            const mesh = new Mesh(g, paint(tier2));
+            mesh.name = "mission-markings";
+            mesh.receiveShadow = true;
+            mesh.userData = {
+              vehicleMarking: true,
+              blueprintOmit: true,
+              flightHardware: true,
+              labels,
+            };
+            parent.add(mesh);
+            return mesh;
+          },
+        };
+      }
+      function markFleet(root, tier2, index) {
+        const id = `TR-X${String(index + 1).padStart(2, "0")}`,
+          ark = index === 5;
+        const hull = [];
+        root.traverse((o) => {
+          if (o.isMesh && !o.userData.vehicleMarking && !o.name.includes("nozzle")) hull.push(o);
+        });
+        const b = markingBatch(root, tier2);
+        b.project(
+          id,
+          hull,
+          [0, 0, ark ? 470 : 315],
+          [1, 0, 0],
+          [0, 0, -1],
+          ark ? 47 : 85,
+          ark ? 17 : 28,
+          true,
+        );
+        for (const side of [-1, 1]) {
+          b.project(
+            id,
+            hull,
+            [0, ark ? 8 : 8, ark ? 440 : 140],
+            [0, 0, -side],
+            [0, 1, 0],
+            ark ? 30 : 110,
+            ark ? 10 : 16,
+            true,
+          );
+          b.project(
+            "TERRAFORMING_PROJECT",
+            hull,
+            [0, ark ? -12 : -15, ark ? 440 : 135],
+            [0, 0, -side],
+            [0, 1, 0],
+            ark ? 34 : 175,
+            ark ? 4 : 9,
+            true,
+          );
+        }
+        if (ark)
+          for (const side of [-1, 1]) {
+            b.project(
+              side < 0 ? "F2345" : "F1021",
+              hull,
+              [side * 142, 0, -414],
+              [1, 0, 0],
+              [0, 0, -1],
+              34,
+              13,
+              true,
+            );
+          }
+        if (!ark)
+          b.project(
+            index % 2 ? "F2406" : "F3108",
+            hull,
+            [0, 0, -454],
+            [1, 0, 0],
+            [0, 0, -1],
+            43,
+            13,
+            true,
+          );
+        b.finish();
+        let engine2 = 0;
+        root.traverse((o) => {
+          if (o.name === "engine-nozzle") {
+            const m = markingBatch(o, tier2),
+              { radius: r, length: l } = o.parent.userData.outlet;
+            const text = ["I77", "I62", "I63", "I81"][(engine2++ + index) % 4];
+            for (const side of [-1, 1])
+              m.project(
+                text,
+                [o],
+                [0, 0, -l * 0.58],
+                [0, 0, -side],
+                [0, 1, 0],
+                l * 0.25,
+                r * 0.5,
+                false,
+                0.045,
+              );
+            m.project(
+              text,
+              [o],
+              [0, 0, -l * 0.58],
+              [1, 0, 0],
+              [0, 0, -1],
+              r * 0.75,
+              l * 0.23,
+              false,
+              0.045,
+            );
+            m.finish();
+          }
+        });
+      }
+
+      // works/first_dawn/service-scale.js
+      function serviceHatch(block, origin, orientation = new Quaternion(), tier2 = "high") {
+        const put = (material, x, y, z, w, h, d) => {
+          const p = new Vector3(x, y, z).applyQuaternion(orientation).add(origin);
+          block(material, p.x, p.y, p.z, w, h, d, orientation);
+        };
+        put("dark", 0, 0, 0.28, 7.6, 11.6, 0.55);
+        put("paint", 0, 0, 0.62, 6.2, 10.2, 0.42);
+        for (const x of [-3.6, 3.6]) put("steel", x, 0, 0.9, 0.45, 11.6, 0.55);
+        for (const y of [-5.55, 5.55]) put("steel", 0, y, 0.9, 7.6, 0.5, 0.55);
+        for (const y of [-2.6, 2.6]) {
+          put("steel", 4.8, y, 1.05, 0.55, 2.4, 0.55);
+          if (tier2 !== "low")
+            for (const dy of [-1, 1]) put("steel", 4.8, y + dy, 0.55, 0.6, 0.45, 1.1);
+        }
+        put("steel", 0, -7.1, 1.1, 9, 0.6, 2.2);
+        put("dark", 0, 3.5, 0.92, 2.3, 0.9, 0.18);
+      }
+
+      // node_modules/three/examples/jsm/geometries/RoundedBoxGeometry.js
+      var _tempNormal = new Vector3();
+      function getUv(faceDirVector, normal, uvAxis, projectionAxis, radius, sideLength) {
+        const totArcLength = (2 * Math.PI * radius) / 4;
+        const centerLength = Math.max(sideLength - 2 * radius, 0);
+        const halfArc = Math.PI / 4;
+        _tempNormal.copy(normal);
+        _tempNormal[projectionAxis] = 0;
+        _tempNormal.normalize();
+        const arcUvRatio = (0.5 * totArcLength) / (totArcLength + centerLength);
+        const arcAngleRatio = 1 - _tempNormal.angleTo(faceDirVector) / halfArc;
+        if (Math.sign(_tempNormal[uvAxis]) === 1) {
+          return arcAngleRatio * arcUvRatio;
+        } else {
+          const lenUv = centerLength / (totArcLength + centerLength);
+          return lenUv + arcUvRatio + arcUvRatio * (1 - arcAngleRatio);
+        }
+      }
+      var RoundedBoxGeometry = class _RoundedBoxGeometry extends BoxGeometry {
+        /**
+         * Constructs a new rounded box geometry.
+         *
+         * @param {number} [width=1] - The width. That is, the length of the edges parallel to the X axis.
+         * @param {number} [height=1] - The height. That is, the length of the edges parallel to the Y axis.
+         * @param {number} [depth=1] - The depth. That is, the length of the edges parallel to the Z axis.
+         * @param {number} [segments=2] - Number of segments that form the rounded corners.
+         * @param {number} [radius=0.1] - The radius of the rounded corners.
+         */
+        constructor(width = 1, height = 1, depth = 1, segments = 2, radius = 0.1) {
+          const totalSegments = segments * 2 + 1;
+          radius = Math.min(width / 2, height / 2, depth / 2, radius);
+          super(1, 1, 1, totalSegments, totalSegments, totalSegments);
+          this.type = "RoundedBoxGeometry";
+          this.parameters = {
+            width,
+            height,
+            depth,
+            segments,
+            radius,
+          };
+          if (totalSegments === 1) return;
+          const geometry2 = this.toNonIndexed();
+          this.index = null;
+          this.attributes.position = geometry2.attributes.position;
+          this.attributes.normal = geometry2.attributes.normal;
+          this.attributes.uv = geometry2.attributes.uv;
+          const position = new Vector3();
+          const normal = new Vector3();
+          const box = new Vector3(width, height, depth).divideScalar(2).subScalar(radius);
+          const positions = this.attributes.position.array;
+          const normals = this.attributes.normal.array;
+          const uvs = this.attributes.uv.array;
+          const faceTris = positions.length / 6;
+          const faceDirVector = new Vector3();
+          const halfSegmentSize = 0.5 / totalSegments;
+          for (let i = 0, j = 0; i < positions.length; i += 3, j += 2) {
+            position.fromArray(positions, i);
+            normal.copy(position);
+            normal.x -= Math.sign(normal.x) * halfSegmentSize;
+            normal.y -= Math.sign(normal.y) * halfSegmentSize;
+            normal.z -= Math.sign(normal.z) * halfSegmentSize;
+            normal.normalize();
+            positions[i + 0] = box.x * Math.sign(position.x) + normal.x * radius;
+            positions[i + 1] = box.y * Math.sign(position.y) + normal.y * radius;
+            positions[i + 2] = box.z * Math.sign(position.z) + normal.z * radius;
+            normals[i + 0] = normal.x;
+            normals[i + 1] = normal.y;
+            normals[i + 2] = normal.z;
+            const side = Math.floor(i / faceTris);
+            switch (side) {
+              case 0:
+                faceDirVector.set(1, 0, 0);
+                uvs[j + 0] = getUv(faceDirVector, normal, "z", "y", radius, depth);
+                uvs[j + 1] = 1 - getUv(faceDirVector, normal, "y", "z", radius, height);
+                break;
+              case 1:
+                faceDirVector.set(-1, 0, 0);
+                uvs[j + 0] = 1 - getUv(faceDirVector, normal, "z", "y", radius, depth);
+                uvs[j + 1] = 1 - getUv(faceDirVector, normal, "y", "z", radius, height);
+                break;
+              case 2:
+                faceDirVector.set(0, 1, 0);
+                uvs[j + 0] = 1 - getUv(faceDirVector, normal, "x", "z", radius, width);
+                uvs[j + 1] = getUv(faceDirVector, normal, "z", "x", radius, depth);
+                break;
+              case 3:
+                faceDirVector.set(0, -1, 0);
+                uvs[j + 0] = 1 - getUv(faceDirVector, normal, "x", "z", radius, width);
+                uvs[j + 1] = 1 - getUv(faceDirVector, normal, "z", "x", radius, depth);
+                break;
+              case 4:
+                faceDirVector.set(0, 0, 1);
+                uvs[j + 0] = 1 - getUv(faceDirVector, normal, "x", "y", radius, width);
+                uvs[j + 1] = 1 - getUv(faceDirVector, normal, "y", "x", radius, height);
+                break;
+              case 5:
+                faceDirVector.set(0, 0, -1);
+                uvs[j + 0] = getUv(faceDirVector, normal, "x", "y", radius, width);
+                uvs[j + 1] = 1 - getUv(faceDirVector, normal, "y", "x", radius, height);
+                break;
+            }
+          }
+        }
+        /**
+         * Factory method for creating an instance of this class from the given
+         * JSON object.
+         *
+         * @param {Object} data - A JSON object representing the serialized geometry.
+         * @returns {RoundedBoxGeometry} A new instance.
+         */
+        static fromJSON(data) {
+          return new _RoundedBoxGeometry(
+            data.width,
+            data.height,
+            data.depth,
+            data.segments,
+            data.radius,
+          );
+        }
+      };
+
       // works/shared/aerospace-textures.js
       var cache = /* @__PURE__ */ new Map();
       var AEROSPACE_FINISH = Object.freeze({
         white: { color: 14211541, roughness: 0.76, metalness: 0.025, bump: 15e-4 },
-        steel: { color: 10267054, roughness: 0.46, metalness: 0.92, bump: 8e-4 },
-        titanium: { color: 7831947, roughness: 0.58, metalness: 0.88, bump: 1e-3 },
-        foil: { color: 11967064, roughness: 0.52, metalness: 0.86, bump: 9e-3 },
+        steel: { color: 10267054, roughness: 0.42, metalness: 0.92, bump: 8e-4 },
+        titanium: { color: 7831947, roughness: 0.55, metalness: 0.88, bump: 1e-3 },
+        foil: { color: 11967064, roughness: 0.48, metalness: 0.86, bump: 9e-3 },
         thermal: { color: 2435888, roughness: 0.92, metalness: 0.03, bump: 3e-3 },
         rubber: { color: 2106151, roughness: 0.96, metalness: 0, bump: 18e-4 },
         radiator: { color: 12897482, roughness: 0.68, metalness: 0.18, bump: 1e-3 },
@@ -35269,44 +36427,53 @@ void main() {
           for (let x = 0; x < size; x++) {
             const u = (x + 0.5) / size,
               v = (y + 0.5) / size,
-              n = hash(x, y);
+              n = hash(Math.floor(u * 128), Math.floor(v * 128));
             const broad = noise(u, v, 8),
-              fine = noise(u, v, 48),
-              edge = Math.min(u, 1 - u, v, 1 - v);
+              fine = noise(u, v, 48);
             let tone = 1,
               height = 0.5,
-              rough = 0.9;
+              rough = 0.9,
+              tint = 0;
             if (kind === "foil") {
-              const warp = (broad - 0.5) * 0.42;
-              const fold = Math.sin(2 * Math.PI * (u * 7 + v * 2 + warp));
-              const cross = Math.sin(2 * Math.PI * (v * 13 - u * 3 + warp * 0.55));
-              const crease = Math.exp(-Math.abs(fold) * 10);
-              const seam = edge < 0.015;
+              const warp = (broad - 0.5) * 0.65;
+              const fold = Math.sin(2 * Math.PI * (u * 4 + v * 2 + warp));
+              const cross = Math.sin(2 * Math.PI * (v * 9 - u * 3 + warp * 0.55));
+              const crease = Math.exp(-Math.abs(fold) * 15),
+                crinkle = Math.exp(-Math.abs(cross) * 12);
               height = clamp2(
-                0.48 + fold * 0.14 + cross * 0.055 - crease * 0.16 + (fine - 0.5) * 0.075,
+                0.5 +
+                  fold * 0.19 +
+                  cross * 0.065 -
+                  crease * 0.2 -
+                  crinkle * 0.065 +
+                  (fine - 0.5) * 0.05,
               );
-              tone = seam ? 0.72 : 0.94 + (broad - 0.5) * 0.045;
-              rough = clamp2(0.83 + (broad - 0.5) * 0.13 + crease * 0.08);
-            } else if (kind === "steel" || kind === "titanium") {
-              const brush = Math.sin(2 * Math.PI * (v * 38 + 0.06 * Math.sin(u * 6 * Math.PI)));
-              const machining = Math.sin(2 * Math.PI * v * 12);
-              const joint = edge < 35e-4,
-                weld = edge < 0.013;
+              tone = 0.955 + (broad - 0.5) * 0.025;
+              rough = clamp2(0.72 + (broad - 0.5) * 0.23 + crease * 0.16 + crinkle * 0.08);
+              tint = (broad - 0.5) * 0.025;
+            } else if (
+              kind === "steel" ||
+              kind === "titanium" ||
+              kind === "ship-steel" ||
+              kind === "ship-titanium"
+            ) {
+              const brush =
+                (noise(u, v, 64) - 0.5) * 0.28 +
+                Math.sin(2 * Math.PI * (v * 43 + 0.025 * Math.sin(u * 6 * Math.PI))) * 0.36;
+              const machining = (noise(u, v, 32) - 0.5) * 0.2 + (noise(0, v, 64) - 0.5) * 0.8;
               const scratch =
                 Math.pow(Math.max(0, Math.sin(2 * Math.PI * (v * 23 + u))), 42) *
                 Math.max(0, broad - 0.57);
-              tone = joint ? 0.76 : weld ? 0.93 : 0.965 + (broad - 0.5) * 0.035 - scratch * 0.08;
-              height = joint
-                ? 0.33
-                : weld
-                  ? 0.52
-                  : 0.5 + brush * 0.022 + machining * 6e-3 + (fine - 0.5) * 0.014 - scratch * 0.09;
+              tone = 0.962 + (broad - 0.5) * 0.04 - scratch * 0.06;
+              height =
+                0.5 + brush * 0.033 + machining * 0.02 + (fine - 0.5) * 0.01 - scratch * 0.08;
               rough = clamp2(
-                (kind === "steel" ? 0.82 : 0.9) +
-                  brush * 0.045 +
-                  (broad - 0.5) * 0.11 +
-                  scratch * 0.14,
+                (kind.endsWith("steel") ? 0.82 : 0.9) +
+                  brush * 0.13 +
+                  (broad - 0.5) * 0.17 +
+                  scratch * 0.18,
               );
+              tint = (broad - 0.5) * 0.016;
             } else if (kind === "thermal") {
               const px2 = u * 6 * Math.sqrt(3),
                 py2 = v * 9;
@@ -35335,14 +36502,14 @@ void main() {
               height = 0.5 + (fine - 0.5) * 0.08;
               rough = 0.96 + n * 0.035;
             } else {
-              const joint = kind !== "hull" && edge < 4e-3;
-              tone = joint ? 0.76 : 0.975 + (broad - 0.5) * 0.025;
-              height = joint ? 0.31 : 0.5 + (fine - 0.5) * 0.04 + (n - 0.5) * 9e-3;
-              rough = 0.94 + (fine - 0.5) * 0.065 + (broad - 0.5) * 0.025;
+              tone = 0.973 + (broad - 0.5) * 0.035;
+              height = 0.5 + (fine - 0.5) * 0.042 + (n - 0.5) * 8e-3;
+              rough = 0.91 + (fine - 0.5) * 0.09 + (broad - 0.5) * 0.11;
             }
-            const i = (y * size + x) * 4,
-              c = Math.round(clamp2(tone) * 255);
-            color[i] = color[i + 1] = color[i + 2] = c;
+            const i = (y * size + x) * 4;
+            color[i] = Math.round(clamp2(tone + tint) * 255);
+            color[i + 1] = Math.round(clamp2(tone) * 255);
+            color[i + 2] = Math.round(clamp2(tone - tint) * 255);
             color[i + 3] = 255;
             data[i] = Math.round(clamp2(height) * 255);
             data[i + 1] = Math.round(clamp2(rough) * 255);
@@ -35367,7 +36534,7 @@ void main() {
       function aerospaceMaterial(kind, tier2, options = {}) {
         const finish = AEROSPACE_FINISH[kind],
           maps = aerospaceTextures(kind, tier2);
-        const material = new MeshStandardMaterial({
+        const properties = {
           color: finish.color,
           roughness: finish.roughness,
           metalness: finish.metalness,
@@ -35376,25 +36543,48 @@ void main() {
           bumpMap: tier2 === "low" ? null : maps.data,
           bumpScale: finish.bump,
           ...options,
-        });
+        };
+        const brushed = tier2 !== "low" && (kind === "steel" || kind === "titanium");
+        const material = brushed
+          ? new MeshPhysicalMaterial({
+              ...properties,
+              anisotropy: kind === "steel" ? 0.42 : 0.23,
+              anisotropyRotation: Math.PI / 2,
+            })
+          : new MeshStandardMaterial(properties);
         material.name = "aerospace-" + kind;
         material.userData.aerospace = { kind, resolution: maps.size };
         return material;
       }
 
       // works/first_dawn/ship-detail.js
+      var SHIP_FINISH = Object.freeze({
+        // Authored PBR separation, not measured optical constants for a specific alloy.
+        white: Object.freeze({ roughness: 0.74, metalness: 0 }),
+        thermal: Object.freeze({ roughness: 0.98, metalness: 0 }),
+        radiator: Object.freeze({ roughness: 0.86, metalness: 0.035 }),
+        steel: Object.freeze({ roughness: 0.36, metalness: 0.94 }),
+        titanium: Object.freeze({ roughness: 0.5, metalness: 0.88 }),
+        foil: Object.freeze({ roughness: 0.49, metalness: 0.86 }),
+      });
       function shipMaterial(kind, tier2, options = {}) {
-        const material = aerospaceMaterial(kind, tier2, options);
+        const material = aerospaceMaterial(kind, tier2, {
+          ...SHIP_FINISH[kind],
+          ...options,
+        });
         if (kind === "white") {
           const maps = aerospaceTextures("hull", tier2);
           material.map = maps.color;
           material.roughnessMap = maps.data;
           material.bumpMap = tier2 === "low" ? null : maps.data;
-          material.roughness = 0.68;
           material.bumpScale = 7e-4;
         }
         if (kind === "steel" || kind === "titanium") {
-          material.roughness = kind === "steel" ? 0.36 : 0.51;
+          const maps = aerospaceTextures("ship-" + kind, tier2);
+          material.map = maps.color;
+          material.roughnessMap = maps.data;
+          material.bumpMap = tier2 === "low" ? null : maps.data;
+          material.bumpScale = kind === "steel" ? 25e-5 : 35e-5;
           if (tier2 !== "low") {
             const physical = new MeshPhysicalMaterial({
               color: material.color,
@@ -35404,7 +36594,8 @@ void main() {
               bumpScale: material.bumpScale,
               roughness: material.roughness,
               metalness: material.metalness,
-              anisotropy: tier2 === "high" ? 0.42 : 0.24,
+              anisotropy:
+                kind === "steel" ? (tier2 === "high" ? 0.52 : 0.3) : tier2 === "high" ? 0.28 : 0.16,
               anisotropyRotation: Math.PI / 2,
               ...options,
             });
@@ -35414,10 +36605,7 @@ void main() {
             return physical;
           }
         }
-        if (kind === "foil") {
-          material.roughness = 0.43;
-          material.bumpScale = 4e-3;
-        }
+        if (kind === "foil") material.bumpScale = 32e-4;
         return material;
       }
       function nozzleAssembly(tier2, radius, length, outer, inner) {
@@ -35430,12 +36618,24 @@ void main() {
           [r * 0.83, length * 0.7],
           [r, length],
           [r - t, length],
-          [r * 0.83 - t, length * 0.7],
-          [r * 0.71 - t, length * 0.38],
-          [r * 0.66 - t, length * 0.16],
-          [r * 0.65 - t, 0],
-          [r * 0.65, 0],
         ];
+        const stations = tier2 === "low" ? [0.7, 0.38] : [0.82, 0.7, 0.38];
+        const innerRadius = (u) =>
+          r *
+            (u > 0.7
+              ? 0.83 + ((u - 0.7) / 0.3) * 0.17
+              : u > 0.38
+                ? 0.71 + ((u - 0.38) / 0.32) * 0.12
+                : 0.66 + ((u - 0.16) / 0.22) * 0.05) -
+          t;
+        for (const u of stations) {
+          profile.push(
+            [innerRadius(u + 0.016), length * (u + 0.016)],
+            [innerRadius(u) - 0.55, length * u],
+            [innerRadius(u - 0.016), length * (u - 0.016)],
+          );
+        }
+        profile.push([r * 0.66 - t, length * 0.16], [r * 0.65 - t, 0], [r * 0.65, 0]);
         const segments = { high: 48, mid: 32, low: 20 }[tier2];
         const geometry = new LatheGeometry(
           profile.map((p) => new Vector2(...p)),
@@ -35446,7 +36646,7 @@ void main() {
         geometry.clearGroups();
         for (let slice = 0; slice < segments; slice++) {
           geometry.addGroup(slice * edges * 6, 5 * 6, 0);
-          geometry.addGroup((slice * edges + 5) * 6, 5 * 6, 1);
+          geometry.addGroup((slice * edges + 5) * 6, (edges - 5) * 6, 1);
         }
         const indices = geometry.index.array,
           ordered = [];
@@ -35458,22 +36658,265 @@ void main() {
         geometry.setIndex(ordered);
         geometry.clearGroups();
         geometry.addGroup(0, segments * 30, 0);
-        geometry.addGroup(segments * 30, segments * 30, 1);
+        geometry.addGroup(segments * 30, segments * (edges - 5) * 6, 1);
         const group = new Group();
         group.name = "layered-engine-nozzle";
-        const bell = new Mesh(geometry, [outer, inner]);
+        const liner = inner.clone();
+        liner.emissive.set(2378329);
+        liner.emissiveIntensity = 0.045;
+        const bell = new Mesh(geometry, [outer, liner]);
         bell.name = "engine-nozzle";
         bell.castShadow = bell.receiveShadow = true;
         group.add(bell);
         const collarGeometry = new CylinderGeometry(r * 0.72, r * 0.72, 6, segments);
         collarGeometry.rotateX(Math.PI / 2);
-        const collar = new Mesh(collarGeometry, outer);
-        collar.position.z = 2;
-        collar.name = "nozzle-mount";
-        collar.castShadow = collar.receiveShadow = true;
-        group.add(collar);
+        collarGeometry.translate(0, 0, 2);
+        const jacket = [],
+          mounts = [collarGeometry],
+          radialSegments = { high: 40, mid: 28, low: 16 }[tier2];
+        for (const u of [0.18, 0.4, 0.7]) {
+          const radiusAt =
+            u < 0.38
+              ? r * (0.66 + ((u - 0.16) / 0.22) * 0.05)
+              : r * (0.71 + ((u - 0.38) / 0.32) * 0.12);
+          const band = new TorusGeometry(radiusAt + 0.28, 0.65, 4, radialSegments);
+          band.translate(0, 0, -length * u);
+          jacket.push(band);
+        }
+        const flange = new TorusGeometry(r * 0.73, 1.05, 5, radialSegments);
+        flange.translate(0, 0, 3);
+        mounts.push(flange);
+        for (let j = 0; j < 8; j++) {
+          const a = (j * Math.PI) / 4;
+          const bolt = new CylinderGeometry(0.85, 0.85, 1.6, 6);
+          bolt.rotateX(Math.PI / 2);
+          bolt.translate(Math.cos(a) * r * 0.73, Math.sin(a) * r * 0.73, 4);
+          mounts.push(bolt);
+          if (j % 2 === 0)
+            for (const [u, v, ra, rb] of [
+              [0.18, 0.38, 0.665, 0.71],
+              [0.38, 0.7, 0.71, 0.83],
+            ]) {
+              const start2 = new Vector3(
+                Math.cos(a) * (r * ra + 0.35),
+                Math.sin(a) * (r * ra + 0.35),
+                -length * u,
+              );
+              const end = new Vector3(
+                Math.cos(a) * (r * rb + 0.35),
+                Math.sin(a) * (r * rb + 0.35),
+                -length * v,
+              );
+              jacket.push(detailTube(start2, end, 0.45, tier2));
+            }
+        }
+        const ribs = { high: 20, mid: 14, low: 8 }[tier2];
+        for (let j = 0; j < ribs; j++) {
+          const a = (j / ribs) * Math.PI * 2;
+          for (const [u, v, ra, rb] of [
+            [0.18, 0.38, 0.665, 0.71],
+            [0.38, 0.7, 0.71, 0.83],
+            [0.7, 0.965, 0.83, 0.9802],
+          ]) {
+            jacket.push(
+              detailTube(
+                new Vector3(
+                  Math.cos(a) * (r * ra + 0.18),
+                  Math.sin(a) * (r * ra + 0.18),
+                  -length * u,
+                ),
+                new Vector3(
+                  Math.cos(a) * (r * rb + 0.18),
+                  Math.sin(a) * (r * rb + 0.18),
+                  -length * v,
+                ),
+                r * 9e-3,
+                tier2,
+              ),
+            );
+          }
+        }
+        bell.add(mergedShipDetail(jacket, outer, "nozzle-jacket-bands", 3));
+        group.add(mergedShipDetail(mounts, outer, "nozzle-bolted-flange", 3));
         group.userData.outlet = { radius, length };
         return group;
+      }
+      function pressureVesselGeometry(radius, length, tier2) {
+        const h = length / 2,
+          dome = radius * 0.44,
+          steps = { high: 6, mid: 5, low: 4 }[tier2];
+        const profile = [];
+        for (let j = 0; j <= steps; j++) {
+          const a = ((j / steps) * Math.PI) / 2;
+          profile.push(new Vector2(radius * Math.sin(a), -h + dome * (1 - Math.cos(a))));
+        }
+        for (let j = 0; j <= steps; j++) {
+          const a = ((j / steps) * Math.PI) / 2;
+          profile.push(
+            new Vector2(j === steps ? 0 : radius * Math.cos(a), h - dome + dome * Math.sin(a)),
+          );
+        }
+        const g = new LatheGeometry(profile, { high: 40, mid: 28, low: 16 }[tier2]);
+        const position = g.attributes.position,
+          normal = g.attributes.normal;
+        for (let i = 0; i < position.count; i++) {
+          const y = position.getY(i),
+            cap = Math.abs(y) > h - dome;
+          const nx = position.getX(i) / (radius * radius),
+            nz = position.getZ(i) / (radius * radius);
+          const ny = cap ? (y - Math.sign(y) * (h - dome)) / (dome * dome) : 0;
+          const norm = Math.hypot(nx, ny, nz) || 1;
+          normal.setXYZ(i, nx / norm, ny / norm, nz / norm);
+        }
+        const uv = g.attributes.uv;
+        let arc = 0;
+        const distances = [0];
+        for (let j = 1; j < profile.length; j++) {
+          arc += profile[j].distanceTo(profile[j - 1]);
+          distances.push(arc);
+        }
+        for (let i = 0; i < uv.count; i++)
+          uv.setXY(i, (uv.getX(i) * 2 * Math.PI * radius) / 48, distances[i % profile.length] / 48);
+        g.rotateX(Math.PI / 2);
+        g.userData = { radius, length, dome, headSteps: steps };
+        return g;
+      }
+      function pressureVesselFittings(radius, length, tier2, straps = false) {
+        const shoulder = length / 2 - radius * 0.44,
+          segments = { high: 24, mid: 16, low: 12 }[tier2],
+          parts = [];
+        for (const side of [-1, 1]) {
+          const weld = new TorusGeometry(radius - 0.02, radius * 0.012, 3, segments);
+          weld.translate(0, 0, side * shoulder);
+          parts.push(weld);
+          if (straps) {
+            const r = radius,
+              profile = [
+                [r - 0.12, -2],
+                [r + 0.8, -2],
+                [r + 1.2, -1.6],
+                [r + 1.2, 1.6],
+                [r + 0.8, 2],
+                [r - 0.12, 2],
+                [r - 0.12, -2],
+              ];
+            const band = new LatheGeometry(
+              profile.map((p) => new Vector2(...p)),
+              segments,
+            );
+            band.rotateX(Math.PI / 2);
+            band.translate(0, 0, side * (shoulder - 3));
+            parts.push(band);
+          }
+        }
+        if (straps) {
+          const cover = new CylinderGeometry(
+            radius * 0.265,
+            radius * 0.3,
+            radius * 0.065,
+            segments,
+          );
+          cover.rotateX(-Math.PI / 2);
+          cover.translate(0, 0, -length / 2 + radius * 0.016);
+          parts.push(cover);
+          const seal = new TorusGeometry(radius * 0.285, radius * 0.012, 4, segments);
+          seal.translate(0, 0, -length / 2 - radius * 6e-3);
+          parts.push(seal);
+          if (tier2 !== "low")
+            for (let j = 0; j < 6; j++) {
+              const a = (j * Math.PI) / 3,
+                bolt = new CylinderGeometry(radius * 0.018, radius * 0.018, radius * 0.025, 6);
+              bolt.rotateX(Math.PI / 2);
+              bolt.translate(
+                Math.cos(a) * radius * 0.23,
+                Math.sin(a) * radius * 0.23,
+                -length / 2 - radius * 0.022,
+              );
+              parts.push(bolt);
+            }
+        }
+        return parts;
+      }
+      function ringShieldGeometry(inner, outer, depth, angle, arc, tier2) {
+        const shape = new Shape(),
+          steps =
+            arc > Math.PI
+              ? { high: 64, mid: 40, low: 24 }[tier2]
+              : { high: 8, mid: 5, low: 3 }[tier2];
+        for (let i = 0; i <= steps; i++) {
+          const a = angle - arc / 2 + (arc * i) / steps,
+            x = outer * Math.cos(a),
+            y = outer * Math.sin(a);
+          if (i === 0) shape.moveTo(x, y);
+          else shape.lineTo(x, y);
+        }
+        for (let i = steps; i >= 0; i--) {
+          const a = angle - arc / 2 + (arc * i) / steps;
+          shape.lineTo(inner * Math.cos(a), inner * Math.sin(a));
+        }
+        shape.closePath();
+        const g = new ExtrudeGeometry(shape, {
+          depth,
+          steps: 1,
+          bevelEnabled: tier2 !== "low",
+          bevelThickness: 0.24,
+          bevelSize: 0.24,
+          bevelSegments: 1,
+        });
+        g.translate(0, 0, -depth / 2);
+        const uv = g.attributes.uv;
+        for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) / 48, uv.getY(i) / 48);
+        return g;
+      }
+      function mergedShipDetail(geometries, material, name, blueprintPart) {
+        const normalized = geometries.map((g) => (g.index ? g.toNonIndexed() : g));
+        const geometry = mergeGeometries(normalized);
+        normalized.forEach((g, i) => {
+          g.dispose();
+          if (g !== geometries[i]) geometries[i].dispose();
+        });
+        const mesh = new Mesh(geometry, material);
+        mesh.name = name;
+        mesh.castShadow = mesh.receiveShadow = true;
+        mesh.userData.blueprintPart = blueprintPart;
+        return mesh;
+      }
+      function detailTube(a, b, radius, tier2) {
+        const delta = b.clone().sub(a),
+          g = new CylinderGeometry(radius, radius, delta.length(), tier2 === "low" ? 6 : 8);
+        g.applyQuaternion(
+          new Quaternion().setFromUnitVectors(new Vector3(0, 1, 0), delta.normalize()),
+        );
+        g.translate(...a.clone().add(b).multiplyScalar(0.5).toArray());
+        return g;
+      }
+      function radiatorHardware(pivot, tier2, material, side, width, length, start2 = 2) {
+        const parts = [],
+          end = length * 0.5 - 7,
+          inner = side * (start2 + 5),
+          outer = side * (start2 + width - 5);
+        const bar = (x, y, z, w, h, d) => {
+          const g = new BoxGeometry(w, h, d);
+          g.translate(x, y, z);
+          parts.push(g);
+        };
+        for (const x of [inner, outer])
+          parts.push(detailTube(new Vector3(x, 2.6, -end), new Vector3(x, 2.6, end), 0.85, tier2));
+        for (const z of [-end, end])
+          parts.push(
+            detailTube(new Vector3(inner, 2.6, z), new Vector3(outer, 2.6, z), 0.85, tier2),
+          );
+        for (const z of [-length * 0.32, 0, length * 0.32]) {
+          const pin = new CylinderGeometry(2.7, 2.7, 11, tier2 === "low" ? 8 : 12);
+          pin.rotateX(Math.PI / 2);
+          pin.translate(side * 2, 0, z);
+          parts.push(pin);
+          bar(side * 7, 0, z, 12, 5, 5);
+          for (const x of [inner, outer]) bar(x, 2.5, z, 4, 2, 3);
+        }
+        const hardware = mergedShipDetail(parts, material, "radiator-fluid-headers-and-hinges", 2);
+        pivot.add(hardware);
+        return hardware;
       }
 
       // works/first_dawn/ships.js
@@ -35484,7 +36927,12 @@ void main() {
       };
       function createFleet(tier2, count = 5) {
         const toon = (color, extra = {}) =>
-          new MeshStandardMaterial({ color, roughness: 0.72, metalness: 0.18, ...extra });
+          new MeshStandardMaterial({
+            color,
+            roughness: 0.72,
+            metalness: 0.18,
+            ...extra,
+          });
         const armour = shipMaterial("white", tier2, { vertexColors: true });
         const steel = shipMaterial("steel", tier2),
           dark = shipMaterial("thermal", tier2),
@@ -35497,7 +36945,10 @@ void main() {
           emissive: 11257804,
           emissiveIntensity: 0.12,
         });
-        const engine2 = toon(1385771, { emissive: 5405064, emissiveIntensity: 0.16 });
+        const engine2 = toon(1385771, {
+          emissive: 5405064,
+          emissiveIntensity: 0.16,
+        });
         const box = new RoundedBoxGeometry(1, 1, 1, 1, 0.055),
           unitBox = new BoxGeometry(1, 1, 1);
         const cylinder = new CylinderGeometry(1, 1, 1, tier2 === "low" ? 8 : 12);
@@ -35549,15 +37000,21 @@ void main() {
             const a = profile[k],
               b = profile[k + 1],
               t = MathUtils.clamp((z - a[0]) / (b[0] - a[0]), 0, 1);
-            return { w: MathUtils.lerp(a[1], b[1], t), h: MathUtils.lerp(a[2], b[2], t) };
+            return {
+              w: MathUtils.lerp(a[1], b[1], t),
+              h: MathUtils.lerp(a[2], b[2], t),
+            };
           };
           const deck = (x, z) => {
             const { w, h } = section(z);
             return h * (1 - 0.58 * MathUtils.clamp((Math.abs(x) / w - 0.72) / 0.28, 0, 1));
           };
           const joints = [];
+          let serviceBays = 0,
+            accessHatches = 0;
           const meshParts = [],
             instances = materialList.map(() => []),
+            fineInstances = materialList.map(() => []),
             pipes = [];
           const add = (m, x, y, z, sx, sy, sz, q = null) => {
             matrix.compose(
@@ -35565,7 +37022,7 @@ void main() {
               q || quaternion.identity(),
               new Vector3(sx, sy, sz),
             );
-            instances[m].push(matrix.clone());
+            (Math.min(sx, sy, sz) <= 2.4 ? fineInstances : instances)[m].push(matrix.clone());
           };
           const ring = (w, h) => [
             [-w * 0.72, h],
@@ -35632,6 +37089,19 @@ void main() {
               const p2 = flat.attributes.position;
               uvs.push(p2.getZ(i) / 90, (p2.getX(i) + p2.getY(i)) / 70);
             }
+            const finish =
+              0.5 +
+              0.5 *
+                Math.sin(
+                  Math.round(centre.z) * 0.031 + Math.abs(centre.x) * 0.017 + centre.y * 0.029,
+                );
+            flat.setAttribute(
+              "shieldFinish",
+              new Float32BufferAttribute(
+                new Float32Array(flat.attributes.position.count).fill(finish),
+                1,
+              ),
+            );
             flat.setAttribute("color", new Float32BufferAttribute(colors, 3));
             flat.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
             meshParts.push(flat);
@@ -35666,16 +37136,74 @@ void main() {
                     0.85 +
                     0.035 *
                       Math.sin(s * 1.7 + col * 0.83 + Math.min(row, cuts.length - 2 - row) * 0.71);
-                  const { centre, n } = plate(
-                    [
-                      facet(a, b, u0, v0),
-                      facet(a, b, u1, v0),
-                      facet(a, b, u1, v1),
-                      facet(a, b, u0, v1),
-                    ],
-                    new Color().setScalar(central ? 0.72 : shade),
-                    central ? 0.7 : 1.05,
-                  );
+                  const corners = [
+                    facet(a, b, u0, v0),
+                    facet(a, b, u1, v0),
+                    facet(a, b, u1, v1),
+                    facet(a, b, u0, v1),
+                  ];
+                  const serviceBay =
+                    (face === 2 || face === 6) && s === 1 && col === 0 && row === 0;
+                  let centre, n;
+                  if (serviceBay) {
+                    const um0 = u0 + (u1 - u0) * 0.14,
+                      um1 = u1 - (u1 - u0) * 0.14;
+                    const vm0 = v0 + (v1 - v0) * 0.22,
+                      vm1 = v1 - (v1 - v0) * 0.22;
+                    const strips = [
+                      [u0, um0, v0, v1],
+                      [um1, u1, v0, v1],
+                      [um0, um1, v0, vm0],
+                      [um0, um1, vm1, v1],
+                    ];
+                    for (const [ua, ub, va, vb] of strips)
+                      plate(
+                        [
+                          facet(a, b, ua, va),
+                          facet(a, b, ub, va),
+                          facet(a, b, ub, vb),
+                          facet(a, b, ua, vb),
+                        ],
+                        new Color().setScalar(shade),
+                        4.2,
+                      );
+                    centre = corners.reduce((v, p) => v.add(p), new Vector3()).multiplyScalar(0.25);
+                    n = new Vector3()
+                      .subVectors(corners[1], corners[0])
+                      .cross(new Vector3().subVectors(corners[3], corners[0]))
+                      .normalize();
+                    if (n.dot(new Vector3(centre.x, centre.y, 0)) < 0) n.negate();
+                    const q = new Quaternion().setFromUnitVectors(new Vector3(0, 0, 1), n);
+                    for (const dy of [-3, 3]) {
+                      const p = centre.clone().addScaledVector(n, 1.9);
+                      p.y += dy;
+                      add(0, p.x, p.y, p.z, 35, 0.7, 2.5, q);
+                    }
+                    serviceBays++;
+                  } else
+                    ({ centre, n } = plate(
+                      corners,
+                      new Color().setScalar(central ? 0.72 : shade),
+                      central ? 0.7 : 1.05,
+                    ));
+                  if ((face === 2 || face === 6) && s === 2 && col === 0 && row === 0) {
+                    const q = new Quaternion().setFromUnitVectors(new Vector3(0, 0, 1), n);
+                    serviceHatch(
+                      (kind, ...args) => add({ steel: 0, dark: 1, paint: 2 }[kind], ...args),
+                      centre.clone().addScaledVector(n, 1.12),
+                      q,
+                      tier2,
+                    );
+                    accessHatches++;
+                  }
+                  if (!central && !serviceBay && (underside || s === 0) && face !== 0) {
+                    const q = new Quaternion().setFromUnitVectors(new Vector3(0, 0, 1), n);
+                    for (const u of [u0 + (u1 - u0) * 0.09, u1 - (u1 - u0) * 0.09])
+                      for (const v of [v0 + (v1 - v0) * 0.12, v1 - (v1 - v0) * 0.12]) {
+                        const p = facet(a, b, u, v).addScaledVector(n, 1.22);
+                        add(0, p.x, p.y, p.z, 1.35, 1.35, 0.45, q);
+                      }
+                  }
                   if (face === 2 || face === 6) {
                     const q = new Quaternion().setFromUnitVectors(new Vector3(0, 0, 1), n);
                     for (let j = 0; j < 3; j++)
@@ -35700,18 +37228,6 @@ void main() {
             mesh.material = ivory;
             mesh.material.side = DoubleSide;
             root.add(mesh);
-          }
-          const levels = capsule ? 1 : 2;
-          for (let l = 0; l < levels; l++) {
-            const width = (carrier ? 126 : 92) - l * 30,
-              length = 210 - l * 75,
-              y = section(-240)["h"] + 7 + l * 16,
-              z = -240 - l * 28;
-            add(2, 0, y, z, width, 16, length);
-            add(1, 0, y + 5, z + length * 0.46, width * 0.91, 5, 6);
-            for (let j = 0; j < Math.floor(width / 6); j++)
-              if (j % 4 !== 0)
-                add(3, -width * 0.45 + j * 6, y + 5, z + length * 0.46 + 3.2, 2.5, 0.85, 0.25);
           }
           const keel = (width, top, bottom, material, name, x = 0) => {
             const positions = [],
@@ -35803,13 +37319,8 @@ void main() {
             );
             pipes.push(matrix.clone());
           };
-          const pressure = new CapsuleGeometry(
-            12,
-            42,
-            tier2 === "low" ? 2 : 4,
-            tier2 === "low" ? 8 : 12,
-          );
-          pressure.rotateX(Math.PI / 2);
+          const pressure = pressureVesselGeometry(12, 66, tier2),
+            pressureDetails = [];
           for (const side of [-1, 1]) {
             for (let j = 0; j < 5; j++) {
               const z = -340 + j * 100,
@@ -35821,43 +37332,110 @@ void main() {
                 const bottom = deck(x, z + dz) - 2,
                   top = y - 12;
                 add(0, x, (bottom + top) / 2, z + dz, 18, top - bottom, 8);
-                joints.push({ kind: "pod", bottom, deck: deck(x, z + dz), top, target: y - 12 });
+                joints.push({
+                  kind: "pod",
+                  bottom,
+                  deck: deck(x, z + dz),
+                  top,
+                  target: y - 12,
+                });
               }
               const pod = new Mesh(pressure, ivory);
               pod.name = "pressure-module";
               pod.position.set(x, y, z);
               pod.castShadow = pod.receiveShadow = true;
               root.add(pod);
+              for (const g of pressureVesselFittings(12, 66, tier2)) {
+                g.translate(x, y, z);
+                pressureDetails.push(g);
+              }
               add(1, x, y - 12, z, 31, 5, 75);
               for (const dz of [-19, 19]) add(0, x, y + 11, z + dz, 24, 2, 3);
               beam([x, y - 16, z - 43], [x, y - 16, z + 43], 2);
               beam([x, y - 16, z - 43], [x, y + 8, z], 1.2);
-              add(5, x, y + 5, z + 34, 13, 11, 6);
+              if (j === 0 || j === 4) {
+                add(5, x, y + 2, z + 32.5, 10, 10, 1.4);
+                for (const sideX of [-1, 1]) add(0, x + sideX * 5.7, y + 2, z + 32.8, 1, 10, 1.5);
+              }
+              for (const dz of [-25, 25])
+                for (const sideX of [-1, 1]) add(0, x + sideX * 11.8, y, z + dz, 2, 4, 3);
               add(0, x, y + 13, z, 27, 1.5, 58);
               add(2, x, y + 16, z, 29, 2, 55);
               for (const dz of [-26, 26]) add(0, x, y + 17.4, z + dz, 30, 0.8, 2.4);
             }
           }
-          const bridgeBase = deck(0, -295) - 2,
-            bridgeTop = 175;
-          add(0, 0, (bridgeBase + bridgeTop) / 2, -295, 29, bridgeTop - bridgeBase, 38);
-          add(2, 0, bridgeBase + 2, -295, 43, 8, 51);
+          root.add(mergedShipDetail(pressureDetails, steel, "pressure-module-welds", 1));
+          const bridgeBase = Math.min(deck(0, -315), deck(0, -265)) - 1.5;
+          const bridgeTop = Math.max(deck(0, -315), deck(0, -265)) + 4;
+          const bridgeY = bridgeTop + 8.5,
+            bridgeRoof = bridgeY + 9.5;
+          add(0, 0, (bridgeBase + bridgeTop) / 2, -290, 108, bridgeTop - bridgeBase, 45);
           joints.push({
             kind: "bridge",
             bottom: bridgeBase,
-            deck: deck(0, -295),
+            deck: deck(0, -290),
             top: bridgeTop,
-            target: 160.5,
+            target: bridgeY - 9.5,
           });
-          add(2, 0, 170, -290, 128, 19, 49);
-          add(1, 0, 171, -264, 117, 9, 2);
-          for (let j = -5; j <= 5; j++) add(3, j * 10, 172, -262.8, 6, 3, 0.5);
-          beam([-45, 179, -290], [-45, 208, -290], 1);
-          beam([40, 179, -290], [40, 208, -290], 1);
-          const dish = new Mesh(new SphereGeometry(12, 12, 6, 0, Math.PI * 2, 0, 0.9), steel);
+          const cabinPlan = new Shape();
+          cabinPlan.moveTo(-64, -315);
+          cabinPlan.lineTo(64, -315);
+          cabinPlan.lineTo(64, -272);
+          cabinPlan.lineTo(0, -250);
+          cabinPlan.lineTo(-64, -272);
+          cabinPlan.closePath();
+          const cabinGeometry = new ExtrudeGeometry(cabinPlan, {
+            depth: 19,
+            bevelEnabled: false,
+            steps: 1,
+          });
+          cabinGeometry.rotateX(Math.PI / 2);
+          cabinGeometry.translate(0, bridgeRoof, 0);
+          const cabin = new Mesh(cabinGeometry, ivory);
+          cabin.name = "shallow-v-bridge-shell";
+          cabin.castShadow = cabin.receiveShadow = true;
+          root.add(cabin);
+          const glazingMaterial = new MeshPhysicalMaterial({
+            color: 1388862,
+            metalness: 0.3,
+            roughness: 0.14,
+            clearcoat: 1,
+            clearcoatRoughness: 0.08,
+          });
+          for (const side of [-1, 1]) {
+            const x0 = side * 1.2,
+              x1 = side * 60;
+            const z0 = -250 + (22 * -Math.abs(x0)) / 64 + 0.25;
+            const z1 = -250 + (22 * -Math.abs(x1)) / 64 + 0.25;
+            const bottom = bridgeRoof - 15.5,
+              top = bridgeRoof - 2.8;
+            const geometry2 = new BufferGeometry();
+            geometry2.setAttribute(
+              "position",
+              new Float32BufferAttribute(
+                [x0, bottom, z0, x1, bottom, z1, x1, top, z1, x0, top, z0],
+                3,
+              ),
+            );
+            geometry2.setIndex(side === 1 ? [0, 1, 2, 0, 2, 3] : [0, 2, 1, 0, 3, 2]);
+            geometry2.setAttribute("uv", new Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 1], 2));
+            geometry2.computeVertexNormals();
+            const pane = new Mesh(geometry2, glazingMaterial);
+            pane.name = "v-bridge-forward-glazing";
+            root.add(pane);
+          }
+          beam([-45, bridgeRoof - 1, -290], [-45, bridgeRoof + 14, -290], 1);
+          beam([40, bridgeRoof - 1, -290], [40, bridgeRoof + 13, -290], 1);
+          const dish = new Mesh(new SphereGeometry(7, 12, 6, 0, Math.PI * 2, 0, 0.9), steel);
           dish.rotation.x = Math.PI / 2;
-          dish.position.set(40, 198, -290);
+          dish.position.set(40, bridgeRoof + 8, -290);
           root.add(dish);
+          const bridgeProfile = {
+            base: bridgeBase,
+            roof: bridgeRoof,
+            deck: deck(0, -290),
+            clearance: bridgeY - 9.5 - deck(0, -290),
+          };
           for (const side of [-1, 1])
             for (let j = 0; j < 8; j++) {
               const z = -90 + j * 64;
@@ -35882,8 +37460,19 @@ void main() {
               const z = -355 + j * 66,
                 x = side * Math.min(70, section(z).w * 0.5),
                 h = section(z).h;
-              add(1, x, -h - 1, z, 47, 5, 49);
-              add(0, x, -h - 3, z, 38, 2, 39);
+              const slope2 = (section(z + 1).h - section(z - 1).h) / 2;
+              const q = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.atan(slope2));
+              add(1, x, -h - 1.3, z, 47, 3.8, 49, q);
+              add(2, x, -h - 3.1, z, 41, 1.4, 43, q);
+              for (const dx of [-17, 17])
+                for (const dz of [-17, 17]) {
+                  const p = new Vector3(dx, -4, dz).applyQuaternion(q);
+                  add(0, x + p.x, -h + p.y, z + p.z, 1.9, 0.7, 1.9, q);
+                }
+              for (const dz of [-13, 13]) {
+                const p = new Vector3(21, -3.3, dz).applyQuaternion(q);
+                add(0, x + p.x, -h + p.y, z + p.z, 2.2, 1, 5, q);
+              }
             }
           const hatchZ = 105,
             hatchY = -section(hatchZ).h;
@@ -35923,6 +37512,18 @@ void main() {
           }
           locks.computeBoundingSphere();
           hatchFrame.add(locks);
+          const door = new Mesh(
+            new CylinderGeometry(15.6, 15.6, 0.9, tier2 === "low" ? 24 : 40),
+            ivory,
+          );
+          door.position.y = -4.4;
+          door.castShadow = door.receiveShadow = true;
+          door.name = "recessed-docking-pressure-door";
+          hatchFrame.add(door);
+          const doorMetal = [new BoxGeometry(19, 1.1, 2.2).translate(0, -5.15, 0)];
+          for (const x of [-12, 12])
+            doorMetal.push(new BoxGeometry(2.4, 1.3, 6).translate(x, -4.95, 0));
+          hatchFrame.add(mergedShipDetail(doorMetal, steel, "docking-door-locks", 4));
           root.add(hatchFrame);
           const deployables = [];
           for (const side of [-1, 1]) {
@@ -35945,6 +37546,7 @@ void main() {
               rails.setMatrixAt(j, matrix);
             }
             pivot.add(rails);
+            radiatorHardware(pivot, tier2, steel, side, 116, 330);
             root.add(pivot);
             deployables.push({ pivot, side });
           }
@@ -35961,26 +37563,15 @@ void main() {
             core.position.set(x, -4, -521);
             root.add(core);
           }
-          const jets = [];
-          const jetMaterial = new MeshBasicMaterial({
-            color: 12377315,
-            transparent: true,
-            opacity: 0.24,
-            depthWrite: false,
-          });
-          for (const [z, sign2] of [
-            [-390, 1],
-            [310, -1],
-          ]) {
-            const x = sign2 * (section(z).w - 2);
-            add(0, x, 0, z, 8, 9, 12);
-            const jet = new Mesh(new ConeGeometry(3.5, 29, 6), jetMaterial);
-            jet.rotation.z = (sign2 * Math.PI) / 2;
-            jet.position.set(x + sign2 * 17, 0, z);
-            jet.visible = false;
-            root.add(jet);
-            jets.push(jet);
-          }
+          const jets = createAttitudeJets(
+            root,
+            tier2,
+            [
+              [310, section(310).w - 0.7],
+              [-445, section(-445).w - 0.7],
+            ],
+            carrier ? "carrier" : capsule ? "capsule" : "escort",
+          );
           const geometry = mergeGeometries(meshParts);
           meshParts.forEach((g) => g.dispose());
           const body = new Mesh(geometry, armour);
@@ -35996,6 +37587,14 @@ void main() {
             mesh.computeBoundingSphere();
             root.add(mesh);
           });
+          fineInstances.forEach((list, i) => {
+            if (!list.length) return;
+            const mesh = new InstancedMesh(unitBox, materialList[i], list.length);
+            list.forEach((m, j) => mesh.setMatrixAt(j, m));
+            mesh.castShadow = mesh.receiveShadow = i !== 3;
+            mesh.computeBoundingSphere();
+            root.add(mesh);
+          });
           const pipeMesh = new InstancedMesh(cylinder, steel, pipes.length);
           pipes.forEach((m, i) => pipeMesh.setMatrixAt(i, m));
           pipeMesh.castShadow = pipeMesh.receiveShadow = true;
@@ -36003,15 +37602,131 @@ void main() {
           root.add(pipeMesh);
           root.userData = {
             joints,
+            bridgeProfile,
+            serviceBays,
+            accessHatches,
             panels: meshParts.length,
-            instances: instances.reduce((n, v) => n + v.length, 0),
+            instances: [...instances, ...fineInstances].reduce((n, v) => n + v.length, 0),
             jets,
             kind: carrier ? "carrier" : capsule ? "habitat" : "migration",
             deployables,
           };
+          markFleet(root, tier2, index);
           return root;
         };
         return Array.from({ length: count }, (_, i) => create(i));
+      }
+
+      // works/first_dawn/ring-markings.js
+      var materials = /* @__PURE__ */ new Map();
+      function modulePaint(tier2) {
+        if (materials.has(tier2)) return materials.get(tier2);
+        let map = null;
+        if (typeof document !== "undefined") {
+          const canvas = document.createElement("canvas"),
+            scale = tier2 === "low" ? 1 : 2;
+          canvas.width = 512 * scale;
+          canvas.height = 512 * scale;
+          const c = canvas.getContext("2d");
+          c.scale(scale, scale);
+          for (let i = 0; i < 48; i++) {
+            const x = (i % 8) * 64,
+              y = Math.floor(i / 8) * 64;
+            c.fillStyle = "#202a31";
+            c.fillRect(x + 3, y + 13, 58, 38);
+            c.fillStyle = "#f1f3f2";
+            c.textAlign = "center";
+            c.textBaseline = "middle";
+            c.font = "700 27px Arial, sans-serif";
+            c.fillText(
+              `${i < 24 ? "A" : "B"}${String((i % 24) + 1).padStart(2, "0")}`,
+              x + 32,
+              y + 33,
+            );
+          }
+          map = new CanvasTexture(canvas);
+          map.colorSpace = SRGBColorSpace;
+          map.anisotropy = tier2 === "high" ? 8 : 2;
+        }
+        const material = new MeshStandardMaterial({
+          map,
+          roughness: 0.86,
+          metalness: 0,
+          alphaTest: 0.35,
+          transparent: true,
+          depthWrite: false,
+          polygonOffset: true,
+          polygonOffsetFactor: -1,
+          polygonOffsetUnits: -1,
+        });
+        material.name = "ring-module-stencil-paint";
+        material.userData.vehicleMarking = true;
+        materials.set(tier2, material);
+        return material;
+      }
+      function markRingModules(ship, tier2) {
+        const count = tier2 === "low" ? 16 : 24,
+          meshes = [];
+        for (const [ring, z] of HABITAT_RING_Z.entries()) {
+          const positions = [],
+            normals = [],
+            uvs = [],
+            labels = [];
+          for (let j = 0; j < count; j++) {
+            const a = (j / count) * Math.PI * 2,
+              ca = Math.cos(a),
+              sa = Math.sin(a),
+              index = ring * 24 + j;
+            const label = `${ring ? "B" : "A"}${String(j + 1).padStart(2, "0")}`;
+            for (const face of [1, -1]) {
+              const centre = new Vector3(
+                ca * 164.8 * HABITAT_RING_SCALE[ring],
+                sa * 164.8 * HABITAT_RING_SCALE[ring],
+                z + face * 17.57,
+              );
+              const right = new Vector3(sa * face, -ca * face, 0),
+                up = new Vector3(ca, sa, 0);
+              const corners = [
+                [-0.5, -0.5],
+                [0.5, -0.5],
+                [0.5, 0.5],
+                [-0.5, 0.5],
+              ];
+              for (const i of [0, 1, 2, 0, 2, 3]) {
+                const [x, y] = corners[i],
+                  p = centre
+                    .clone()
+                    .addScaledVector(right, x * 12)
+                    .addScaledVector(up, y * 6);
+                positions.push(p.x, p.y, p.z);
+                normals.push(0, 0, face);
+                uvs.push(
+                  ((index % 8) * 64 + (x + 0.5) * 64) / 512,
+                  1 - (Math.floor(index / 8) * 64 + (1 - (y + 0.5)) * 64) / 512,
+                );
+              }
+              labels.push(label);
+            }
+          }
+          const geometry = new BufferGeometry();
+          geometry.setAttribute("position", new Float32BufferAttribute(positions, 3));
+          geometry.setAttribute("normal", new Float32BufferAttribute(normals, 3));
+          geometry.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
+          geometry.computeBoundingSphere();
+          const mesh = new Mesh(geometry, modulePaint(tier2));
+          mesh.name = "ring-module-numbers";
+          mesh.receiveShadow = true;
+          mesh.userData = {
+            vehicleMarking: true,
+            blueprintOmit: true,
+            flightHardware: true,
+            labels,
+            moduleCount: count,
+          };
+          (ship.userData.habitatRings?.[ring] || ship).add(mesh);
+          meshes.push(mesh);
+        }
+        return meshes;
       }
 
       // works/first_dawn/reference-ark.js
@@ -36038,6 +37753,7 @@ void main() {
           let block = function (mat, x, y, z, w, h, d, q) {
               matrix.compose(new Vector3(x, y, z), q || new Quaternion(), new Vector3(w, h, d));
               batches[mat].push(matrix.clone());
+              batchOwners[mat].push(partParent);
               batchParts[mat].push(blueprintPart);
               batchFine[mat].push(Math.min(w, h, d) <= 3);
             },
@@ -36060,7 +37776,7 @@ void main() {
               m.castShadow = m.receiveShadow = mat !== 4;
               m.userData.blueprintPart = blueprintPart;
               m.userData.blueprintOmit = mat === 4;
-              ship.add(m);
+              partParent.add(m);
               return m;
             };
           const ship = new Group();
@@ -36068,8 +37784,13 @@ void main() {
           const batches = mats.map(() => []),
             batchParts = mats.map(() => []),
             batchFine = mats.map(() => []),
+            batchOwners = mats.map(() => []),
             matrix = new Matrix4();
-          let blueprintPart = 4;
+          let blueprintPart = 4,
+            serviceBays = 0,
+            accessHatches = 0,
+            partParent = ship;
+          const habitatRings = [];
           block(1, 0, 0, 0, 64, 64, 1010);
           block(0, 0, 35, 15, 36, 9, 900);
           for (const side of [-1, 1]) {
@@ -36087,69 +37808,206 @@ void main() {
           block(1, 0, 48, 437, 65, 7, 26);
           block(4, 0, 49, 451, 43, 2, 1);
           blueprintPart = 1;
+          const pressureDetails = [];
           for (const side of [-1, 1])
             for (let j = 0; j < 5; j++) {
               const z = -205 + j * 117,
                 x = side * 86;
               beam([side * 27, 0, z], [x, 0, z], 9);
-              const geo = new CylinderGeometry(29, 29, 94, radial);
-              geo.rotateX(Math.PI / 2);
-              mesh(geo, 3, x, 0, z);
-              for (const dz of [-43, 43]) {
-                const collar = new CylinderGeometry(31, 31, 6, radial);
-                collar.rotateX(Math.PI / 2);
-                mesh(collar, 2, x, 0, z + dz);
+              const geo = pressureVesselGeometry(29, 94, tier2);
+              mesh(geo, 3, x, 0, z).name = "pressure-module";
+              for (const g of pressureVesselFittings(29, 94, tier2, true)) {
+                g.translate(x, 0, z);
+                pressureDetails.push(g);
               }
               block(1, x, 29, z, 28, 4, 72);
               block(0, x, 32, z, 17, 3, 65);
-              for (let k = 0; k < 5; k++) block(4, x + side * 28.6, 7, z - 30 + k * 14, 1, 2, 5);
+              for (let k = 0; k < 5; k++)
+                if (j !== 2 || k === 2) block(4, x + side * 28.6, 7, z - 30 + k * 14, 1, 0.8, 1.8);
               block(5, x, 30, z - 23, 18, 1, 8);
-              block(5, x, 0, z + 46, 45, 44, 2);
+              if (j === 0 || j === 4) {
+                block(5, x, 0, z + 46.4, 23, 24, 1.2);
+                for (const dx of [-12.5, 12.5]) block(2, x + dx, 0, z + 46.7, 1.2, 24, 1);
+              }
+              for (const dz of [-(47 - 29 * 0.44 - 3), 47 - 29 * 0.44 - 3])
+                for (const a of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) {
+                  block(2, x + Math.cos(a) * 30.3, Math.sin(a) * 30.3, z + dz, 2.4, 2.4, 6.8);
+                }
+              beam([x + side * 17, -23, z - 42], [x + side * 17, -23, z + 42], 2.2);
               for (const dz of [-36, 36]) block(2, x, 33, z + dz, 34, 2, 3);
             }
+          ship.add(
+            mergedShipDetail(pressureDetails, mats[2], "pressure-module-straps-and-welds", 1),
+          );
           blueprintPart = 0;
-          for (const z of [-175, 85]) {
-            mesh(new TorusGeometry(176, 10, 6, detail), 1, 0, 0, z);
-            mesh(new TorusGeometry(193, 3, 5, detail), 2, 0, 0, z);
+          const bearings = [];
+          for (const [ringIndex, z] of HABITAT_RING_Z.entries()) {
+            const radiusScale = HABITAT_RING_SCALE[ringIndex],
+              rim = (r) => r * radiusScale;
+            const ring = new Group();
+            ring.name = z > 0 ? "habitat-ring-A" : "habitat-ring-B";
+            ring.userData.axialPosition = z;
+            ship.add(ring);
+            habitatRings.push(ring);
+            partParent = ring;
+            const shields = [],
+              edgeBands = [],
+              backs = [],
+              hubs = [],
+              spokes = [];
+            const pipe = (from, to, radius, bore) => {
+              const a = new Vector3(...from),
+                b = new Vector3(...to),
+                delta = b.clone().sub(a),
+                length = delta.length();
+              const section = [
+                [radius, 0],
+                [radius, length],
+                [bore, length],
+                [bore, 0],
+                [radius, 0],
+              ];
+              const tube = new LatheGeometry(
+                section.map((p) => new Vector2(...p)),
+                { high: 20, mid: 16, low: 10 }[tier2],
+              );
+              tube.applyQuaternion(
+                new Quaternion().setFromUnitVectors(new Vector3(0, 1, 0), delta.normalize()),
+              );
+              tube.translate(...a.toArray());
+              spokes.push(tube);
+            };
+            mesh(new TorusGeometry(rim(176), 10, 6, detail), 1, 0, 0, z);
+            mesh(new TorusGeometry(rim(193), 3, 5, detail), 2, 0, 0, z);
             const segments = tier2 === "low" ? 16 : 24;
             for (let j = 0; j < segments; j++) {
               const a = (j / segments) * Math.PI * 2,
                 q = new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), a);
-              block(
-                0,
-                176 * Math.cos(a),
-                176 * Math.sin(a),
-                z,
-                29,
-                segments === 16 ? 58 : 38,
-                35,
-                q,
-              );
-              block(
-                3,
-                191 * Math.cos(a),
-                191 * Math.sin(a),
-                z,
-                3,
-                segments === 16 ? 51 : 32,
-                31,
-                q,
-              );
-              block(4, 176 * Math.cos(a), 176 * Math.sin(a), z + 18, 12, 1.4, 1, q);
+              const arc = (Math.PI * 2) / segments - 0.013;
+              const openBay = j % (segments / 4) === 0;
+              const shieldPieces = openBay
+                ? [
+                    [161.5, 168, a, arc],
+                    [184, 190.5, a, arc],
+                    [168, 184, a - arc * 0.4, arc * 0.2],
+                    [168, 184, a + arc * 0.4, arc * 0.2],
+                  ]
+                : [[161.5, 190.5, a, arc]];
+              for (const [inner, outer, angle, width] of shieldPieces) {
+                const shield = ringShieldGeometry(rim(inner), rim(outer), 35, angle, width, tier2);
+                shield.translate(0, 0, z);
+                const finish = 0.5 + 0.18 * Math.sin(j * 2.399 + ringIndex * 1.73);
+                shield.setAttribute(
+                  "shieldFinish",
+                  new Float32BufferAttribute(
+                    new Float32Array(shield.attributes.position.count).fill(finish),
+                    1,
+                  ),
+                );
+                shields.push(shield);
+              }
+              if (openBay) {
+                const backing = ringShieldGeometry(rim(166), rim(186), 23, a, arc * 0.76, tier2);
+                backing.translate(0, 0, z);
+                backs.push(backing);
+                for (const sign2 of [-1, 1]) {
+                  const p = new Vector3(
+                    rim(176) * Math.cos(a),
+                    rim(176) * Math.sin(a),
+                    z + sign2 * 11.3,
+                  );
+                  const faceQ =
+                    sign2 === 1
+                      ? q
+                      : q
+                          .clone()
+                          .multiply(
+                            new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), Math.PI),
+                          );
+                  serviceHatch(
+                    (kind, ...args) => block({ steel: 2, dark: 1, paint: 3 }[kind], ...args),
+                    p,
+                    faceQ,
+                    tier2,
+                  );
+                  accessHatches++;
+                }
+                serviceBays++;
+              }
+              const band = ringShieldGeometry(rim(190.5), rim(192.3), 31, a, arc - 0.018, tier2);
+              band.translate(0, 0, z);
+              edgeBands.push(band);
+              const equipmentSector = j % (segments / 4) === Math.floor(segments / 8);
+              if (!openBay && equipmentSector) {
+                block(1, rim(176) * Math.cos(a), rim(176) * Math.sin(a), z + 17.8, 11, 16, 1, q);
+                block(
+                  3,
+                  rim(176) * Math.cos(a),
+                  rim(176) * Math.sin(a),
+                  z + 18.5,
+                  9.4,
+                  14.4,
+                  0.7,
+                  q,
+                );
+                if (tier2 !== "low")
+                  for (const delta of [-0.034, 0.034])
+                    block(
+                      2,
+                      rim(176) * Math.cos(a + delta),
+                      rim(176) * Math.sin(a + delta),
+                      z + 19,
+                      1.5,
+                      1.5,
+                      0.8,
+                      q,
+                    );
+                block(4, rim(176) * Math.cos(a), rim(176) * Math.sin(a), z + 18, 3, 0.65, 1, q);
+              }
+            }
+            for (const dz of [-9, 9]) {
+              const hub = ringShieldGeometry(56, 68, 4, 0, Math.PI * 2, tier2);
+              hub.translate(0, 0, z + dz);
+              hubs.push(hub);
             }
             for (let j = 0; j < 6; j++) {
               const a = (j * Math.PI) / 3;
-              beam(
-                [32 * Math.cos(a), 32 * Math.sin(a), z],
-                [170 * Math.cos(a), 170 * Math.sin(a), z],
-                7,
-              );
+              const at = (r) => [r * Math.cos(a), r * Math.sin(a), z];
+              pipe(at(60), at(rim(170)), 4.2, 3.1);
+              for (const r of [63, rim(164)]) pipe(at(r - 6), at(r + 6), 9.2, 4.15);
+            }
+            const tubularSpokes = mergedShipDetail(spokes, mats[2], "tubular-ring-spokes", 0);
+            tubularSpokes.userData.spokeCount = 6;
+            tubularSpokes.userData.section = "circular-hollow";
+            ring.add(tubularSpokes);
+            ring.add(mergedShipDetail(hubs, mats[2], "habitat-spoke-hubs", 0));
+            ring.add(mergedShipDetail(backs, mats[1], "recessed-ring-pressure-backs", 0));
+            ring.add(mergedShipDetail(shields, mats[0], "curved-habitat-shields", 0));
+            ring.add(mergedShipDetail(edgeBands, mats[3], "habitat-shield-edge-bands", 0));
+            const bearing = ringShieldGeometry(48, 55.2, 20, 0, Math.PI * 2, tier2);
+            bearing.translate(0, 0, z);
+            bearings.push(bearing);
+            partParent = ship;
+            for (let j = 0; j < 4; j++) {
+              const a = (j * Math.PI) / 2,
+                q = new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), a);
+              block(2, 41 * Math.cos(a), 41 * Math.sin(a), z, 20, 8, 16, q);
             }
           }
+          ship.add(mergedShipDetail(bearings, mats[2], "stationary-ring-bearing-housings", 0));
+          partParent = ship;
           blueprintPart = 3;
           block(1, 0, 0, -401, 130, 110, 163);
           block(0, 0, 60, -403, 104, 10, 139);
-          const jets = [];
+          const jets = createAttitudeJets(
+            ship,
+            tier2,
+            [
+              [471, 51.5],
+              [-426, 181.5],
+            ],
+            "habitat",
+          );
           for (const side of [-1, 1]) {
             beam([side * 40, -16, -315], [side * 142, -16, -390], 18);
             beam([side * 40, 16, -460], [side * 142, 16, -465], 14);
@@ -36193,6 +38051,7 @@ void main() {
             }
             ribs.computeBoundingSphere();
             pivot.add(ribs);
+            radiatorHardware(pivot, tier2, mats[2], side, 156, 165, 7);
             deployables.push({ pivot, side });
           }
           blueprintPart = 4;
@@ -36201,24 +38060,37 @@ void main() {
           block(1, 0, 115, 303, 45, 5, 2);
           block(4, 0, 115, 304.2, 33, 1, 1);
           beam([0, 120, 280], [0, 153, 280], 1.3);
+          const fineBox = new BoxGeometry(1, 1, 1);
           batches.forEach((arr, k) => {
-            const inst = new InstancedMesh(box, mats[k], arr.length);
-            inst.userData.blueprintParts = batchParts[k];
-            inst.userData.blueprintFine = batchFine[k];
-            inst.userData.blueprintBox = true;
-            inst.userData.blueprintOmit = k === 4;
-            arr.forEach((m, j) => inst.setMatrixAt(j, m));
-            inst.instanceMatrix.needsUpdate = true;
-            inst.castShadow = inst.receiveShadow = k !== 4;
-            inst.computeBoundingSphere();
-            ship.add(inst);
+            for (const owner of [ship, ...habitatRings])
+              for (const fine of [false, true]) {
+                const selected = arr
+                  .map((m, i) => i)
+                  .filter((i) => batchFine[k][i] === fine && batchOwners[k][i] === owner);
+                if (!selected.length) continue;
+                const inst = new InstancedMesh(fine ? fineBox : box, mats[k], selected.length);
+                inst.userData.blueprintParts = selected.map((i) => batchParts[k][i]);
+                inst.userData.blueprintFine = selected.map((i) => batchFine[k][i]);
+                inst.userData.blueprintBox = true;
+                inst.userData.blueprintOmit = k === 4;
+                selected.forEach((i, j) => inst.setMatrixAt(j, arr[i]));
+                inst.instanceMatrix.needsUpdate = true;
+                inst.castShadow = inst.receiveShadow = k !== 4;
+                inst.computeBoundingSphere();
+                owner.add(inst);
+              }
           });
           ship.userData = {
             jets,
             deployables,
+            habitatRings,
+            serviceBays,
+            accessHatches,
             kind: "migration-ark",
             design: "segmented-pressure-vessels / twin-habitat-rings / axial-keel",
           };
+          markFleet(ship, tier2, 5);
+          markRingModules(ship, tier2);
           return ship;
         }
       }
@@ -36358,7 +38230,14 @@ void main() {
         const tributary =
           (1 - MathUtils.smoothstep(Math.abs(x - tributaryAxis), 45, 270)) *
           Math.exp(-Math.pow((z - 2800) / 1900, 2));
-        let surface = plain - incision * depth + buttress + rockBreak + floor2 - tributary * 220;
+        const bedPhase =
+          (plain - incision * depth + 18 * canyonNoise(x / 1100, z / 1400, 347)) / 58;
+        const bed = bedPhase - Math.floor(bedPhase);
+        const ledge =
+          MathUtils.smoothstep(bed, 0.2, 0.42) - MathUtils.smoothstep(bed, 0.68, 0.92) - 0.5;
+        const ledgeRelief = ledge * 19 * wall * (0.65 + 0.35 * canyonNoise(x / 180, z / 260, 349));
+        let surface =
+          plain - incision * depth + buttress + rockBreak + floor2 - tributary * 220 + ledgeRelief;
         if (q < 1.8)
           for (const [head, bank, slope, cutDepth, cutWidth, reach] of bankCuts) {
             if (bank !== side || Math.abs(z - head) > 520) continue;
@@ -36519,30 +38398,61 @@ void main() {
           shader.vertexShader = shader.vertexShader
             .replace(
               "#include <common>",
-              "#include <common>\nvarying vec3 basinPosition;varying float basinSlope;varying float basinAO;attribute float basinOcclusion;",
+              "#include <common>\nvarying vec3 basinPosition;varying float basinSlope;varying float basinAO;varying vec3 basinNormal;attribute float basinOcclusion;",
             )
             .replace(
               "#include <begin_vertex>",
-              "#include <begin_vertex>\nbasinPosition=position;basinSlope=1.-abs(normal.y);basinAO=basinOcclusion;",
+              "#include <begin_vertex>\nbasinPosition=position;basinSlope=1.-abs(normal.y);basinAO=basinOcclusion;basinNormal=normal;",
             );
           shader.fragmentShader = shader.fragmentShader
             .replace(
               "#include <common>",
               `#include <common>
-      varying vec3 basinPosition;varying float basinSlope;varying float basinAO;
+      varying vec3 basinPosition;varying float basinSlope;varying float basinAO;varying vec3 basinNormal;
       float basinHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
       float basinNoise(vec2 p){
         vec2 i=floor(p),f=fract(p);f=f*f*f*(f*(f*6.-15.)+10.);
         return mix(mix(basinHash(i),basinHash(i+vec2(1,0)),f.x),
           mix(basinHash(i+vec2(0,1)),basinHash(i+vec2(1,1)),f.x),f.y);
       }
+      // Blended planar sampling avoids stretching the wall into vertical streaks.
+      float basinStone(vec3 p,float frequency){
+        vec3 w=pow(abs(basinNormal),vec3(4.));w/=max(dot(w,vec3(1.)),.001);
+        return basinNoise(p.yz*frequency)*w.x+basinNoise(p.xz*frequency)*w.y+basinNoise(p.xy*frequency)*w.z;
+      }
+      float basinJoint(vec2 p){
+        vec2 cell=floor(p),f=fract(p);float first=8.,second=8.;
+        for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){
+          vec2 q=vec2(float(x),float(y));
+          vec2 seed=vec2(basinHash(cell+q),basinHash(cell+q+vec2(71.,19.)));
+          float d=length(q+.2+.6*seed-f);
+          second=min(second,max(first,d));first=min(first,d);
+        }
+        return second-first;
+      }
+      float basinRockMask(vec3 p){
+        float slopes=smoothstep(.10,.58,basinSlope);
+        float outcrop=smoothstep(.56,.76,basinNoise(p.xz*.021));
+        return max(slopes,outcrop*.65);
+      }
       float basinRelief(vec3 p){
-        vec2 rockPlane=mix(p.xz,vec2(p.z*.93+p.x*.37,p.y),smoothstep(.25,.75,basinSlope));
-        float stone=basinNoise(rockPlane*.027)*1.6;
-        ${tier2 === "low" ? "" : "stone+=basinNoise(rockPlane*.087)*.55;"}
-        ${tier2 === "high" ? "stone+=basinNoise(rockPlane*.23)*.17;" : ""}
-        float bedding=sin(p.y*.044+basinNoise(p.xz*.008)*2.4);
-        return stone+bedding*1.25*basinSlope;
+        float rock=basinRockMask(p);
+        float stone=(basinStone(p,.027)-.5)*1.15;
+        ${tier2 === "low" ? "" : "stone+=(basinStone(p,.087)-.5)*.32;"}
+        float bedding=sin((p.y+18.*basinNoise(p.xz*.0013))*.108);
+        float relief=stone*mix(.18,1.,rock)+bedding*.48*basinSlope;
+        float closeRange=1.-smoothstep(90.,380.,length(vViewPosition));
+        float jointAA=1.-smoothstep(.12,.7,length(fwidth(p.xz*.36)));
+        float joints=0.;if(closeRange>.001&&rock>.01)joints=1.-smoothstep(.012,.048,basinJoint(p.xz*.36));
+        relief-=joints*.065*rock*closeRange*jointAA;
+        ${tier2 === "low" ? "" : "relief+=(basinStone(p,1.8)-.5)*.014*closeRange*(1.-rock);"}
+        float grains=basinNoise(p.xz*${tier2 === "high" ? "40." : tier2 === "mid" ? "22." : "12."});
+        float grainFootprint=length(fwidth(p.xz*${tier2 === "high" ? "40." : tier2 === "mid" ? "22." : "12."}));
+        relief+=(grains-.5)*.004*closeRange*(1.-smoothstep(.25,.8,grainFootprint));
+        float windPhase=dot(p.xz,vec2(8.1,3.6))+basinNoise(p.xz*.65)*3.;
+        float rippleAA=1.-smoothstep(.3,1.1,fwidth(windPhase));
+        relief+=sin(windPhase)*.014*(1.-rock)*closeRange*rippleAA;
+        return relief;
       }`,
             )
             .replace(
@@ -36551,6 +38461,7 @@ void main() {
       float warp=(basinNoise(basinPosition.xz*.0018)-.5)*26.;
       float phase=(basinPosition.y+warp)*.032;
       float bands=sin(phase+.23*sin(phase*.31));
+      float materialRock=basinRockMask(basinPosition);
       float exposure=smoothstep(760.,1030.,-basinPosition.y)*(1.-smoothstep(1440.,1690.,-basinPosition.y));
       float nearDetail=1.-smoothstep(3500.,8000.,length(vViewPosition));
       float aa=1.-smoothstep(.35,1.2,length(fwidth(basinPosition.xz*.09)));
@@ -36558,9 +38469,27 @@ void main() {
       ${tier2 === "low" ? "float grain=0.;" : "float grain=basinNoise(basinPosition.xz*.09)-.5;"}
       float floorMask=smoothstep(1390.,1660.,-basinPosition.y);
       float ripple=sin(dot(basinPosition.xz,vec2(.028,.014))+basinNoise(basinPosition.xz*.002)*2.);
-      diffuseColor.rgb*=1.+bands*.068*exposure+sediment*.085*nearDetail+grain*.055*nearDetail*aa+ripple*.027*floorMask;
+      float microAA=1.-smoothstep(.12,.7,length(fwidth(basinPosition.xz*.36)));
+      float microNear=1.-smoothstep(90.,380.,length(vViewPosition));
+      float joints=0.;if(microNear>.001&&materialRock>.01)joints=1.-smoothstep(.012,.048,basinJoint(basinPosition.xz*.36));
+      diffuseColor.rgb*=1.+bands*.08*exposure+sediment*.095*nearDetail+grain*.035*nearDetail*aa+ripple*.018*floorMask;
+      diffuseColor.rgb*=mix(vec3(1.025,1.018,1.01),vec3(.91,.925,.94),materialRock*.46);
+      diffuseColor.rgb*=1.-joints*.16*materialRock*microNear*microAA;
+      // Sub-metre aggregate remains readable in penumbra; filter it at distance.
+      float sandAA=1.-smoothstep(.35,1.2,length(fwidth(basinPosition.xz*4.8)));
+      float aggregate=basinNoise(basinPosition.xz*1.25)-.5;
+      float mineralGrain=basinNoise(basinPosition.xz*4.8)-.5;
+      float fineFrequency=${tier2 === "high" ? "40." : tier2 === "mid" ? "22." : "12."};
+      float fineAA=1.-smoothstep(.25,.8,length(fwidth(basinPosition.xz*fineFrequency)));
+      float fineGrain=basinNoise(basinPosition.xz*fineFrequency)-.5;
+      diffuseColor.rgb*=1.+(aggregate*.14+mineralGrain*.10*sandAA+fineGrain*.35*fineAA)*microNear;
       float veil=1.-exp(-length(vViewPosition)*.00042);
       diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.34,.195,.15),veil*.10);`,
+            )
+            .replace(
+              "#include <roughnessmap_fragment>",
+              `#include <roughnessmap_fragment>
+      roughnessFactor=clamp(mix(.97,.79,materialRock)+(basinStone(basinPosition,.17)-.5)*.045,.73,1.);`,
             )
             .replace(
               "#include <normal_fragment_maps>",
@@ -36585,12 +38514,21 @@ void main() {
               "#include <aomap_fragment>\nreflectedLight.indirectDiffuse*=basinAO;reflectedLight.indirectSpecular*=basinAO;",
             );
         };
-        material.customProgramCacheKey = () => `canyon-faulted-relief-v6-${tier2}`;
+        material.customProgramCacheKey = () => `canyon-stratified-mineral-v9-${tier2}`;
         const terrain = new Mesh(geometry, material);
         terrain.castShadow = terrain.receiveShadow = true;
         group.add(terrain);
-        const rockGeometry = new IcosahedronGeometry(1, tier2 === "low" ? 0 : 1),
-          rockMaterial = new MeshStandardMaterial({ color: 5519148, roughness: 1 });
+        const rockGeometry = new IcosahedronGeometry(1, tier2 === "low" ? 0 : 1);
+        const rockPos = rockGeometry.attributes.position;
+        for (let i = 0; i < rockPos.count; i++) {
+          const x = rockPos.getX(i),
+            y = rockPos.getY(i),
+            z = rockPos.getZ(i);
+          const split = 1 + 0.13 * Math.sin(x * 6.3 + z * 4.7) + 0.07 * Math.sin(z * 9.1 - y * 3.2);
+          rockPos.setXYZ(i, x * split, Math.max(-0.62, Math.min(0.62, y)) * 0.8, z * split);
+        }
+        rockGeometry.computeVertexNormals();
+        const rockMaterial = new MeshStandardMaterial({ color: 7755850, roughness: 0.87 });
         const rocks = new InstancedMesh(rockGeometry, rockMaterial, tier2 === "low" ? 2 : 5);
         const dummy = new Object3D();
         let seed = 7103;
@@ -36601,17 +38539,26 @@ void main() {
         for (let i = 0; i < rocks.count; i++) {
           const along = (i + 0.5) / rocks.count,
             side = i % 2 ? 1 : -1;
-          const x = surfaceTrackX(along) + side * (110 + rand() * 250);
-          const z = surfaceTrackZ(along) + (rand() - 0.5) * SURFACE_TRAVEL * 0.07;
-          const r = 1.5 + rand() * 3;
+          let x = surfaceTrackX(along) + side * (110 + rand() * 250);
+          let z = surfaceTrackZ(along) + (rand() - 0.5) * SURFACE_TRAVEL * 0.07;
+          let r = 1.5 + rand() * 3;
+          const fragments = [
+            [728.1, 1018.7, 0.32],
+            [732.6, 1017.5, 0.19],
+            [729.2, 1014.4, 0.13],
+          ];
+          if (i < Math.min(rocks.count, 3)) [x, z, r] = fragments[i];
           dummy.position.set(x, heightAt(x, z) + r * 0.2, z);
           dummy.scale.set(r, r * 0.55, r * 0.8);
           dummy.rotation.set(rand(), rand() * 6, rand());
           dummy.updateMatrix();
           rocks.setMatrixAt(i, dummy.matrix);
         }
+        rocks.castShadow = rocks.receiveShadow = true;
         rocks.computeBoundingSphere();
         group.add(rocks);
+        const skylight = new HemisphereLight(12895688, 7361350, 0.58);
+        group.add(skylight);
         const skyUniforms = { elapsed: { value: SURFACE_AT }, surfaceStart: { value: SURFACE_AT } };
         const sky = new Mesh(
           new SphereGeometry(39e3, 32, 20),
@@ -40365,38 +42312,6 @@ void main() {
         }
       }
 
-      // works/first_dawn/migration-sequence.js
-      var MIGRATION_OPENING = 28;
-      var MIGRATION_EXTENSION = MIGRATION_OPENING - 3;
-      var MIGRATION_DURATION = 75 + MIGRATION_EXTENSION;
-      var MIGRATION_CUTS = Object.freeze([
-        MIGRATION_OPENING,
-        23 + MIGRATION_EXTENSION,
-        51 + MIGRATION_EXTENSION,
-        57 + MIGRATION_EXTENSION,
-      ]);
-      function migrationClock(t) {
-        if (t >= MIGRATION_OPENING) return t - MIGRATION_EXTENSION;
-        const u = Math.max(0, t / MIGRATION_OPENING);
-        const a = MIGRATION_OPENING / 3,
-          n = 2 * a - 1;
-        return 3 * u ** n * (a + (1 - a) * u);
-      }
-      function openingPassageOffset(t) {
-        const u = Math.max(0, Math.min(1, t / MIGRATION_OPENING));
-        return 8960 * (1 - u);
-      }
-      function openingFlyby(position, index, t, attitude) {
-        if (index !== 0) return;
-        const offset = openingPassageOffset(t);
-        if (attitude) {
-          const { x, y, z, w } = attitude;
-          position.x -= offset * 2 * (x * z + w * y);
-          position.y -= offset * 2 * (y * z - w * x);
-          position.z -= offset * (1 - 2 * (x * x + y * y));
-        } else position.z -= offset;
-      }
-
       // works/first_dawn/camera.js
       var shotAt = (t) =>
         t < CUTS[0]
@@ -40411,6 +42326,15 @@ void main() {
       var target = new Vector3();
       var passageLateral = new Vector3();
       var passageSight = new Vector3();
+      function ringDollyProgress(u) {
+        const p = MathUtils.clamp(u, 0, 1),
+          r = 0.15;
+        const edge = (q) => {
+          const v = q / r;
+          return (r * (v * v * v - 0.5 * v * v * v * v)) / (1 - r);
+        };
+        return p < r ? edge(p) : p > 1 - r ? 1 - edge(1 - p) : (p - r * 0.5) / (1 - r);
+      }
       function directCamera(
         camera2,
         t,
@@ -40435,11 +42359,8 @@ void main() {
           target.x -= portrait ? 260 : 360;
           target.y += (portrait ? 1700 : 1400) - progress * (portrait ? 2420 : 1820);
         } else if (shot === "hull") {
-          const progress = Math.pow(
-            MathUtils.clamp((t - CUTS[0]) / (CUTS[1] - CUTS[0]), 0, 1),
-            1.7,
-          );
-          camera2.fov = (portrait ? 58 : 48) - progress * 5;
+          const progress = MathUtils.smootherstep(t, CUTS[0], CUTS[1]);
+          camera2.fov = portrait ? 55.5 : 45.5;
           camera2.position
             .copy(lead.position)
             .add(
@@ -40453,20 +42374,23 @@ void main() {
           target.y += 25;
           target.z += -40 + progress * 65;
         } else if (shot === "ring-passage") {
-          const progress = MathUtils.smoothstep(t, CUTS[1], CUTS[2]);
-          camera2.fov = (portrait ? 65 : 52) - progress * 4;
+          const progress = ringDollyProgress((t - CUTS[1]) / (CUTS[2] - CUTS[1]));
+          const aftReveal = MathUtils.smootherstep(progress, 0.5, 1);
+          camera2.fov = portrait ? 63 : 50;
           camera2.position
             .copy(referenceArk.position)
             .add(
               target.set(
-                (portrait ? 2100 : 1750) - progress * (portrait ? 750 : 920),
-                -480 + progress * 220,
-                1900 - progress * 3800,
+                (portrait ? 1480 : 1220) -
+                  progress * (portrait ? 480 : 440) +
+                  aftReveal * (portrait ? 420 : 620),
+                -340 + progress * 120 + aftReveal * 330 + observationLift(aftReveal, 260),
+                1600 - progress * 3200 - aftReveal * (portrait ? 2100 : 1800),
               ),
             );
           target.copy(referenceArk.position);
           target.y += 30;
-          target.z += 460 - progress * 900;
+          target.z += 460 - progress * 900 - aftReveal * 1200;
         } else if (shot === "surface-overhead") {
           const progress = MathUtils.clamp((t - CUTS[2]) / (CUTS[3] - CUTS[2]), 0, 1);
           const z = 6300 - 4800 * progress;
@@ -40502,11 +42426,11 @@ void main() {
         return shot;
       }
       function directFleetCloseup(camera2, elapsed, ship) {
-        const p = MathUtils.smoothstep(elapsed, 0, 18),
+        const p = MathUtils.clamp(elapsed / 18, 0, 1),
           portrait = camera2.aspect < 1;
         camera2.near = 1;
         camera2.fov = portrait ? 62 : 49;
-        camera2.position.set(0, 0, (portrait ? 1400 : 1200) - p * 240);
+        camera2.position.set(0, observationLift(p, 26), (portrait ? 1400 : 1200) - p * 340);
         target.set(0, 0, 0);
         ship.updateMatrixWorld(true);
         camera2.up.set(0, 1, 0).transformDirection(ship.matrixWorld);
@@ -40517,12 +42441,16 @@ void main() {
         return "escort-closeup";
       }
       var migrationRearTarget = new Vector3();
+      function observationLift(progress, height) {
+        if (progress <= 0 || progress >= 1) return 0;
+        return height * Math.sin(Math.PI * MathUtils.smootherstep(progress, 0, 1));
+      }
       function directMigrationRear(camera2, elapsed, ship, duration) {
-        const p = MathUtils.smoothstep(elapsed, 0, duration),
+        const p = MathUtils.clamp(elapsed / duration, 0, 1),
           portrait = camera2.aspect < 1;
         camera2.near = 2;
         camera2.fov = portrait ? 52 : 46;
-        camera2.position.set(0, 0, (portrait ? -1660 : -1440) + p * 100);
+        camera2.position.set(0, observationLift(p, 58), (portrait ? -1460 : -1250) + p * 130);
         migrationRearTarget.set(0, 0, -500);
         ship.updateMatrixWorld(true);
         ship.localToWorld(camera2.position);
@@ -40538,8 +42466,11 @@ void main() {
           camera2.near = 1;
           camera2.fov = portrait ? 68 : 56;
           const offset = openingPassageOffset(t);
-          camera2.position.set(0, -205, -2800 + offset / ship.scale.z);
-          target.set(0, 0, 0);
+          camera2.position.set(0, -185, -2800 + offset / ship.scale.z);
+          const axial = camera2.position.z;
+          const edge = Math.max(0, 1 - (axial / 2800) ** 2);
+          const gazeHeight = 185 + 235 * Math.exp(-((axial / 700) ** 2)) * edge * edge;
+          target.set(0, 0, axial * (1 - 185 / gazeHeight));
           ship.updateMatrixWorld(true);
           ship.localToWorld(camera2.position);
           ship.localToWorld(target);
@@ -40550,7 +42481,7 @@ void main() {
           camera2.updateProjectionMatrix();
           return { name: "lead-underpass", subject: 0 };
         }
-        t -= MIGRATION_EXTENSION;
+        t = migrationClock(t);
         if (t < 23) {
           return {
             name: directCamera(
@@ -51796,8 +53727,8 @@ void main() {
          * @param  callback  The callback to invoke when the event is emitted
          */
         on(event, callback) {
-          const events = event.split(/\W+/);
-          events.forEach((eventName) => {
+          const events2 = event.split(/\W+/);
+          events2.forEach((eventName) => {
             if (isUndef(this._events)) {
               this._events = {};
             }
@@ -51828,8 +53759,8 @@ void main() {
          *                   If no callback is given, all callbacks events are removed.
          */
         off(event, callback) {
-          const events = event.split(/\W+/);
-          events.forEach((eventName) => {
+          const events2 = event.split(/\W+/);
+          events2.forEach((eventName) => {
             if (isUndef(this._events)) {
               this._events = {};
             }
@@ -58263,8 +60194,8 @@ void main() {
           } else {
             const cache2 = this._getCachedPeriodicWave();
             if (isDefined(cache2)) {
-              const { partials, wave } = cache2;
-              this._wave = wave;
+              const { partials, wave: wave2 } = cache2;
+              this._wave = wave2;
               this._partials = partials;
               if (this._oscillator !== null) {
                 this._oscillator.setPeriodicWave(this._wave);
@@ -62128,6 +64059,23 @@ void main() {
       var Draw = getContext().draw;
       var context = getContext();
 
+      // works/shared/arrival-handoff.js
+      var ARRIVAL_HANDOFF = Object.freeze({
+        settleAt: 100,
+        stillAt: 104,
+        traceAt: 108,
+        recoverAt: 114,
+      });
+      var smooth3 = (t, a, b) => {
+        const u = Math.max(0, Math.min(1, (t - a) / (b - a)));
+        return u * u * u * (u * (u * 6 - 15) + 10);
+      };
+      function arrivalHandoffGain(elapsed) {
+        const t = elapsed + 68,
+          h = ARRIVAL_HANDOFF;
+        return 1 - smooth3(t, h.settleAt, h.stillAt) + smooth3(t, h.traceAt, h.recoverAt);
+      }
+
       // works/shared/journey-score.js
       var clamp5 = (x) => Math.max(0, Math.min(1, x));
       var swell = (t, start2, end) => {
@@ -62170,7 +64118,10 @@ void main() {
         if (phase2 === "migration") {
           return {
             ...base,
-            body: (0.18 + 0.24 * proximity) * (1 - 0.65 * swell(t, 30, 80)),
+            body:
+              (0.18 + 0.24 * proximity) *
+              (1 - 0.65 * swell(t, 30, 80)) *
+              (0.75 + 0.25 * propulsionLoad(t)),
             sub: 0.42 + 0.15 * window3(t, 32, 48, 60, 78),
             resonance: 0.32 + 0.58 * swell(t, 4, 40),
             tension: 0.5 * window3(t, 16, 44, 67, 96),
@@ -62184,6 +64135,7 @@ void main() {
         if (phase2 === "arrival") {
           return {
             ...base,
+            envelope: base.envelope * arrivalHandoffGain(t),
             body: 0.1 * (1 - swell(t, 8, 32)),
             sub: 0.46 - 0.18 * swell(t, 24, 58),
             resonance: 0.85 - 0.32 * swell(t, 24, 60),
@@ -62194,7 +64146,14 @@ void main() {
             air: 0.025,
             wet: 0.86 - 0.12 * swell(t, 32, 60),
             cutoff: 1400 + 800 * swell(t, 12, 56),
-            chapter: t < 24 ? "resonant-arrival" : t < 48 ? "opening-horizon" : "first-light",
+            chapter:
+              t >= 36 && t <= 40
+                ? "stillness"
+                : t < 24
+                  ? "resonant-arrival"
+                  : t < 48
+                    ? "opening-horizon"
+                    : "first-light",
           };
         }
         return {
@@ -62679,8 +64638,9 @@ void main() {
           resource: clamp7(0.3 + evidence.energy * 0.5),
           growth: 0.3 + thermal * 0.25,
           decay: 0.12 + clamp7(evidence.radiation) * 0.55 + (1 - clamp7(evidence.energy)) * 0.15,
-          diffusion: 0.32,
+          diffusion: 0.2 + 0.12 * clamp7(evidence.energy),
           water: evidence.water ? 1 : 0,
+          footprint: 2.4 + 1.4 * clamp7(evidence.energy),
         };
       }
       var PossibilityModel = class {
@@ -62713,7 +64673,11 @@ void main() {
                   depth - 1,
                 );
           };
-          for (const angle of [-0.8, 1.4, 3.4]) branch(32, 32, angle + random() * 0.25, 11, 2);
+          for (const [i, angle] of [-0.8, 1.4, 3.4].entries()) {
+            const a = this.signatures?.[i * 2] ?? 0.5,
+              b = this.signatures?.[i * 2 + 1] ?? 0.5;
+            branch(32, 32, angle + random() * 0.25 + (a - 0.5) * 0.5, 11 * (0.78 + 0.44 * b), 2);
+          }
           for (let y = 0; y < GRID; y++)
             for (let x = 0; x < GRID; x++) {
               let distance = Infinity;
@@ -62723,7 +64687,11 @@ void main() {
                   p = clamp7(((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy));
                 distance = Math.min(distance, Math.hypot(x - ax - p * dx, y - ay - p * dy));
               }
-              const permeability = Math.exp((-distance * distance) / 1.2);
+              const permeability = Math.exp(
+                (-distance * distance) /
+                  (0.7 +
+                    0.5 * (this.conditions ? clamp7((this.conditions.resource - 0.3) / 0.5) : 1)),
+              );
               this.substrate[y * GRID + x] = permeability < 0.01 ? 0 : permeability;
             }
           this.reset();
@@ -62765,7 +64733,7 @@ void main() {
                   Math.min(s, this.substrate[i - GRID]) * (this.field[i - GRID] - u) +
                   Math.min(s, this.substrate[i + GRID]) * (this.field[i + GRID] - u);
                 const reaction = 4 * c.growth * c.water * r * u * (1 - u) - (c.decay + 0.12) * u;
-                this.next[i] = clamp7(u + STEP * (4 * flux + reaction));
+                this.next[i] = clamp7(u + STEP * (((4 * c.diffusion) / 0.32) * flux + reaction));
                 this.resource[i] = clamp7(r - STEP * 0.75 * u * r);
               }
             [this.field, this.next] = [this.next, this.field];
@@ -62774,15 +64742,24 @@ void main() {
         }
         snapshot() {
           let mass = 0,
-            peak = 0;
-          for (const v of this.field) {
+            peak = 0,
+            activeCells = 0,
+            spread = 0;
+          for (let i = 0; i < this.field.length; i++) {
+            const v = this.field[i];
             mass += v;
             peak = Math.max(peak, v);
+            if (v > 8e-3) {
+              activeCells++;
+              spread = Math.max(spread, Math.hypot((i % GRID) - 32, Math.floor(i / GRID) - 32));
+            }
           }
           return {
             steps: this.steps,
             mass,
             peak,
+            activeCells,
+            spread: (spread / GRID) * (this.conditions?.footprint ?? 0),
             status: !this.conditions
               ? "unavailable"
               : mass < 0.25
@@ -62803,7 +64780,12 @@ void main() {
         texture.magFilter = LinearFilter;
         texture.minFilter = LinearFilter;
         texture.colorSpace = SRGBColorSpace;
-        const geometry = new PlaneGeometry(2.8, 2.8, 16, 16);
+        const geometry = new PlaneGeometry(
+          model.conditions?.footprint ?? 2.4,
+          model.conditions?.footprint ?? 2.4,
+          16,
+          16,
+        );
         geometry.rotateX(-Math.PI / 2);
         const position = geometry.attributes.position;
         for (let i = 0; i < position.count; i++) {
@@ -62814,39 +64796,55 @@ void main() {
         geometry.computeVertexNormals();
         const mesh = new Mesh(
           geometry,
-          new MeshBasicMaterial({
+          new MeshStandardMaterial({
             map: texture,
+            roughness: 1,
+            metalness: 0,
             transparent: true,
             depthWrite: false,
             side: DoubleSide,
-            toneMapped: false,
           }),
         );
         mesh.visible = false;
+        mesh.receiveShadow = true;
         scene2.add(mesh);
         const target2 = new Vector3(728, heightAt(728, 1012), 1012),
           start2 = new Quaternion(),
           end = new Quaternion();
-        function update(t, camera2) {
+        let uploadedSteps = -1,
+          uploadedReveal = -1;
+        function update(t, camera2, arrivalSeconds = t - 6) {
           mesh.visible = t >= 108 && !!evidence;
-          if (t < 108) return;
-          const p = MathUtils.smootherstep(t, 108, 114);
+          if (arrivalSeconds < ARRIVAL_HANDOFF.settleAt) return;
+          const p = MathUtils.smootherstep(
+            arrivalSeconds,
+            ARRIVAL_HANDOFF.settleAt,
+            ARRIVAL_HANDOFF.stillAt,
+          );
           start2.copy(camera2.quaternion);
           camera2.lookAt(target2);
           end.copy(camera2.quaternion);
           camera2.quaternion.copy(start2).slerp(end, p);
           camera2.updateMatrixWorld();
-          model.advance(t - 114);
-          const reveal = MathUtils.smoothstep(t, 114, 118);
+          if (!evidence) return;
+          model.advance(t - (ARRIVAL_HANDOFF.traceAt + 6));
+          const reveal = MathUtils.smoothstep(
+            t,
+            ARRIVAL_HANDOFF.traceAt + 6,
+            ARRIVAL_HANDOFF.traceAt + 10,
+          );
+          if (model.steps === uploadedSteps && reveal === uploadedReveal) return;
+          uploadedSteps = model.steps;
+          uploadedReveal = reveal;
           for (let i = 0; i < model.field.length; i++) {
             const o = i * 4,
               concentration = model.field[i],
-              edge = MathUtils.smoothstep(concentration, 8e-3, 0.09);
+              edge = 1 - Math.exp(-Math.max(0, concentration - 8e-3) * 7);
             const crack = model.substrate[i] * 0.32;
-            pixels[o] = Math.round(28 + edge * 41);
-            pixels[o + 1] = Math.round(25 + edge * 58);
-            pixels[o + 2] = Math.round(21 + edge * 33);
-            pixels[o + 3] = Math.round(Math.max(crack, edge * 0.88) * reveal * 230);
+            pixels[o] = Math.round(37 + edge * 37);
+            pixels[o + 1] = Math.round(32 + edge * 52);
+            pixels[o + 2] = Math.round(25 + edge * 34);
+            pixels[o + 3] = Math.round(Math.max(crack, edge * 0.66) * reveal * 230);
           }
           texture.needsUpdate = true;
         }
@@ -62943,11 +64941,9 @@ void main() {
             near: Math.max(0.5, Math.floor((minDepth - 160) / 64) * 64),
             far: Math.ceil((maxDepth + 160) / 64) * 64,
           });
-          shadow.bias = -0.18 / (shadowCamera.far - shadowCamera.near);
-          shadow.normalBias = Math.max(
-            { high: 0.35, mid: 0.55, low: 0.8 }[tier2],
-            Math.max(texelX, texelY) * 0.22,
-          );
+          const footprint = Math.max(texelX, texelY);
+          shadow.bias = (-footprint * 1.2) / (shadowCamera.far - shadowCamera.near);
+          shadow.normalBias = footprint * 1.5;
           shadowCamera.updateProjectionMatrix();
           shadow.updateMatrices(light);
           fittedKey = key2;
@@ -62965,10 +64961,33 @@ void main() {
         };
       }
 
+      // works/shared/voyage-age.js
+      var clamp8 = (x) => Math.max(0, Math.min(1, x));
+      function voyageAge(phase2, seconds2, state2 = {}) {
+        const days =
+          phase2 === "arrival"
+            ? 360 + 4 * clamp8((seconds2 - 68) / 64)
+            : 340 + 20 * clamp8(seconds2 / MIGRATION_DURATION);
+        const exposure = days / 365;
+        state2.days = days;
+        state2.exposure = exposure;
+        state2.deposit = exposure ** 1.4;
+        return state2;
+      }
+
       // works/first_dawn/voyage-materials.js
       function installVoyageAgeing(fleet2, tier2) {
         const detail = tier2 === "high" ? 2 : tier2 === "mid" ? 1 : 0;
-        let treated = 0;
+        let treated = 0,
+          paintMaterials = 0;
+        const ageUniform = { value: 340 / 365 },
+          depositUniform = { value: (340 / 365) ** 1.4 };
+        let ageState = voyageAge("migration", 0);
+        const histories = fleet2.map((_, i) => ({
+          impact: [0.85, 1.1, 0.72, 1.18, 0.94, 1.04][i % 6],
+          heat: [1, 0.78, 1.12, 0.88, 1.16, 0.92][i % 6],
+          deposit: [0.9, 1.16, 0.82, 1.04, 0.95, 1.1][i % 6],
+        }));
         fleet2.forEach((ship, index) => {
           ship.updateMatrixWorld(true);
           const inverse = ship.matrixWorld.clone().invert();
@@ -62984,23 +65003,37 @@ void main() {
               Math.max(partExtent.y, 0.01),
               Math.max(partExtent.z, 0.01),
             );
+            const normalToShip = new Matrix3().getNormalMatrix(toShip);
             const weather = (original) => {
               if (
                 !original.isMeshStandardMaterial ||
-                original.transparent ||
+                (original.transparent && !original.userData.vehicleMarking) ||
                 (original.emissive &&
                   original.emissive.getHex() !== 0 &&
                   original.emissiveIntensity > 0.05)
               )
                 return original;
               const material = original.clone();
-              const finishKind = original.userData.aerospace?.kind;
+              const isPaint = !!original.userData.vehicleMarking;
+              const plateFinish = !!mesh.geometry.getAttribute("shieldFinish");
+              const finishKind = isPaint ? "paint" : original.userData.aerospace?.kind;
+              if (isPaint) paintMaterials++;
               if (material.bumpMap) material.bumpScale *= 40;
               const depositStrength =
-                finishKind === "foil" ? 0.018 : finishKind === "white" ? 0.065 : 0.04;
+                finishKind === "foil" ? 0.025 : finishKind === "white" ? 0.13 : 0.065;
               material.name = (original.name || "hull") + "-voyage-aged";
               material.onBeforeCompile = (shader) => {
+                shader.uniforms.voyageAge = ageUniform;
+                shader.uniforms.voyageDeposit = depositUniform;
                 shader.uniforms.voyageToShip = { value: toShip };
+                shader.uniforms.voyageNormalToShip = { value: normalToShip };
+                shader.uniforms.voyageHistory = {
+                  value: new Vector3(
+                    histories[index].impact,
+                    histories[index].heat,
+                    histories[index].deposit,
+                  ),
+                };
                 shader.uniforms.voyagePartCentre = { value: partCentre };
                 shader.uniforms.voyagePartExtent = { value: partExtent };
                 shader.uniforms.voyageSeed = { value: index * 37.13 + 11.7 };
@@ -63008,7 +65041,7 @@ void main() {
                   value: ship.name === "sf-migration-ark" ? 1 : 0,
                 };
                 shader.vertexShader =
-                  "uniform mat4 voyageToShip; uniform vec3 voyagePartCentre; uniform vec3 voyagePartExtent; varying vec3 vVoyagePart; varying vec3 vVoyageHull;\n" +
+                  "uniform mat4 voyageToShip; uniform mat3 voyageNormalToShip; varying vec3 vVoyageNormal; uniform vec3 voyagePartCentre; uniform vec3 voyagePartExtent; varying vec3 vVoyagePart; varying vec3 vVoyageHull;\n" +
                   shader.vertexShader;
                 shader.vertexShader = shader.vertexShader.replace(
                   "#include <project_vertex>",
@@ -63019,12 +65052,33 @@ void main() {
               agePosition = instanceMatrix * agePosition;
             #endif
             vVoyageHull = (voyageToShip * agePosition).xyz;
+            vec3 ageNormal = objectNormal;
+            #ifdef USE_INSTANCING
+              mat3 ageInstance = mat3(instanceMatrix);
+              ageNormal /= vec3(dot(ageInstance[0],ageInstance[0]),dot(ageInstance[1],ageInstance[1]),dot(ageInstance[2],ageInstance[2]));
+              ageNormal = ageInstance * ageNormal;
+            #endif
+            vVoyageNormal = normalize(voyageNormalToShip * ageNormal);
             #include <project_vertex>
           `,
                 );
+                if (plateFinish) {
+                  shader.vertexShader =
+                    "attribute float shieldFinish; varying float vShieldFinish;\n" +
+                    shader.vertexShader;
+                  shader.vertexShader = shader.vertexShader.replace(
+                    "#include <begin_vertex>",
+                    "#include <begin_vertex>\nvShieldFinish=shieldFinish;",
+                  );
+                  shader.fragmentShader = "varying float vShieldFinish;\n" + shader.fragmentShader;
+                }
                 shader.fragmentShader =
                   `
+            uniform float voyageAge;
+            uniform float voyageDeposit;
             uniform float voyageSeed;
+            uniform vec3 voyageHistory;
+            varying vec3 vVoyageNormal;
             uniform float voyageReference;
             // Localised residues and heat cycling are an authored year-long voyage cue.
             // They are not a simulated temperature or a prediction of material lifetime.
@@ -63076,35 +65130,60 @@ void main() {
             vec3 ageP = vVoyageHull + vec3(voyageSeed);
             float ageBroad = voyageNoise(ageP * vec3(.033,.046,.022));
             float ageGrain = voyageNoise(ageP * .32);
+            ${plateFinish ? "diffuseColor.rgb*=.97+.05*vShieldFinish;" : ""}
             // Deposit only near the engine assembly and a few exposed part edges.
             // The fixed ship-space seed survives cuts and does not mirror wear.
             vec2 engineField=voyageEngines(vVoyageHull);
             vec3 ageEdge = abs(abs(vVoyagePart)-vec3(1.0));
             float ageEdgeDistance = min(max(ageEdge.x,ageEdge.y),min(max(ageEdge.x,ageEdge.z),max(ageEdge.y,ageEdge.z)));
             float ageEdgeMask = 1.0-smoothstep(.012,.045,ageEdgeDistance);
-            float ageZone = max(exp(-engineField.x/46.0),ageEdgeMask*.24);
-            float ageDeposit = smoothstep(.44,.73,ageBroad + (ageGrain-.5)*.18)*ageZone;
+            float ageZone = max(exp(-engineField.x/46.0),ageEdgeMask*.42);
+            float ageDeposit = smoothstep(.44,.73,ageBroad + (ageGrain-.5)*.18)*ageZone*voyageHistory.z*voyageDeposit;
             // Restrained, uneven discolouration; no terrestrial rust or liquid streaks.
             vec3 ageTint = mix(vec3(1.0),vec3(.40,.37,.32),ageDeposit);
-            vec3 ageCell = floor(ageP*.035);
-            vec3 ageOffset = vec3(voyageHash(ageCell),voyageHash(ageCell+19.2),voyageHash(ageCell+43.8));
-            float ageRadius = length(fract(ageP*.035)-(.18+.64*ageOffset));
-            float ageWidth = max(fwidth(ageRadius)*1.2,.002);
-            float agePit = (1.0-smoothstep(.023-ageWidth,.023+ageWidth,ageRadius))*step(.987,ageOffset.z);
-            float ageRim = (1.0-smoothstep(.004,.004+ageWidth,abs(ageRadius-.031)))*step(.987,ageOffset.z);
-            diffuseColor.rgb *= mix(vec3(1.0),ageTint,${depositStrength.toFixed(3)}) * (1.0-agePit*.22);
-            diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb*1.35,ageRim*.075);
-            float engineResidue=exp(-engineField.x/42.0)*smoothstep(.30,.73,ageBroad+ageGrain*.12);
+            // Sparse projected pits: forward-facing shield surfaces receive more exposure.
+            // The direction is authored (+Z travel), not a meteoroid flux prediction.
+            vec3 ageN=normalize(vVoyageNormal),ageAbsN=abs(ageN);
+            vec2 agePlane=ageAbsN.z>=max(ageAbsN.x,ageAbsN.y)?ageP.xy:
+              (ageAbsN.y>=ageAbsN.x?ageP.xz:ageP.yz);
+            vec2 ageGrid=agePlane/19.0;
+            vec3 ageCell=vec3(floor(ageGrid),floor(dot(vVoyageHull,ageN)/80.0));
+            vec3 ageOffset=vec3(voyageHash(ageCell),voyageHash(ageCell+19.2),voyageHash(ageCell+43.8));
+            float ageFacing=pow(max(ageN.z,0.0),2.0);
+            float ageExposure=(.002+.018*ageFacing)*voyageHistory.x*voyageAge;
+            float ageRadius=length(fract(ageGrid)-(.2+.6*ageOffset.xy));
+            float ageSize=.028+.024*ageOffset.x;
+            float ageWidth=max(fwidth(ageRadius)*1.1,.003);
+            float ageHit=step(1.0-ageExposure,ageOffset.z);
+            float agePit=(1.0-smoothstep(ageSize-ageWidth,ageSize+ageWidth,ageRadius))*ageHit;
+            float ageRim=(1.0-smoothstep(.004,.004+ageWidth,abs(ageRadius-ageSize-.009)))*ageHit;
+            diffuseColor.rgb *= mix(vec3(1.0),ageTint,${depositStrength.toFixed(3)}) * (1.0-agePit*.28);
+            diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb*1.35,ageRim*.11);
+            float engineResidue=exp(-engineField.x/42.0)*smoothstep(.30,.73,ageBroad+ageGrain*.12)*voyageHistory.z*voyageDeposit;
             float engineHeat=engineField.y*(.55+.45*ageBroad);
             // Deposits remain strongest around the nozzle assembly, with no long dirt streaks.
             diffuseColor.rgb*=mix(vec3(1.0),vec3(.45,.41,.37),engineResidue*.23);
-            float heatStain=exp(-engineField.x/24.0)*(.35+.65*ageBroad)*${finishKind === "steel" || finishKind === "titanium" || finishKind === "thermal" ? "0.10" : "0.025"};
-            diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(1.14,.91,.71),heatStain);
+            float heatStain=exp(-engineField.x/32.0)*(.35+.65*ageBroad)*voyageHistory.y*voyageAge*${finishKind === "steel" || finishKind === "titanium" || finishKind === "thermal" ? "0.24" : "0.035"};
+            vec3 thermalTint=mix(vec3(.72,.79,.86),vec3(1.10,.83,.61),smoothstep(.22,.76,ageBroad));
+            diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*thermalTint,heatStain);
             // Rare paint chips: broken edges and a few impact rims, never a full flaking coat.
             float ageChip = smoothstep(.72,.88,ageGrain)*step(.86,ageOffset.x)*ageEdgeMask;
             ageChip = max(ageChip,ageRim*step(.96,ageOffset.x)*.65);
             ageChip*=${finishKind === "white" ? "1.0" : "0.0"};
             diffuseColor.rgb = mix(diffuseColor.rgb,vec3(.39,.40,.39),ageChip*.78);
+
+            // Two flush service patches use the same hull-space register on
+            // coatings and printed IDs. A maintained area accumulates less residue.
+            vec2 repairUV=vec2(vVoyageHull.z+300.0,abs(vVoyageHull.x)-86.0);
+            float repair=step(abs(repairUV.x),14.0)*step(abs(vVoyageHull.y-28.0),.7)*step(abs(repairUV.y),10.0);
+            diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*1.055,repair*voyageAge);
+            ${
+              isPaint
+                ? `float paintLoss=clamp(agePit*.78+engineResidue*.16+ageDeposit*.12,0.0,.88);
+            diffuseColor.a*=1.0-paintLoss*voyageAge;
+            diffuseColor.rgb*=1.0-ageDeposit*.08*voyageAge;`
+                : ""
+            }
 
             ${detail > 0 ? "diffuseColor.rgb *= .994+.009*ageGrain;" : ""}
             ${detail > 1 ? "diffuseColor.rgb *= .9965+.005*voyageNoise(ageP*1.3);" : ""}
@@ -63114,14 +65193,15 @@ void main() {
                   "#include <roughnessmap_fragment>",
                   `
             #include <roughnessmap_fragment>
-            roughnessFactor = min(1.0, roughnessFactor + ageDeposit*.032 + agePit*.028 + engineResidue*.07 - ageChip*.17);
+            ${plateFinish ? "roughnessFactor=clamp(roughnessFactor+(vShieldFinish-.5)*.15,.54,.94);" : ""}
+            roughnessFactor = min(1.0, roughnessFactor + ageDeposit*.055 + agePit*.09 + engineResidue*.085 - ageChip*.17);
           `,
                 );
                 shader.fragmentShader = shader.fragmentShader.replace(
                   "#include <emissivemap_fragment>",
                   `
             #include <emissivemap_fragment>
-            totalEmissiveRadiance+=vec3(.016,.046,.064)*exp(-engineField.x/36.0);
+            totalEmissiveRadiance+=vec3(.016,.046,.064)*exp(-engineField.x/36.0)*${isPaint ? "0.0" : "1.0"};
             // A restrained amber-red hot lip; exhaust retains its authored blue-white palette.
             totalEmissiveRadiance+=mix(vec3(.045,.003,.0003),vec3(.13,.023,.002),engineHeat*engineHeat)*engineHeat*${finishKind === "steel" || finishKind === "titanium" || finishKind === "thermal" ? "1.0" : "0.0"};
           `,
@@ -63135,7 +65215,7 @@ void main() {
                 );
               };
               material.customProgramCacheKey = () =>
-                "voyage-ageing-v8-" + detail + "-" + finishKind;
+                "voyage-ageing-v11-" + detail + "-" + finishKind + "-" + plateFinish;
               treated++;
               return material;
             };
@@ -63145,12 +65225,19 @@ void main() {
           });
         });
         return {
+          update(phase2, seconds2) {
+            ageState = voyageAge(phase2, seconds2, ageState);
+            ageUniform.value = ageState.exposure;
+            depositUniform.value = ageState.deposit;
+          },
+          snapshot: () => ({ ...ageState, paintMaterials }),
           vessels: fleet2.length,
           materials: treated,
           detail,
-          contaminationStrength: 0.065,
-          wearDistribution: "engine-and-exposed-edges",
-          impactCellProbability: 0.013,
+          contaminationStrength: 0.13,
+          wearDistribution: "forward-impacts / joint-residue / local-thermal-cycling",
+          histories,
+          impactCellProbability: { side: 2e-3, forward: 0.02 },
           voyageAge: "approximately-one-year",
           localEngineHeat: true,
           model: "authored-deposition-impact-and-thermal-masks",
@@ -63266,8 +65353,8 @@ void main() {
             const disc = new Mesh(coreGeometry, core);
             disc.name = "voyage-engine-core";
             disc.rotation.y = Math.PI;
-            disc.position.set(x, y, exit);
-            disc.scale.setScalar(radius * 0.77);
+            disc.position.set(x, y, exit + (reference ? 57 : 48) * 0.62);
+            disc.scale.setScalar(radius * 0.48);
             ship.add(disc);
             const exhaust = new Mesh(plumeGeometry, plume);
             exhaust.name = "voyage-engine-plume";
@@ -63280,7 +65367,9 @@ void main() {
         });
         return {
           nozzles,
-          mode: "restrained-steady-glow",
+          mode: "recessed-throat-glow",
+          coreDepthRatio: 0.62,
+          coreRadiusRatio: 0.48,
           segments,
           lengthScale,
           tailFalloff,
@@ -63350,7 +65439,7 @@ void main() {
         mid: { dpr: 1.25, shadow: 1024 },
         low: { dpr: 1, shadow: 512 },
       }[tier];
-      var smooth = (x) => {
+      var smooth4 = (x) => {
         x = MathUtils.clamp(x, 0, 1);
         return x * x * (3 - 2 * x);
       };
@@ -63385,6 +65474,9 @@ void main() {
       var scene;
       var camera;
       var fleet;
+      var approachVibration;
+      var ringVibration;
+      var fitVoyageShadow;
       var environment;
       var keyLight;
       var fillLight;
@@ -63397,6 +65489,7 @@ void main() {
       var pixelRatio = Math.min(devicePixelRatio, quality.dpr);
       var sunlightOffset = new Vector3(-1400, 2600, 1700);
       var title = document.getElementById("line");
+      var arrivalIntro = document.getElementById("arrival-intro");
       var replay = document.getElementById("replay");
       var archive = document.getElementById("archive");
       var sound = document.getElementById("sound");
@@ -63450,6 +65543,7 @@ void main() {
       }
       function render2(t) {
         seconds = MathUtils.clamp(t, segment.start, endTime);
+        window.VOYAGE_AGEING?.update(phase, seconds);
         const migrationTime = migrationClock(seconds);
         const timelineTime =
           phase === "arrival"
@@ -63479,16 +65573,14 @@ void main() {
           ship.position.set(s.x, s.y, anchorZ - depth);
           ship.scale.setScalar(s.scale);
           ship.visible = phase === "migration" && (!opening || i === 0);
-          const correction = smooth((flightTime - 64 - i * 3) / 22);
+          const correction = smooth4((flightTime - 64 - i * 3) / 22);
           ship.rotation.set(-0.025 + i * 8e-3, -0.13 + correction * 0.085, (i - 2) * 0.012);
           if (phase === "migration") openingFlyby(ship.position, i, seconds, ship.quaternion);
-          const pulse = flightTime - (64 + i * 3);
-          ship.userData.jets.forEach((j) => {
-            j.visible = (pulse >= 0 && pulse < 0.38) || (pulse > 21.6 && pulse < 22);
-          });
+          updateAttitudeJets(ship, i, phase === "migration" ? seconds : -1);
           for (const { pivot, side } of ship.userData.deployables)
             pivot.rotation.z = side * (1 - motion[i].deploy) * 1.28;
         });
+        updateHabitatRings(fleet[5], phase, seconds);
         const migrationShot =
           phase === "migration"
             ? directMigrationSequence(camera, seconds, fleet, environment.surfaceHeightAt)
@@ -63496,9 +65588,38 @@ void main() {
         currentShot =
           migrationShot?.name ??
           directCamera(camera, sceneTime, fleet[0], environment.surfaceHeightAt, fleet[5], seconds);
+        if (approachVibration) {
+          const hullStrength =
+            seconds < MIGRATION_OPENING
+              ? null
+              : closePassVibrationStrength(
+                  seconds,
+                  MIGRATION_CUTS[0],
+                  MIGRATION_CUTS[1],
+                  camera.position.distanceTo(fleet[0].position),
+                );
+          approachVibration.update(seconds, camera, hullStrength);
+          ringVibration.update(
+            seconds,
+            camera,
+            closePassVibrationStrength(
+              seconds,
+              MIGRATION_CUTS[1],
+              MIGRATION_CUTS[2],
+              camera.position.distanceTo(fleet[5].position),
+            ),
+          );
+        }
+        if (phase === "migration" && seconds >= MIGRATION_CUTS[2]) {
+          const start2 = currentShot === "ring-rear" ? MIGRATION_CUTS[2] : MIGRATION_CUTS[3];
+          const end = currentShot === "ring-rear" ? MIGRATION_CUTS[3] : segment.duration;
+          const envelope = smooth4((seconds - start2) / 1.5) * smooth4((end - seconds) / 1.5);
+          applyCameraVibration(seconds, camera, 0.7 * envelope);
+        }
         if (phase === "arrival" && seconds >= ARRIVAL_FLEET_AT)
           placeArrivalFleet(fleet, camera, seconds, environment.surfaceHeightAt);
         const shadowSubject = fleet[migrationShot?.subject ?? 0];
+        if (phase === "migration") fitVoyageShadow(shadowSubject);
         if (phase === "arrival") {
           arrivalLight.update(camera, seconds);
         } else if (currentShot.startsWith("surface")) {
@@ -63531,15 +65652,21 @@ void main() {
           phase === "migration" &&
             (opening || currentShot === "ring-rear" || currentShot === "escort-closeup"),
         );
-        if (phase === "arrival") possibility.update(timelineTime, camera);
-        const enter = smooth((seconds - segment.start) / 0.75),
-          exit = 1 - smooth((seconds - (endTime - 1.2)) / 0.9);
+        if (phase === "arrival") possibility.update(timelineTime, camera, seconds);
+        const enter = smooth4((seconds - segment.start) / 0.75),
+          exit = 1 - smooth4((seconds - (endTime - 1.2)) / 0.9);
         const cutTimes = phase === "arrival" ? [ARRIVAL_FLEET_AT] : MIGRATION_CUTS;
         document.getElementById("cut").style.opacity = String(
           Math.max(1 - enter, 1 - exit, ...cutTimes.map((at) => transitionVeil(seconds, at))),
         );
+        if (arrivalIntro && phase === "arrival") {
+          const introTime = seconds - segment.start;
+          arrivalIntro.style.opacity = String(
+            smooth4((introTime - 0.4) / 1.5) * (1 - smooth4((introTime - 5) / 2)),
+          );
+        }
         title.style.opacity = String(
-          phase === "arrival" ? smooth((timelineTime - 108) / 2) * exit : 0,
+          phase === "arrival" ? smooth4((seconds - ARRIVAL_HANDOFF.traceAt - 2) / 2) * exit : 0,
         );
         replay.hidden = true;
         archive.hidden = true;
@@ -63636,6 +65763,11 @@ void main() {
         environment = createEnvironment(scene, tier);
         fleet = [...createFleet(tier), createReferenceArk(tier)];
         fleet.forEach((ship) => scene.add(ship));
+        if (phase === "migration") {
+          approachVibration = createApproachVibration(fleet[0]);
+          ringVibration = createApproachVibration(fleet[5]);
+        }
+        fitVoyageShadow = createVoyageShadowFit(keyLight, fleet);
         window.VOYAGE_AGEING = installVoyageAgeing(fleet, tier);
         window.VOYAGE_ENGINES = installVoyageEngineGlow(
           fleet,
@@ -63688,6 +65820,7 @@ void main() {
             phase,
             seconds,
             simulationSeconds: voyageClock(seconds),
+            voyageAge: window.VOYAGE_AGEING.snapshot(),
             observedShip:
               currentShot === "escort-closeup"
                 ? fleet[1].name
@@ -63703,10 +65836,31 @@ void main() {
             shot: currentShot,
             cameraPosition: camera.position.toArray(),
             cameraFov: camera.fov,
+            cameraQuaternion: camera.quaternion.toArray(),
+            approachVibration: approachVibration?.snapshot() ?? null,
+            ringVibration: ringVibration?.snapshot() ?? null,
             planetPosition: environment.planetPosition(),
             surfaceHeight: environment.surfaceHeightAt(camera.position.x, camera.position.z),
             ships: fleet.filter((s) => s.visible).length,
             total: fleet.length,
+            attitudeJets: fleet.map((s) =>
+              s.userData.jets.map((j) => ({
+                visible: j.visible,
+                pair: j.userData.pair,
+                station: j.userData.station,
+                side: j.userData.side,
+                strength: j.material.uniforms.strength.value,
+              })),
+            ),
+            habitatRings: fleet[5].userData.habitatRings.map((r) => ({
+              name: r.name,
+              angle: r.rotation.z,
+            })),
+            structure: fleet.map((s) => ({
+              bays: s.userData.serviceBays,
+              hatches: s.userData.accessHatches,
+            })),
+            shadowSpan: keyLight.shadow.camera.right,
             referenceArks: fleet.filter((s) => s.name === "sf-migration-ark").length,
             originalArks: fleet.filter((s) => s.name.startsWith("ark-")).length,
             paused,
