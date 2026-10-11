@@ -11940,6 +11940,94 @@
         );
       }
     };
+  var TubeGeometry = class _TubeGeometry extends BufferGeometry {
+    constructor(
+      path = new QuadraticBezierCurve3(
+        new Vector3(-1, -1, 0),
+        new Vector3(-1, 1, 0),
+        new Vector3(1, 1, 0),
+      ),
+      tubularSegments = 64,
+      radius = 1,
+      radialSegments = 8,
+      closed = !1,
+    ) {
+      (super(),
+        (this.type = "TubeGeometry"),
+        (this.parameters = { path, tubularSegments, radius, radialSegments, closed }));
+      let frames = path.computeFrenetFrames(tubularSegments, closed);
+      ((this.tangents = frames.tangents),
+        (this.normals = frames.normals),
+        (this.binormals = frames.binormals));
+      let vertex = new Vector3(),
+        normal2 = new Vector3(),
+        uv3 = new Vector2(),
+        P = new Vector3(),
+        vertices = [],
+        normals = [],
+        uvs = [],
+        indices = [];
+      (generateBufferData(),
+        this.setIndex(indices),
+        this.setAttribute("position", new Float32BufferAttribute(vertices, 3)),
+        this.setAttribute("normal", new Float32BufferAttribute(normals, 3)),
+        this.setAttribute("uv", new Float32BufferAttribute(uvs, 2)));
+      function generateBufferData() {
+        for (let i = 0; i < tubularSegments; i++) generateSegment(i);
+        (generateSegment(closed === !1 ? tubularSegments : 0), generateUVs(), generateIndices());
+      }
+      function generateSegment(i) {
+        P = path.getPointAt(i / tubularSegments, P);
+        let N2 = frames.normals[i],
+          B3 = frames.binormals[i];
+        for (let j = 0; j <= radialSegments; j++) {
+          let v = (j / radialSegments) * Math.PI * 2,
+            sin4 = Math.sin(v),
+            cos4 = -Math.cos(v);
+          ((normal2.x = cos4 * N2.x + sin4 * B3.x),
+            (normal2.y = cos4 * N2.y + sin4 * B3.y),
+            (normal2.z = cos4 * N2.z + sin4 * B3.z),
+            normal2.normalize(),
+            normals.push(normal2.x, normal2.y, normal2.z),
+            (vertex.x = P.x + radius * normal2.x),
+            (vertex.y = P.y + radius * normal2.y),
+            (vertex.z = P.z + radius * normal2.z),
+            vertices.push(vertex.x, vertex.y, vertex.z));
+        }
+      }
+      function generateIndices() {
+        for (let j = 1; j <= tubularSegments; j++)
+          for (let i = 1; i <= radialSegments; i++) {
+            let a = (radialSegments + 1) * (j - 1) + (i - 1),
+              b = (radialSegments + 1) * j + (i - 1),
+              c = (radialSegments + 1) * j + i,
+              d = (radialSegments + 1) * (j - 1) + i;
+            (indices.push(a, b, d), indices.push(b, c, d));
+          }
+      }
+      function generateUVs() {
+        for (let i = 0; i <= tubularSegments; i++)
+          for (let j = 0; j <= radialSegments; j++)
+            ((uv3.x = i / tubularSegments), (uv3.y = j / radialSegments), uvs.push(uv3.x, uv3.y));
+      }
+    }
+    copy(source) {
+      return (super.copy(source), (this.parameters = Object.assign({}, source.parameters)), this);
+    }
+    toJSON() {
+      let data = super.toJSON();
+      return ((data.path = this.parameters.path.toJSON()), data);
+    }
+    static fromJSON(data) {
+      return new _TubeGeometry(
+        new Curves[data.path.type]().fromJSON(data.path),
+        data.tubularSegments,
+        data.radius,
+        data.radialSegments,
+        data.closed,
+      );
+    }
+  };
   var ShadowMaterial = class extends Material {
     constructor(parameters) {
       (super(),
@@ -61500,6 +61588,227 @@ body.ti-voyage #ti-transfer-trigger {
       };
     }
   };
+  var ACCESS_SCALE = Object.freeze({
+      leafHeight: 10.2,
+      leafWidth: 6.2,
+      fastener: 0.3,
+      gripThickness: 0.32,
+    }),
+    VEHICLE_DETAIL = Object.freeze({ fastenerRadius: 0.012, sealWidth: 0.026, cableRadius: 0.009 });
+  function mergeGeometries(geometries, useGroups = !1) {
+    let isIndexed = geometries[0].index !== null,
+      attributesUsed = new Set(Object.keys(geometries[0].attributes)),
+      morphAttributesUsed = new Set(Object.keys(geometries[0].morphAttributes)),
+      attributes = {},
+      morphAttributes = {},
+      morphTargetsRelative = geometries[0].morphTargetsRelative,
+      mergedGeometry = new BufferGeometry(),
+      offset = 0;
+    for (let i = 0; i < geometries.length; ++i) {
+      let geometry = geometries[i],
+        attributesCount = 0;
+      if (isIndexed !== (geometry.index !== null))
+        return (
+          console.error(
+            "THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " +
+              i +
+              ". All geometries must have compatible attributes; make sure index attribute exists among all geometries, or in none of them.",
+          ),
+          null
+        );
+      for (let name in geometry.attributes) {
+        if (!attributesUsed.has(name))
+          return (
+            console.error(
+              "THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " +
+                i +
+                '. All geometries must have compatible attributes; make sure "' +
+                name +
+                '" attribute exists among all geometries, or in none of them.',
+            ),
+            null
+          );
+        (attributes[name] === void 0 && (attributes[name] = []),
+          attributes[name].push(geometry.attributes[name]),
+          attributesCount++);
+      }
+      if (attributesCount !== attributesUsed.size)
+        return (
+          console.error(
+            "THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " +
+              i +
+              ". Make sure all geometries have the same number of attributes.",
+          ),
+          null
+        );
+      if (morphTargetsRelative !== geometry.morphTargetsRelative)
+        return (
+          console.error(
+            "THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " +
+              i +
+              ". .morphTargetsRelative must be consistent throughout all geometries.",
+          ),
+          null
+        );
+      for (let name in geometry.morphAttributes) {
+        if (!morphAttributesUsed.has(name))
+          return (
+            console.error(
+              "THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " +
+                i +
+                ".  .morphAttributes must be consistent throughout all geometries.",
+            ),
+            null
+          );
+        (morphAttributes[name] === void 0 && (morphAttributes[name] = []),
+          morphAttributes[name].push(geometry.morphAttributes[name]));
+      }
+      if (useGroups) {
+        let count;
+        if (isIndexed) count = geometry.index.count;
+        else if (geometry.attributes.position !== void 0)
+          count = geometry.attributes.position.count;
+        else
+          return (
+            console.error(
+              "THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index " +
+                i +
+                ". The geometry must have either an index or a position attribute",
+            ),
+            null
+          );
+        (mergedGeometry.addGroup(offset, count, i), (offset += count));
+      }
+    }
+    if (isIndexed) {
+      let indexOffset = 0,
+        mergedIndex = [];
+      for (let i = 0; i < geometries.length; ++i) {
+        let index = geometries[i].index;
+        for (let j = 0; j < index.count; ++j) mergedIndex.push(index.getX(j) + indexOffset);
+        indexOffset += geometries[i].attributes.position.count;
+      }
+      mergedGeometry.setIndex(mergedIndex);
+    }
+    for (let name in attributes) {
+      let mergedAttribute = mergeAttributes(attributes[name]);
+      if (!mergedAttribute)
+        return (
+          console.error(
+            "THREE.BufferGeometryUtils: .mergeGeometries() failed while trying to merge the " +
+              name +
+              " attribute.",
+          ),
+          null
+        );
+      mergedGeometry.setAttribute(name, mergedAttribute);
+    }
+    for (let name in morphAttributes) {
+      let numMorphTargets = morphAttributes[name][0].length;
+      if (numMorphTargets !== 0) {
+        ((mergedGeometry.morphAttributes = mergedGeometry.morphAttributes || {}),
+          (mergedGeometry.morphAttributes[name] = []));
+        for (let i = 0; i < numMorphTargets; ++i) {
+          let morphAttributesToMerge = [];
+          for (let j = 0; j < morphAttributes[name].length; ++j)
+            morphAttributesToMerge.push(morphAttributes[name][j][i]);
+          let mergedMorphAttribute = mergeAttributes(morphAttributesToMerge);
+          if (!mergedMorphAttribute)
+            return (
+              console.error(
+                "THREE.BufferGeometryUtils: .mergeGeometries() failed while trying to merge the " +
+                  name +
+                  " morphAttribute.",
+              ),
+              null
+            );
+          mergedGeometry.morphAttributes[name].push(mergedMorphAttribute);
+        }
+      }
+    }
+    return mergedGeometry;
+  }
+  function mergeAttributes(attributes) {
+    let TypedArray,
+      itemSize,
+      normalized,
+      gpuType = -1,
+      arrayLength = 0;
+    for (let i = 0; i < attributes.length; ++i) {
+      let attribute3 = attributes[i];
+      if (
+        (TypedArray === void 0 && (TypedArray = attribute3.array.constructor),
+        TypedArray !== attribute3.array.constructor)
+      )
+        return (
+          console.error(
+            "THREE.BufferGeometryUtils: .mergeAttributes() failed. BufferAttribute.array must be of consistent array types across matching attributes.",
+          ),
+          null
+        );
+      if (
+        (itemSize === void 0 && (itemSize = attribute3.itemSize), itemSize !== attribute3.itemSize)
+      )
+        return (
+          console.error(
+            "THREE.BufferGeometryUtils: .mergeAttributes() failed. BufferAttribute.itemSize must be consistent across matching attributes.",
+          ),
+          null
+        );
+      if (
+        (normalized === void 0 && (normalized = attribute3.normalized),
+        normalized !== attribute3.normalized)
+      )
+        return (
+          console.error(
+            "THREE.BufferGeometryUtils: .mergeAttributes() failed. BufferAttribute.normalized must be consistent across matching attributes.",
+          ),
+          null
+        );
+      if ((gpuType === -1 && (gpuType = attribute3.gpuType), gpuType !== attribute3.gpuType))
+        return (
+          console.error(
+            "THREE.BufferGeometryUtils: .mergeAttributes() failed. BufferAttribute.gpuType must be consistent across matching attributes.",
+          ),
+          null
+        );
+      arrayLength += attribute3.count * itemSize;
+    }
+    let array3 = new TypedArray(arrayLength),
+      result = new BufferAttribute(array3, itemSize, normalized),
+      offset = 0;
+    for (let i = 0; i < attributes.length; ++i) {
+      let attribute3 = attributes[i];
+      if (attribute3.isInterleavedBufferAttribute) {
+        let tupleOffset = offset / itemSize;
+        for (let j = 0, l = attribute3.count; j < l; j++)
+          for (let c = 0; c < itemSize; c++) {
+            let value = attribute3.getComponent(j, c);
+            result.setComponent(j + tupleOffset, c, value);
+          }
+      } else array3.set(attribute3.array, offset);
+      offset += attribute3.count * itemSize;
+    }
+    return (gpuType !== void 0 && (result.gpuType = gpuType), result);
+  }
+  function windowFrameGeometry(width, height, depth3, lip) {
+    let parts = [];
+    for (let side of [-1, 1])
+      (parts.push(new BoxGeometry(width, lip, depth3).translate(0, side * (height - lip) * 0.5, 0)),
+        parts.push(
+          new BoxGeometry(lip, height - lip * 2, depth3).translate(
+            side * (width - lip) * 0.5,
+            0,
+            0,
+          ),
+        ));
+    let geometry = mergeGeometries(parts);
+    return (parts.forEach((p) => p.dispose()), geometry);
+  }
+  function routedCableGeometry(points, radius, tier) {
+    let curve = new CatmullRomCurve3(points.map((p) => new Vector3(...p)));
+    return new TubeGeometry(curve, tier === "high" ? 18 : 10, radius, tier === "low" ? 5 : 7, !1);
+  }
   var words = [
       "TR-Q1",
       "TR-X01",
@@ -61532,6 +61841,7 @@ body.ti-voyage #ti-transfer-trigger {
       "W-R/L",
       "W-L",
       "W-R",
+      "TAIL / 06",
     ],
     ROW = 32,
     ATLAS_HEIGHT = 2048,
@@ -61548,7 +61858,7 @@ body.ti-voyage #ti-transfer-trigger {
       );
     }
     let canvas = document.createElement("canvas"),
-      scale2 = tier === "low" ? 1 : 2;
+      scale2 = tier === "high" ? 2 : 1;
     ((canvas.width = 512 * scale2), (canvas.height = 2048 * scale2));
     let c = canvas.getContext("2d");
     c.scale(scale2, scale2);
@@ -61559,7 +61869,7 @@ body.ti-voyage #ti-transfer-trigger {
         ((c.fillStyle = ink ? "#20282d" : "#d9dfdf"),
           (c.textAlign = "center"),
           (c.textBaseline = "middle"),
-          (c.font = `${word === "TERRAFORMING_PROJECT" ? 600 : 900} ${word.length > 14 ? 18 : 24}px Arial, sans-serif`),
+          (c.font = `${word.startsWith("TR-") || /^I[0-9]/.test(word) ? 900 : 600} ${word.length > 14 ? 18 : 24}px Arial, sans-serif`),
           c.save(),
           c.translate(256, y + ROW / 2),
           c.scale(470 / c.measureText(word).width, 1),
@@ -61834,6 +62144,7 @@ body.ti-voyage #ti-transfer-trigger {
           n = hash10(Math.floor(u * 128), Math.floor(v * 128)),
           broad = noise(u, v, 8),
           fine = noise(u, v, 48),
+          finishField = noise(fract5(u + 0.317), fract5(v + 0.619), 13),
           tone = 1,
           height = 0.5,
           rough = 0.9,
@@ -61862,10 +62173,8 @@ body.ti-voyage #ti-transfer-trigger {
           kind === "ship-steel" ||
           kind === "ship-titanium"
         ) {
-          let brush =
-              (noise(u, v, 64) - 0.5) * 0.28 +
-              Math.sin(2 * Math.PI * (v * 43 + 0.025 * Math.sin(u * 6 * Math.PI))) * 0.36,
-            machining = (noise(u, v, 32) - 0.5) * 0.2 + (noise(0, v, 64) - 0.5) * 0.8,
+          let brush = (noise(u, v, 64) - 0.5) * 0.04 + (noise(0, v, 64) - 0.5) * 0.32,
+            machining = (noise(0, v, 64) - 0.5) * 0.32,
             scratch =
               Math.pow(Math.max(0, Math.sin(2 * Math.PI * (v * 23 + u))), 42) *
               Math.max(0, broad - 0.57);
@@ -61875,7 +62184,7 @@ body.ti-voyage #ti-transfer-trigger {
             (rough = clamp7(
               (kind.endsWith("steel") ? 0.82 : 0.9) +
                 brush * 0.13 +
-                (broad - 0.5) * 0.17 +
+                (finishField - 0.5) * 0.13 +
                 scratch * 0.18,
             )),
             (tint = (broad - 0.5) * 0.016));
@@ -61896,7 +62205,7 @@ body.ti-voyage #ti-transfer-trigger {
               (rough = 0.96 + n * 0.035))
             : ((tone = 0.973 + (broad - 0.5) * 0.035),
               (height = 0.5 + (fine - 0.5) * 0.042 + (n - 0.5) * 0.008),
-              (rough = 0.91 + (fine - 0.5) * 0.09 + (broad - 0.5) * 0.11));
+              (rough = 0.95 + (finishField - 0.5) * 0.07 + (fine - 0.5) * 0.035));
         let i = (y * size + x) * 4;
         ((color3[i] = Math.round(clamp7(tone + tint) * 255)),
           (color3[i + 1] = Math.round(clamp7(tone) * 255)),
@@ -61936,10 +62245,9 @@ body.ti-voyage #ti-transfer-trigger {
       normal:
         tier === "low"
           ? normalWorld2
-          : bumpMap2(
-              texture2(maps.data, coords).r,
-              float2(kind === "foil" ? 0.025 : kind === "thermal" ? 0.004 : 0.0025),
-            ).transformDirection(cameraWorldMatrix2),
+          : bumpMap2(texture2(maps.data, coords).r, float2(finish.bump)).transformDirection(
+              cameraWorldMatrix2,
+            ),
       color: texture2(maps.color, coords).rgb,
       roughness: texture2(maps.data, coords).g.mul(finish.roughness),
       metalness: float2(finish.metalness),
@@ -62837,7 +63145,14 @@ body.ti-voyage #ti-transfer-trigger {
               surface = vec32(...rgb).mul(
                 finish ? finish.color : grainHash.mul(grain2 * 2).add(1 - grain2),
               ),
-              dustMask = pow5(max2(n.y, float2(0)), float2(4)).mul(dust),
+              dustMask =
+                profile === "aluminum"
+                  ? float2(1)
+                      .sub(
+                        smoothstep3(D.wheelR * 0.86, D.wheelR * 0.98, positionLocal2.yz.length()),
+                      )
+                      .mul(dust * 1.8)
+                  : pow5(max2(n.y, float2(0)), float2(4)).mul(dust),
               coated = mix2(surface, vec32(...C.color.dust), dustMask),
               specular = pow5(
                 max2(dot2(n, halfVector), float2(0)),
@@ -63097,6 +63412,14 @@ body.ti-voyage #ti-transfer-trigger {
           rod = makeLink(0.017, 0.34, metal, segments),
           joint = new Mesh(new CylinderGeometry(0.061, 0.061, 0.075, segments), dark);
         joint.rotation.x = Math.PI / 2;
+        let jointCaps = Merged();
+        for (let capSide of [-1, 1])
+          jointCaps.add(
+            new CylinderGeometry(0.048, 0.048, 0.009, segments),
+            xf([0, capSide * 0.041, 0]),
+          );
+        let caps = new Mesh(jointCaps.build(), metal);
+        ((caps.name = "suspension-axis-covers"), joint.add(caps));
         let axle = new Mesh(new CylinderGeometry(0.065, 0.065, 0.13, segments), metal);
         axle.rotation.z = Math.PI / 2;
         for (let mesh of [upper, lower, barrel, rod, joint, axle])
@@ -63344,9 +63667,26 @@ body.ti-voyage #ti-transfer-trigger {
       );
     mastMount.add(new Mesh(mastJoint.build(), metal));
     let cableDuct = new Mesh(new BoxGeometry(0.036, 0.34, 0.04), dark);
-    (cableDuct.position.set(0, deck + 0.33, baseZ + 0.08),
-      mastMount.add(cableDuct),
-      chassis.add(mastMount));
+    (cableDuct.position.set(0, deck + 0.33, baseZ + 0.08), mastMount.add(cableDuct));
+    let harness = new Mesh(
+      routedCableGeometry(
+        [
+          [0, deck + 0.49, baseZ + 0.08],
+          [0.065, deck + 0.55, baseZ + 0.09],
+          [0.075, deck + 0.61, D.camZ + 0.1],
+          [0, deck + D.camY - 0.07, D.camZ + 0.1],
+        ],
+        VEHICLE_DETAIL.cableRadius,
+        C.tier,
+      ),
+      dark,
+    );
+    ((harness.name = "mast-instrument-harness"), mastMount.add(harness));
+    let clamps = Merged();
+    for (let y of [deck + 0.22, deck + 0.43])
+      clamps.add(formedBox(0.055, 0.018, 0.052, 0.004), xf([0, y, baseZ + 0.08]));
+    let retainers = new Mesh(clamps.build(), metal);
+    ((retainers.name = "mast-harness-retainers"), mastMount.add(retainers), chassis.add(mastMount));
     let lidar = new Mesh(formedBox(0.17, 0.12, 0.15, 0.006), armour);
     (lidar.position.set(0, deck + D.camY + 0.145, D.camZ + 0.015),
       (lidar.userData.designRole = "lidar-cluster"),
@@ -63691,12 +64031,21 @@ body.ti-voyage #ti-transfer-trigger {
           ).mul(sheen3),
           rim = pow5(float2(1).sub(abs2(dot2(n, v))), float2(3)).mul(sheen3 * 0.14),
           surface = vec32(...rgb).mul(finish ? finish.color : float2(1)),
+          optical = !profile && gloss >= 70 && rgb[2] > rgb[0] * 2,
+          fresnel = pow5(float2(1).sub(abs2(dot2(n, v))), float2(5))
+            .mul(0.96)
+            .add(0.04),
           lit = finish
             ? aerospaceLighting(surface, n, v, L, finish)
-            : surface
-                .mul(ndl.mul(1.36).add(0.052))
-                .add(vec32(1, 0.97, 0.91).mul(spec))
-                .add(vec32(0.28, 0.34, 0.4).mul(rim)),
+            : optical
+              ? surface
+                  .mul(0.16)
+                  .add(vec32(0.12, 0.16, 0.19).mul(fresnel))
+                  .add(vec32(1, 0.97, 0.91).mul(spec))
+              : surface
+                  .mul(ndl.mul(1.36).add(0.052))
+                  .add(vec32(1, 0.97, 0.91).mul(spec))
+                  .add(vec32(0.28, 0.34, 0.4).mul(rim)),
           fog3 = float2(1).sub(exp3(positionView2.length().mul(-C.atmosphere.fogDensity)));
         return vec42(mix2(lit, vec32(...C.color.horizon), smoothstep3(0, 1, fog3)), 1);
       })()),
@@ -64337,7 +64686,16 @@ body.ti-voyage #ti-transfer-trigger {
           mz = (a[1] + b[1]) * 0.5,
           ml = Math.hypot(mx, mz) || 1;
         (visor.position.set(mx + (mx / ml) * 0.045, 4.08, mz + (mz / ml) * 0.045),
-          (visor.rotation.y = Math.atan2(-dz, dx)),
+          (visor.rotation.y = Math.atan2(-dz, dx)));
+        let frame = new Mesh(
+          windowFrameGeometry(length3 * 0.97, 0.49, 0.1, VEHICLE_DETAIL.sealWidth),
+          dark,
+        );
+        ((frame.name = "sealed-visor-frame"), visor.add(frame));
+        let retainingRim = new Mesh(windowFrameGeometry(length3 * 0.99, 0.53, 0.065, 0.016), metal);
+        ((retainingRim.position.z = 0.006),
+          (retainingRim.name = "visor-retaining-rim"),
+          visor.add(retainingRim),
           this.core.add(visor),
           sensorVisor.push(visor));
       }
@@ -64605,6 +64963,12 @@ body.ti-voyage #ti-transfer-trigger {
         for (let y of [2.45, 4.4]) box(5, ceramic, [0.19, 0.24, 0.14], [side * 1.73, y, -3.88]);
       }
       for (let side of [-1, 1]) {
+        box(5, dark, [VEHICLE_DETAIL.sealWidth, 2.7, 0.035], [side * 1.555, 3.48, -3.86]);
+        for (let y of [2.45, 4.4])
+          (box(5, dark, [0.11, 0.15, 0.035], [side * 1.73, y, -3.96]),
+            box(5, metal, [0.055, 0.09, 0.045], [side * 1.73, y, -3.985]));
+      }
+      for (let side of [-1, 1]) {
         let yaw = (side * Math.PI) / 2;
         for (let z of [-1.5, -0.55, 0.4, 1.35])
           if (
@@ -64614,7 +64978,11 @@ body.ti-voyage #ti-transfer-trigger {
           )
             for (let y of [3.99, 4.45])
               for (let dz of [-0.28, 0.28])
-                add3(3, metal, new SphereGeometry(0.024, 6, 4), [side * 3.56, y, z + dz]);
+                add3(3, metal, new SphereGeometry(VEHICLE_DETAIL.fastenerRadius, 6, 4), [
+                  side * 3.56,
+                  y,
+                  z + dz,
+                ]);
         for (let i = 0; i < (tier === "high" ? 12 : 6); i++)
           box(
             2,

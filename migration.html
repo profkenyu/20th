@@ -35841,6 +35841,7 @@ void main() {
         "W-R/L",
         "W-L",
         "W-R",
+        "TAIL / 06",
       ];
       var ROW = 32;
       var ATLAS_HEIGHT = 2048;
@@ -35858,7 +35859,7 @@ void main() {
           return material2;
         }
         const canvas = document.createElement("canvas"),
-          scale = tier2 === "low" ? 1 : 2;
+          scale = tier2 === "high" ? 2 : 1;
         canvas.width = 512 * scale;
         canvas.height = 2048 * scale;
         const c = canvas.getContext("2d");
@@ -35870,7 +35871,7 @@ void main() {
             c.fillStyle = ink ? "#20282d" : "#d9dfdf";
             c.textAlign = "center";
             c.textBaseline = "middle";
-            c.font = `${word === "TERRAFORMING_PROJECT" ? 600 : 900} ${word.length > 14 ? 18 : 24}px Arial, sans-serif`;
+            c.font = `${word.startsWith("TR-") || /^I[0-9]/.test(word) ? 900 : 600} ${word.length > 14 ? 18 : 24}px Arial, sans-serif`;
             c.save();
             c.translate(256, y + ROW / 2);
             c.scale(470 / c.measureText(word).width, 1);
@@ -36349,7 +36350,8 @@ void main() {
               v = (y + 0.5) / size,
               n = hash(Math.floor(u * 128), Math.floor(v * 128));
             const broad = noise(u, v, 8),
-              fine = noise(u, v, 48);
+              fine = noise(u, v, 48),
+              finishField = noise(fract(u + 0.317), fract(v + 0.619), 13);
             let tone = 1,
               height = 0.5,
               rough = 0.9,
@@ -36378,10 +36380,8 @@ void main() {
               kind === "ship-steel" ||
               kind === "ship-titanium"
             ) {
-              const brush =
-                (noise(u, v, 64) - 0.5) * 0.28 +
-                Math.sin(2 * Math.PI * (v * 43 + 0.025 * Math.sin(u * 6 * Math.PI))) * 0.36;
-              const machining = (noise(u, v, 32) - 0.5) * 0.2 + (noise(0, v, 64) - 0.5) * 0.8;
+              const brush = (noise(u, v, 64) - 0.5) * 0.04 + (noise(0, v, 64) - 0.5) * 0.32;
+              const machining = (noise(0, v, 64) - 0.5) * 0.32;
               const scratch =
                 Math.pow(Math.max(0, Math.sin(2 * Math.PI * (v * 23 + u))), 42) *
                 Math.max(0, broad - 0.57);
@@ -36391,7 +36391,7 @@ void main() {
               rough = clamp2(
                 (kind.endsWith("steel") ? 0.82 : 0.9) +
                   brush * 0.13 +
-                  (broad - 0.5) * 0.17 +
+                  (finishField - 0.5) * 0.13 +
                   scratch * 0.18,
               );
               tint = (broad - 0.5) * 0.016;
@@ -36412,7 +36412,7 @@ void main() {
             } else {
               tone = 0.973 + (broad - 0.5) * 0.035;
               height = 0.5 + (fine - 0.5) * 0.042 + (n - 0.5) * 8e-3;
-              rough = 0.91 + (fine - 0.5) * 0.09 + (broad - 0.5) * 0.11;
+              rough = 0.95 + (finishField - 0.5) * 0.07 + (fine - 0.5) * 0.035;
             }
             const i = (y * size + x) * 4;
             color[i] = Math.round(clamp2(tone + tint) * 255);
@@ -36865,7 +36865,21 @@ void main() {
           roughness: 0.55,
           metalness: 0.72,
         });
-        block(fixed, -side * 19, 0, 0, 18, 30, length * 0.76);
+        block(fixed, -side * 19, 0, 0, 18, 16, length * 0.76);
+        for (const z of [-length * 0.32, length * 0.32])
+          for (const face of [-1, 1]) {
+            const shape = new Shape();
+            shape.moveTo(-side * 28, face * 7);
+            shape.lineTo(-side * 28, face * 15);
+            shape.lineTo(-side * 10, face * 7);
+            shape.closePath();
+            const web = new ExtrudeGeometry(shape, {
+              depth: 5,
+              bevelEnabled: false,
+            });
+            web.translate(0, 0, z - 2.5);
+            fixed.push(web);
+          }
         for (const z of [-length * 0.32, length * 0.32]) {
           knuckle(fixed, tier2, 0, 0, z, 3.1, 30);
           for (const end of [-12, 12]) {
@@ -37537,6 +37551,19 @@ void main() {
         };
       }
 
+      // works/shared/detail-scale.js
+      var ACCESS_SCALE = Object.freeze({
+        leafHeight: 10.2,
+        leafWidth: 6.2,
+        fastener: 0.3,
+        gripThickness: 0.32,
+      });
+      var VEHICLE_DETAIL = Object.freeze({
+        fastenerRadius: 0.012,
+        sealWidth: 0.026,
+        cableRadius: 9e-3,
+      });
+
       // works/first_dawn/service-scale.js
       function serviceHatch(block2, origin, orientation = new Quaternion(), tier2 = "high") {
         const put = (material, x, y, z, w, h, d) => {
@@ -37544,11 +37571,11 @@ void main() {
           block2(material, p.x, p.y, p.z, w, h, d, orientation);
         };
         put("dark", 0, 0, 0.28, 7.6, 11.6, 0.55);
-        put("paint", 0, 0, 0.62, 6.2, 10.2, 0.42);
+        put("paint", 0, 0, 0.62, ACCESS_SCALE.leafWidth, ACCESS_SCALE.leafHeight, 0.42);
         for (const x of [-3.6, 3.6]) put("steel", x, 0, 0.9, 0.45, 11.6, 0.55);
         for (const y of [-5.55, 5.55]) put("steel", 0, y, 0.9, 7.6, 0.5, 0.55);
         for (const y of [-2.6, 2.6]) {
-          put("steel", 4.8, y, 1.05, 0.55, 2.4, 0.55);
+          put("steel", 4.8, y, 1.05, ACCESS_SCALE.gripThickness, 2.4, 0.55);
           if (tier2 !== "low")
             for (const dy of [-1, 1]) put("steel", 4.8, y + dy, 0.55, 0.6, 0.45, 1.1);
         }
@@ -37580,11 +37607,15 @@ void main() {
             roughness: 0.67,
             metalness: 0.58,
           });
-        const glass = toon(1518129, {
-          metalness: 0.6,
-          roughness: 0.22,
-          emissive: 11257804,
-          emissiveIntensity: 0.12,
+        const glass = new MeshPhysicalMaterial({
+          color: 1188651,
+          metalness: 0,
+          roughness: 0.18,
+          ior: 1.46,
+          clearcoat: tier2 === "low" ? 0 : 0.8,
+          clearcoatRoughness: 0.12,
+          // Opaque dark interior approximation avoids transparent sorting and reveals no hollow hull.
+          transmission: 0,
         });
         const engine2 = toon(1385771, {
           emissive: 5405064,
@@ -37842,7 +37873,16 @@ void main() {
                     for (const u of [u0 + (u1 - u0) * 0.09, u1 - (u1 - u0) * 0.09])
                       for (const v of [v0 + (v1 - v0) * 0.12, v1 - (v1 - v0) * 0.12]) {
                         const p = facet(a, b, u, v).addScaledVector(n, 1.22);
-                        add(0, p.x, p.y, p.z, 1.35, 1.35, 0.45, q);
+                        add(
+                          0,
+                          p.x,
+                          p.y,
+                          p.z,
+                          ACCESS_SCALE.fastener,
+                          ACCESS_SCALE.fastener,
+                          0.18,
+                          q,
+                        );
                       }
                   }
                   if (face === 2 || face === 6) {
@@ -38259,6 +38299,156 @@ void main() {
         return Array.from({ length: count }, (_, i) => create(i));
       }
 
+      // works/first_dawn/cruciform-tail.js
+      function addCruciformTail(ship, tier2) {
+        const tail = new Group();
+        tail.name = "cruciform-tail";
+        tail.userData.blueprintPart = 3;
+        ship.add(tail);
+        const skin = shipMaterial("titanium", tier2, {
+          color: 6517118,
+          roughness: 0.67,
+          metalness: 0.58,
+        });
+        const edge = shipMaterial("white", tier2, {
+          color: 11186353,
+          roughness: 0.76,
+        });
+        const root = shipMaterial("steel", tier2, {
+          color: 5792620,
+          roughness: 0.56,
+        });
+        const definitions = [
+          {
+            id: "dorsal",
+            span: 170,
+            corners: [
+              [0, 65, -346],
+              [0, 235, -414],
+              [0, 235, -467],
+              [0, 65, -471],
+            ],
+            normal: [1, 0, 0],
+          },
+          {
+            id: "port",
+            span: 64,
+            corners: [
+              [-183, 0, -330],
+              [-247, 0, -354],
+              [-247, 0, -386],
+              [-183, 0, -394],
+            ],
+            normal: [0, 1, 0],
+          },
+          {
+            id: "starboard",
+            span: 64,
+            corners: [
+              [183, 0, -330],
+              [247, 0, -354],
+              [247, 0, -386],
+              [183, 0, -394],
+            ],
+            normal: [0, 1, 0],
+          },
+          {
+            id: "ventral",
+            span: 24,
+            corners: [
+              [0, -55, -385],
+              [0, -79, -410],
+              [0, -79, -445],
+              [0, -55, -453],
+            ],
+            normal: [1, 0, 0],
+          },
+        ];
+        const size = 0.5;
+        const mounts = [];
+        for (const d of definitions) {
+          const anchor = new Vector3(...d.corners[0])
+            .add(new Vector3(...d.corners[3]))
+            .multiplyScalar(0.5);
+          d.corners = d.corners.map((p) =>
+            new Vector3(...p).sub(anchor).multiplyScalar(size).add(anchor).toArray(),
+          );
+          const n = new Vector3(...d.normal),
+            corners = d.corners.map((p) => new Vector3(...p));
+          if (
+            corners[1].clone().sub(corners[0]).cross(corners[3].clone().sub(corners[0])).dot(n) < 0
+          )
+            corners.reverse();
+          const geometry = fabricatedPanel(
+            corners.map((p) => p.clone().addScaledVector(n, -3 * size)),
+            6 * size,
+            1.05 * size,
+          );
+          const uv = [],
+            pos = geometry.attributes.position;
+          for (let i = 0; i < pos.count; i++)
+            uv.push((d.normal[0] ? pos.getY(i) : pos.getX(i)) * 0.025, pos.getZ(i) * 0.045);
+          geometry.setAttribute("uv", new Float32BufferAttribute(uv, 2));
+          const fin = new Mesh(geometry, skin);
+          fin.name = `tail-fin-${d.id}`;
+          fin.castShadow = fin.receiveShadow = true;
+          fin.userData = { blueprintPart: 3, span: d.span * size };
+          tail.add(fin);
+          const a = new Vector3(...d.corners[0]),
+            b = new Vector3(...d.corners[1]);
+          const aft = new Vector3(0, 0, -1.7 * size),
+            caps = [];
+          for (const face of [-1, 1]) {
+            const points = [a.clone(), b.clone(), b.clone().add(aft), a.clone().add(aft)].map((p) =>
+              p.addScaledVector(n, face * 3.025 * size),
+            );
+            const cross = points[1].clone().sub(points[0]).cross(points[3].clone().sub(points[0]));
+            if (cross.dot(n) * face < 0) points.reverse();
+            caps.push(fabricatedPanel(points, 0.12 * size, 0.025 * size));
+          }
+          tail.add(mergedShipDetail(caps, edge, `tail-edge-${d.id}`, 3));
+          const paint2 = markingBatch(tail, tier2);
+          for (const face of [-1, 1]) {
+            const vertical = d.normal[0] === 1,
+              side = d.id === "port" ? -1 : 1;
+            const centre = vertical
+              ? [0, d.id === "dorsal" ? 124 : -66, -425]
+              : [side * 215, 0, -368];
+            const right = vertical ? [0, 0, -face] : [1, 0, 0],
+              up = vertical ? [0, 1, 0] : [0, 0, -face];
+            const scaledCentre = new Vector3(...centre)
+              .sub(anchor)
+              .multiplyScalar(size)
+              .add(anchor)
+              .toArray();
+            const width = (d.id === "dorsal" ? 32 : d.id === "ventral" ? 22 : 23) * size,
+              height = (d.id === "dorsal" ? 5 : 3) * size;
+            paint2.project("TR-X06", [fin], scaledCentre, right, up, width, height, false, 0.055);
+            const sub = scaledCentre.map((v, i) => v - up[i] * (height + 2 * size));
+            paint2.project(
+              vertical ? "TAIL / 06" : side < 0 ? "W-L" : "W-R",
+              [fin],
+              sub,
+              right,
+              up,
+              width * 0.78,
+              height * 0.62,
+              false,
+              0.055,
+            );
+          }
+          paint2.finish();
+        }
+        mounts.push(new BoxGeometry(15 * size, 8 * size, 124 * size).translate(0, 64, -409));
+        mounts.push(new BoxGeometry(12 * size, 7 * size, 68 * size).translate(0, -54.5, -419));
+        for (const side of [-1, 1])
+          mounts.push(
+            new BoxGeometry(12 * size, 10 * size, 62 * size).translate(side * 181, 0, -362),
+          );
+        tail.add(mergedShipDetail(mounts, root, "tail-root-shoes", 3));
+        return tail;
+      }
+
       // works/first_dawn/ring-markings.js
       var materials = /* @__PURE__ */ new Map();
       function modulePaint(tier2) {
@@ -38636,6 +38826,15 @@ void main() {
             }
           }
           ship.add(mergedShipDetail(bearings, mats[2], "stationary-ring-bearing-housings", 0));
+          const seals = [];
+          for (const z of HABITAT_RING_Z) {
+            for (const dz of [-10.2, 10.2]) {
+              const lip = ringShieldGeometry(52, 55.5, 1.2, 0, Math.PI * 2, tier2);
+              lip.translate(0, 0, z + dz);
+              seals.push(lip);
+            }
+          }
+          ship.add(mergedShipDetail(seals, mats[1], "stationary-hub-seal-lips", 0));
           partParent = ship;
           blueprintPart = 3;
           block2(1, 0, 0, -401, 130, 110, 163);
@@ -38673,6 +38872,7 @@ void main() {
             const core = mesh(new CircleGeometry(r * 0.58, detail), 4, x, y, -533);
             core.rotation.y = Math.PI;
           }
+          addCruciformTail(ship, tier2);
           const deployables = [];
           blueprintPart = 4;
           block2(2, 0, 72, 285, 19, 92, 24);
