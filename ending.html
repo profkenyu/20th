@@ -23292,6 +23292,15 @@
       });
       document.getElementById("return").href = path("index.html");
       archive.href = path("field-archive.html");
+      archive.textContent = "FIELD ARCHIVE · 탐사 기록 보기";
+      title.append(archive);
+      Object.assign(archive.style, {
+        display: "block",
+        marginTop: "28px",
+        fontSize: "12px",
+        letterSpacing: ".1em",
+        pointerEvents: "auto",
+      });
       Object.assign(title.style, { top: "40%", bottom: "auto", zIndex: "4" });
       var smooth2 = (x) => {
         x = Math.max(0, Math.min(1, x));
@@ -23304,7 +23313,9 @@
       function render(t) {
         seconds = Math.max(0, Math.min(18, t));
         title.style.opacity = String(smooth2((seconds - 4) / 6));
-        archive.hidden = replay.hidden = seconds < 12;
+        archive.hidden = seconds < 4.1;
+        archive.style.display = archive.hidden ? "none" : "block";
+        replay.hidden = seconds < 12;
         audio.update(seconds);
       }
       function tick(now2) {

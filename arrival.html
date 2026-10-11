@@ -1171,6 +1171,114 @@
         },
       });
 
+      // works/shared/vehicle-archive.js
+      var VEHICLE_ARCHIVE_KEY = "terra-incognita:vehicle-archive:v1";
+      var kinds = /* @__PURE__ */ new Set(["rover", "surveyor", "fleet"]);
+      var contexts = /* @__PURE__ */ new Set([
+        "terra",
+        "desert",
+        "granite",
+        "migration",
+        "arrival",
+      ]);
+      function readVehicleArchive(storage) {
+        try {
+          const source = JSON.parse(storage.getItem(VEHICLE_ARCHIVE_KEY) || "null");
+          if (source?.version !== 1) return [];
+          return (Array.isArray(source.records) ? source.records : [])
+            .slice(0, 8)
+            .filter(
+              (r) =>
+                r &&
+                r.id === `${r.kind}:${r.context}` &&
+                kinds.has(r.kind) &&
+                contexts.has(r.context) &&
+                typeof r.image === "string" &&
+                r.image.length < 1e5 &&
+                /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(r.image) &&
+                Number.isFinite(r.seconds) &&
+                r.status &&
+                typeof r.status === "object",
+            );
+        } catch {
+          return [];
+        }
+      }
+      function createVehicleRecorder() {
+        let records,
+          storage,
+          canvas,
+          context2,
+          disabled = false;
+        try {
+          storage = sessionStorage;
+          records = null;
+        } catch {
+          disabled = true;
+          records = [];
+        }
+        const clocks = /* @__PURE__ */ new Map(),
+          seen = /* @__PURE__ */ new Map();
+        return {
+          sample({ kind, context: place, seconds: seconds2, source, eligible, status }) {
+            if (disabled || !eligible || !Number.isFinite(seconds2)) return false;
+            const id = `${kind}:${place}`,
+              previous = clocks.get(id);
+            if (previous !== void 0 && seconds2 < previous + 12) return false;
+            clocks.set(id, seconds2);
+            try {
+              if (records === null) {
+                records = readVehicleArchive(storage);
+                for (const r of records) seen.set(r.id, r.seen || 1);
+              }
+              if (records.length && !storage.getItem(VEHICLE_ARCHIVE_KEY)) {
+                records = [];
+                seen.clear();
+              }
+              const count = (seen.get(id) || 0) + 1;
+              seen.set(id, count);
+              if (Math.random() >= 1 / count) return false;
+              if (!source.width || !source.height) return false;
+              canvas ||= document.createElement("canvas");
+              const scale = Math.min(480 / source.width, 640 / source.height);
+              canvas.width = Math.max(1, Math.round(source.width * scale));
+              canvas.height = Math.max(1, Math.round(source.height * scale));
+              context2 ||= canvas.getContext("2d", { willReadFrequently: true });
+              context2.drawImage(source, 0, 0, canvas.width, canvas.height);
+              const pixels = context2.getImageData(0, 0, canvas.width, canvas.height).data;
+              let bright = 0;
+              for (let i = 0; i < pixels.length; i += 64)
+                if (pixels[i] + pixels[i + 1] + pixels[i + 2] > 45) bright++;
+              if (bright < 20) return false;
+              const image = canvas.toDataURL("image/jpeg", 0.64);
+              if (image.length >= 1e5) return false;
+              const record = {
+                id,
+                kind,
+                context: place,
+                seconds: seconds2,
+                seen: count,
+                status: status(),
+                image,
+                width: canvas.width,
+                height: canvas.height,
+              };
+              const next2 = [...records.filter((r) => r.id !== id), record].slice(-8);
+              storage.setItem(VEHICLE_ARCHIVE_KEY, JSON.stringify({ version: 1, records: next2 }));
+              records = next2;
+              return true;
+            } catch {
+              disabled = true;
+              return false;
+            }
+          },
+          snapshot: () => ({
+            records: records?.length || 0,
+            storage: disabled ? "unavailable" : "available",
+          }),
+        };
+      }
+
       // node_modules/three/build/three.core.js
       var REVISION = "185";
       var CullFaceNone = 0;
@@ -65436,6 +65544,7 @@ void main() {
       }
 
       // works/first_dawn/main.js
+      var vehicleRecorder = createVehicleRecorder();
       var params = new URLSearchParams(location.search);
       var requested = params.get("quality");
       var phase = document.body.dataset.phase === "arrival" ? "arrival" : "migration";
@@ -65700,6 +65809,19 @@ void main() {
           enter * exit,
         );
         renderer.render(scene, camera);
+        vehicleRecorder.sample({
+          kind: "fleet",
+          context: phase,
+          seconds,
+          source: renderer.domElement,
+          eligible: enter * exit > 0.95 && phase === "migration" && !opening && seconds > 31,
+          status: () => ({
+            shot: currentShot,
+            ships: fleet.length,
+            ringPeriodSeconds: 80,
+            sceneSeconds: seconds,
+          }),
+        });
       }
       function tick2(now3) {
         requestAnimationFrame(tick2);
@@ -65797,7 +65919,12 @@ void main() {
           fleet,
           tier,
           phase === "migration"
-            ? { lengthScale: 112.5, tailFalloff: 1.6, brightness: 1.15, colorGradient: true }
+            ? {
+                lengthScale: 112.5,
+                tailFalloff: 1.6,
+                brightness: 1.15,
+                colorGradient: true,
+              }
             : {},
         );
         if (phase === "arrival")

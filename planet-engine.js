@@ -3,6 +3,104 @@
   var __export = (target, all3) => {
     for (var name in all3) __defProp(target, name, { get: all3[name], enumerable: !0 });
   };
+  var VEHICLE_ARCHIVE_KEY = "terra-incognita:vehicle-archive:v1",
+    kinds = new Set(["rover", "surveyor", "fleet"]),
+    contexts = new Set(["terra", "desert", "granite", "migration", "arrival"]);
+  function readVehicleArchive(storage4) {
+    try {
+      let source = JSON.parse(storage4.getItem(VEHICLE_ARCHIVE_KEY) || "null");
+      return source?.version !== 1
+        ? []
+        : (Array.isArray(source.records) ? source.records : [])
+            .slice(0, 8)
+            .filter(
+              (r) =>
+                r &&
+                r.id === `${r.kind}:${r.context}` &&
+                kinds.has(r.kind) &&
+                contexts.has(r.context) &&
+                typeof r.image == "string" &&
+                r.image.length < 1e5 &&
+                /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(r.image) &&
+                Number.isFinite(r.seconds) &&
+                r.status &&
+                typeof r.status == "object",
+            );
+    } catch {
+      return [];
+    }
+  }
+  function createVehicleRecorder() {
+    let records,
+      storage4,
+      canvas,
+      context3,
+      disabled = !1;
+    try {
+      ((storage4 = sessionStorage), (records = null));
+    } catch {
+      ((disabled = !0), (records = []));
+    }
+    let clocks = new Map(),
+      seen = new Map();
+    return {
+      sample({ kind, context: place, seconds, source, eligible, status }) {
+        if (disabled || !eligible || !Number.isFinite(seconds)) return !1;
+        let id = `${kind}:${place}`,
+          previous = clocks.get(id);
+        if (previous !== void 0 && seconds < previous + 12) return !1;
+        clocks.set(id, seconds);
+        try {
+          if (records === null) {
+            records = readVehicleArchive(storage4);
+            for (let r of records) seen.set(r.id, r.seen || 1);
+          }
+          records.length &&
+            !storage4.getItem(VEHICLE_ARCHIVE_KEY) &&
+            ((records = []), seen.clear());
+          let count = (seen.get(id) || 0) + 1;
+          if ((seen.set(id, count), Math.random() >= 1 / count || !source.width || !source.height))
+            return !1;
+          canvas ||= document.createElement("canvas");
+          let scale2 = Math.min(480 / source.width, 640 / source.height);
+          ((canvas.width = Math.max(1, Math.round(source.width * scale2))),
+            (canvas.height = Math.max(1, Math.round(source.height * scale2))),
+            (context3 ||= canvas.getContext("2d", { willReadFrequently: !0 })),
+            context3.drawImage(source, 0, 0, canvas.width, canvas.height));
+          let pixels = context3.getImageData(0, 0, canvas.width, canvas.height).data,
+            bright = 0;
+          for (let i = 0; i < pixels.length; i += 64)
+            pixels[i] + pixels[i + 1] + pixels[i + 2] > 45 && bright++;
+          if (bright < 20) return !1;
+          let image = canvas.toDataURL("image/jpeg", 0.64);
+          if (image.length >= 1e5) return !1;
+          let record = {
+              id,
+              kind,
+              context: place,
+              seconds,
+              seen: count,
+              status: status(),
+              image,
+              width: canvas.width,
+              height: canvas.height,
+            },
+            next = [...records.filter((r) => r.id !== id), record].slice(-8);
+          return (
+            storage4.setItem(VEHICLE_ARCHIVE_KEY, JSON.stringify({ version: 1, records: next })),
+            (records = next),
+            !0
+          );
+        } catch {
+          return ((disabled = !0), !1);
+        }
+      },
+      snapshot: () => ({
+        records: records?.length || 0,
+        storage: disabled ? "unavailable" : "available",
+      }),
+    };
+  }
   function bindMissionTripleTap({ target = document, enabled, onComplete }) {
     let contact = null,
       count = 0,
@@ -60331,7 +60429,12 @@ body.ti-voyage #ti-transfer-trigger {
       this.data = { version: 4, stations: [], records: [], missions: {}, transmission: null };
       try {
         for (let key3 of this.key === DEFAULT_FIELD_ARCHIVE_KEY
-          ? [this.key, "terra-incognita:field-archive:v3", "terra-incognita:field-archive:v2"]
+          ? [
+              this.key,
+              "terra-incognita:field-archive:v3",
+              "terra-incognita:field-archive:v2",
+              "terra-incognita:vehicle-archive:v1",
+            ]
           : [this.key])
           this.storage?.removeItem(key3);
       } catch {}
@@ -67264,6 +67367,7 @@ body.ti-voyage #ti-transfer-trigger {
     try {
       for (let name of [
         "terra-incognita:mission-memory:v3",
+        "terra-incognita:vehicle-archive:v1",
         "terra-incognita:field-archive:v4",
         "terra-incognita:field-archive:v3",
         "terra-incognita:field-archive:v2",
@@ -67295,7 +67399,10 @@ body.ti-voyage #ti-transfer-trigger {
     return ((url.search = location.search), location.assign(url.href), new Promise(() => {}));
   }
   (async () => {
-    let planetState = new PlanetState();
+    let nextVehicleProbe = 0,
+      vehicleRecorder = createVehicleRecorder(),
+      vehicleFramePosition = new Vector3(),
+      planetState = new PlanetState();
     window.TI_PLANET_STATE = () => planetState.snapshot();
     let touchTerminal =
         typeof navigator < "u" &&
@@ -69121,10 +69228,44 @@ body.ti-voyage #ti-transfer-trigger {
           lens.setProfile(shotDirector.rendered),
           lens.render());
       } else renderer.render(scene, camera);
-      (captureFieldArchiveObservation(now2, missionEnding),
-        !completionTableau && !docking.active && (!voyage.active || voyage.phase === "ended")
-          ? await kiosk.update(now2, returnToStart)
-          : (kiosk.last = now2),
+      if (
+        (captureFieldArchiveObservation(now2, missionEnding),
+        released && !document.hidden && now2 >= nextVehicleProbe)
+      ) {
+        nextVehicleProbe = now2 + 2e3;
+        for (let [kind, object] of [
+          ["rover", rover.group],
+          ["surveyor", lander.group],
+        ])
+          (object.getWorldPosition(vehicleFramePosition),
+            vehicleFramePosition.project(camera),
+            vehicleRecorder.sample({
+              kind,
+              context: world,
+              seconds: now2 / 1e3,
+              source: renderer.domElement,
+              eligible:
+                object.visible &&
+                Math.abs(vehicleFramePosition.x) < 0.82 &&
+                Math.abs(vehicleFramePosition.y) < 0.82 &&
+                vehicleFramePosition.z > -1 &&
+                vehicleFramePosition.z < 1 &&
+                camera.position.distanceTo(object.position) < 90,
+              status: () => ({
+                mission: world,
+                phase: docking.started
+                  ? docking.phase
+                  : kind === "rover"
+                    ? "survey"
+                    : "surface standby",
+                charge: power.charge,
+                position: object.position.toArray().map((v2) => Math.round(v2 * 100) / 100),
+              }),
+            }));
+      }
+      (!completionTableau && !docking.active && (!voyage.active || voyage.phase === "ended")
+        ? await kiosk.update(now2, returnToStart)
+        : (kiosk.last = now2),
         adaptive.sample(frameMs, now2) === "critical" && activateArchive("measured"));
       let pw = power.update(dt, {
           ...v,
