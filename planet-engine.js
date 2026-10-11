@@ -61526,6 +61526,12 @@ body.ti-voyage #ti-transfer-trigger {
       "RCS / KEEP CLEAR",
       "LOX / FEED",
       "ACCESS / 01",
+      "W-L/U",
+      "W-L/L",
+      "W-R/U",
+      "W-R/L",
+      "W-L",
+      "W-R",
     ],
     ROW = 32,
     ATLAS_HEIGHT = 2048,
@@ -63887,46 +63893,64 @@ body.ti-voyage #ti-transfer-trigger {
       [-1.95, -3.28],
     ];
   function facetedHullGeometry() {
-    let outline = HULL_OUTLINE,
-      rings = [
+    let rings = [
+        [2.55, 0.82],
         [3.05, 0.72],
         [3.58, 1],
         [4.38, 1],
         [5.08, 0.76],
         [5.45, 0.46],
       ],
-      positions = [];
-    for (let [y, scale2] of rings)
-      for (let [x, z] of outline) positions.push(x * scale2, y, z * scale2);
-    let indices = [],
-      n = outline.length;
+      points = [],
+      n = HULL_OUTLINE.length,
+      clip = (poly, axis2, edge, sign4) => {
+        let out = [];
+        for (let i = 0; i < poly.length; i++) {
+          let a = poly[i],
+            b = poly[(i + 1) % poly.length],
+            da = (a[axis2] - edge) * sign4,
+            db = (b[axis2] - edge) * sign4;
+          (da >= 0 && out.push(a),
+            da >= 0 != db >= 0 && out.push(a.map((v, k) => v + ((b[k] - v) * da) / (da - db))));
+        }
+        return out;
+      },
+      emit = (poly) => {
+        for (let i = 1; i < poly.length - 1; i++) {
+          let a = poly[0],
+            b = poly[i],
+            c = poly[i + 1],
+            ab = new Vector3(...b).sub(new Vector3(...a)),
+            ac = new Vector3(...c).sub(new Vector3(...a));
+          ab.cross(ac).lengthSq() > 1e-14 && points.push(...a, ...b, ...c);
+        }
+      },
+      outsideBay = (poly) => {
+        (emit(clip(poly, 0, -1.53, -1)), emit(clip(poly, 0, 1.53, 1)));
+        let centre = clip(clip(poly, 0, -1.53, 1), 0, 1.53, -1);
+        (emit(clip(centre, 2, 0.96, 1)), emit(clip(clip(centre, 2, 0.96, -1), 1, 4.9, 1)));
+      },
+      vertex = (r, i) => [
+        HULL_OUTLINE[i % n][0] * rings[r][1],
+        rings[r][0],
+        HULL_OUTLINE[i % n][1] * rings[r][1],
+      ];
     for (let r = 0; r < rings.length - 1; r++)
-      for (let i = 0; i < n; i++) {
-        if (r <= 2 && (i === 0 || i === n - 1)) continue;
-        let a = r * n + i,
-          b = r * n + ((i + 1) % n),
-          d = (r + 1) * n + i,
-          c = (r + 1) * n + ((i + 1) % n);
-        indices.push(a, d, b, b, d, c);
-      }
-    let top = positions.length / 3;
-    positions.push(0, rings.at(-1)[0], 0);
-    for (let i = 0; i < n; i++) {
-      let j = (i + 1) % n,
-        offset = (rings.length - 1) * n;
-      indices.push(top, offset + j, offset + i);
-    }
-    let contour = outline.slice(1).map(([x, z]) => new Vector2(x * 0.72, z * 0.72));
-    contour.push(new Vector2(-1.53, 0.96), new Vector2(1.53, 0.96));
-    let capStart = positions.length / 3;
-    for (let point of contour) positions.push(point.x, rings[0][0], point.y);
-    for (let [a, b, c] of ShapeUtils.triangulateShape(contour, []))
-      indices.push(capStart + a, capStart + b, capStart + c);
-    let indexed = new BufferGeometry();
-    (indexed.setAttribute("position", new Float32BufferAttribute(positions, 3)),
-      indexed.setIndex(indices));
-    let geometry = indexed.toNonIndexed();
-    return (geometry.computeVertexNormals(), geometry);
+      for (let i = 0; i < n; i++)
+        outsideBay([vertex(r, i), vertex(r + 1, i), vertex(r + 1, i + 1), vertex(r, i + 1)]);
+    for (let i = 0; i < n; i++)
+      (outsideBay([[0, rings[0][0], 0], vertex(0, i), vertex(0, i + 1)]),
+        emit([
+          [0, rings.at(-1)[0], 0],
+          vertex(rings.length - 1, i + 1),
+          vertex(rings.length - 1, i),
+        ]));
+    let geometry = new BufferGeometry();
+    return (
+      geometry.setAttribute("position", new Float32BufferAttribute(points, 3)),
+      geometry.computeVertexNormals(),
+      geometry
+    );
   }
   function sampleSite(heightAt, cx, cz, originX, originZ, dense = !1) {
     let dxHome = originX - cx,
@@ -64292,7 +64316,7 @@ body.ti-voyage #ti-transfer-trigger {
           ));
       }
       let hull = new Mesh(facetedHullGeometry(), graphite);
-      (this.core.add(hull), this._track(3, hull));
+      ((hull.name = "sealed-pressure-shell"), this.core.add(hull), this._track(3, hull));
       let front = [
           [-3.35, -2.3],
           [-1.95, -3.28],
@@ -64334,20 +64358,36 @@ body.ti-voyage #ti-transfer-trigger {
       }
       this._track(4, ...sensorVisor);
       let bayDepth = this.dock.backZ - this.dock.hatchZ,
-        bayFloor = new Mesh(new BoxGeometry(3.02, 0.1, bayDepth), bayVoid);
+        bayFloor = new Mesh(new BoxGeometry(3.26, 0.1, bayDepth + 0.2), bayVoid);
       (bayFloor.position.set(
         0,
         this.dock.floorY - 0.05,
         (this.dock.hatchZ + this.dock.backZ) * 0.5,
       ),
+        (bayFloor.name = "sealed-bay-floor"),
         this.core.add(bayFloor),
         (this.bayFloor = bayFloor));
-      let bayBack = new Mesh(new PlaneGeometry(3.02, 2.82), bayVoid);
-      (bayBack.position.set(0, this.dock.floorY + 1.41, this.dock.backZ + 0.12),
+      let bayBack = new Mesh(new BoxGeometry(3.18, 2.94, 0.12), bayVoid);
+      (bayBack.position.set(0, this.dock.floorY + 1.47, this.dock.backZ + 0.1),
         (bayBack.rotation.y = Math.PI),
         this.core.add(bayBack),
         (this.bayBack = bayBack));
-      let bayFrames = [];
+      let bayFrames = [],
+        sealedDepth = this.dock.backZ - this.dock.hatchZ + 0.2,
+        bayCentre = (this.dock.hatchZ + this.dock.backZ + 0.08) * 0.5;
+      for (let side of [-1, 1]) {
+        let wall = new Mesh(new BoxGeometry(0.1, 2.94, sealedDepth), graphite);
+        ((wall.name = "sealed-bay-side"),
+          wall.position.set(side * 1.58, this.dock.floorY + 1.47, bayCentre),
+          this.core.add(wall),
+          bayFrames.push(wall));
+      }
+      let ceiling = new Mesh(new BoxGeometry(3.26, 0.1, sealedDepth), graphite);
+      ((ceiling.name = "sealed-bay-ceiling"),
+        ceiling.position.set(0, 4.95, bayCentre),
+        this.core.add(ceiling),
+        bayFrames.push(ceiling),
+        (bayBack.name = "sealed-bay-bulkhead"));
       for (let x of [-1.66, 1.66]) {
         let side = new Mesh(new BoxGeometry(0.15, 2.82, 0.48), graphite);
         (side.position.set(x, this.dock.floorY + 1.41, this.dock.hatchZ + 0.09),
