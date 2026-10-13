@@ -303,3 +303,11 @@ HTML과 JavaScript는 2칸 들여쓰기와 줄바꿈으로 정리했습니다. H
 `pressureVesselFittings`는 몸통-끝단 접합의 얇은 용접선과 선택적 체결 띠를 생성합니다. 고리형 모듈의 체결 띠와 체결 탭은 둥근 끝단에서 원통부로 이동해 실제 표면에 앉습니다. 부품은 선박별로 합쳐 그립니다. `reference-ark.js`의 고리 외장판에는 판별로 일정한 `shieldFinish`를 부여해 기존 항해 마모와 함께 미세한 색·거칠기 차이를 적용합니다. 움직이는 노이즈나 새 발광은 없습니다.
 
 이는 제작 구조를 드러내기 위한 모델링이며 압력·피로·열응력 해석을 뜻하지 않습니다. 검사: `tools/pressure-module-refinement.mjs`, `tools/ship-structure.mjs`. 최신 화면과 수정 전 전달본: `output/qa/pressure-module-refinement/`.
+
+
+## 2026-10-13 유지 규칙
+
+- 링크 문구 옆에 화살표 문자·아이콘·CSS 장식을 넣지 않는다.
+- 관객 체류나 포인터 입력으로 환경을 바꾸는 제안 4는 제외한다.
+- FIELD ARCHIVE의 장소 상태와 비교 기록은 같은 출처의 브라우저 IndexedDB에 보존한다. NEW MISSION은 탐사 회차만 초기화하며 장소의 장기 기록은 지우지 않는다.
+- 빌드 원본과 검증·설계 기록은 상위 폴더의 빌드 프로젝트와 `design/terraforming-3-6.md`에 있다.

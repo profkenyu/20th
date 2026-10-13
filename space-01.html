@@ -32166,7 +32166,7 @@ void main() {
         "TR-X05",
         "TR-X06",
         "TERRAFORMING_PROJECT",
-        "SURVEY / 01",
+        "OBSERVE / SAMPLE",
         "F2345",
         "F1021",
         "F2406",
@@ -32178,7 +32178,7 @@ void main() {
         "TR-R01",
         "LIFT HERE",
         "NO STEP",
-        "SERVICE / 02",
+        "SUPPLY / SERVICE",
         "OPTICAL / KEEP CLEAR",
         "RCS / KEEP CLEAR",
         "LOX / FEED",
@@ -32190,8 +32190,9 @@ void main() {
         "W-L",
         "W-R",
         "TAIL / 06",
+        "HABITAT / SERVICE",
       ];
-      var ROW = 32;
+      var ROW = 30;
       var ATLAS_HEIGHT = 2048;
       var atlases = /* @__PURE__ */ new Map();
       function paint(tier2) {
@@ -32372,7 +32373,7 @@ void main() {
         }
         for (const side of [-1, 1])
           b.project(
-            "SERVICE / 02",
+            "SUPPLY / SERVICE",
             targets,
             [0, 3.88, 1.5],
             [0, 0, -side],
@@ -55473,6 +55474,7 @@ void main() {
         response: response2 = null,
       }) {
         const quality2 = TIERS[tier2] || TIERS.low;
+        let environment = null;
         let graph = null,
           pending = null,
           enabled = false,
@@ -55500,6 +55502,20 @@ void main() {
           duration,
           decay: quality2.decay,
           gain: graph?.master.gain.value ?? 0,
+          environment,
+          environmentMix: environment
+            ? {
+                wind: graph?.environmentGates.wind?.gain.value ?? 0,
+                water: graph?.environmentGates.water?.gain.value ?? 0,
+                pump: graph?.environmentGates.pump?.gain.value ?? 0,
+                music:
+                  environment.eventAt != null
+                    ? Math.max(0, 1 - (environment.time - environment.eventAt) / 8)
+                    : phase === "ending"
+                      ? 0
+                      : 1,
+              }
+            : null,
           toneHz: response2?.toneHz ?? 73.416,
           score: journeyScore(phase, seconds, duration, distance),
           ...(graph?.meter ? { waveform: Array.from(graph.meter.getValue()) } : {}),
@@ -55589,7 +55605,26 @@ void main() {
               nodes.forEach((node) => node.dispose());
               return;
             }
-            graph = { nodes, master, gates, wet, colour, meter };
+            const environmentGates = {};
+            if (phase === "arrival" || phase === "ending") {
+              for (const [name, frequency, kind] of [
+                ["wind", 450, "brown"],
+                ["water", 1600, "pink"],
+              ]) {
+                const source3 = own(new Noise(kind));
+                const filter = own(new Filter({ type: "bandpass", frequency, Q: 0.6 }));
+                const gate2 = own(new Gain(0));
+                source3.chain(filter, gate2, master);
+                source3.start();
+                environmentGates[name] = gate2;
+              }
+              const source2 = own(new Oscillator(92, "triangle")),
+                gate = own(new Gain(0));
+              source2.chain(gate, master);
+              source2.start();
+              environmentGates.pump = gate;
+            }
+            graph = { nodes, master, gates, wet, colour, meter, environmentGates };
           } catch (error2) {
             nodes.forEach((node) => node.dispose());
             throw error2;
@@ -55600,22 +55635,51 @@ void main() {
           param.linearRampToValueAtTime(target2, now2 + 0.12);
         };
         function update(t2, d = 12e3, envelope = 1) {
-          seconds = Math.max(0, Math.min(duration, t2));
+          seconds = Math.max(0, environment ? t2 : Math.min(duration, t2));
           distance = d;
           level = Math.max(0, Math.min(1, envelope));
           if (!graph || (Math.abs(seconds - lastUpdate) < 0.075 && seconds !== duration)) return;
           lastUpdate = seconds;
-          const score = journeyScore(phase, seconds, duration, distance),
+          const score = journeyScore(
+              phase,
+              environment ? Math.min(seconds, 53) : seconds,
+              environment ? (phase === "arrival" ? 64 : 18) : duration,
+              distance,
+            ),
             now2 = now();
-          for (const band of BANDS) ramp(graph.gates[band].gain, score[band], now2);
+          const eventFade =
+            environment?.eventAt != null
+              ? Math.max(0, 1 - (environment.time - environment.eventAt) / 8)
+              : 1;
+          const music = environment ? (phase === "ending" ? 0 : eventFade) : 1;
+          for (const band of BANDS) ramp(graph.gates[band].gain, score[band] * music, now2);
+          if (environment) {
+            const fade = Math.min(1, Math.max(0, (environment.time - 20) / 16));
+            ramp(
+              graph.environmentGates.wind.gain,
+              Math.max(0, environment.wind - 1.6) * 0.018 * fade,
+              now2,
+            );
+            ramp(
+              graph.environmentGates.water.gain,
+              Math.min(0.028, environment.flow * 0.025) * fade,
+              now2,
+            );
+            ramp(graph.environmentGates.pump.gain, environment.pumpPower * 0.024 * fade, now2);
+          }
           ramp(graph.wet.gain, score.wet, now2);
           ramp(graph.colour.frequency, score.cutoff, now2);
-          ramp(graph.master.gain, enabled && !paused2 ? 0.85 * score.envelope * level : 0, now2);
-          if (!enabled || seconds >= duration) {
+          ramp(
+            graph.master.gain,
+            enabled && !paused2 ? 0.85 * (environment ? 1 : score.envelope) * level : 0,
+            now2,
+          );
+          if (!enabled || (seconds >= duration && !environment)) {
             if (!suspendTimer)
               suspendTimer = setTimeout(() => {
                 suspendTimer = null;
-                if (!enabled || seconds >= duration) context2.rawContext.suspend().catch(() => {});
+                if (!enabled || (seconds >= duration && !environment))
+                  context2.rawContext.suspend().catch(() => {});
               }, 240);
           } else {
             clearTimeout(suspendTimer);
@@ -55669,7 +55733,7 @@ void main() {
         }
         function resume2() {
           paused2 = false;
-          if (graph && enabled && seconds < duration)
+          if (graph && enabled && (seconds < duration || environment))
             context2.rawContext
               .resume()
               .then(() => {
@@ -55693,6 +55757,9 @@ void main() {
           if (enabled) enable();
         }
         return {
+          setEnvironment(value) {
+            environment = value;
+          },
           enable,
           mute,
           pause: pause2,

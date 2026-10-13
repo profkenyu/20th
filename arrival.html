@@ -259,7 +259,7 @@
             <g class="sound-waves"><path d="M15 8a6 6 0 0 1 0 8M18 5a10 10 0 0 1 0 14" /></g>
             <path class="sound-muted" d="m16 9 6 6m0-6-6 6" /></svg></button
         ><button id="replay" hidden>REPLAY</button
-        ><a id="archive" href="field-archive.html" hidden>FIELD ARCHIVE ↗</a
+        ><a id="archive" href="field-archive.html" hidden>FIELD ARCHIVE</a
         ><a id="return" href="index.html">RETURN</a></nav
       ></footer
     >
@@ -35651,6 +35651,1154 @@ void main() {
         }
       };
 
+      // works/shared/exhibition-store.js
+      var EXHIBITION_DB = "beyond-known-place-v1";
+      var connection;
+      function openExhibition() {
+        if (connection) return connection;
+        connection = new Promise((resolve, reject) => {
+          const request = indexedDB.open(EXHIBITION_DB, 1);
+          request.onupgradeneeded = () => {
+            for (const name of ["world", "frames", "vehicles"])
+              request.result.createObjectStore(name, { keyPath: "id" });
+          };
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+          request.onblocked = () => reject(new Error("Installation storage is blocked"));
+        }).catch((error2) => {
+          connection = null;
+          throw error2;
+        });
+        return connection;
+      }
+      async function readExhibition() {
+        const db = await openExhibition();
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction(["world", "frames", "vehicles"], "readonly");
+          const world = tx.objectStore("world").get("basin");
+          const frames = tx.objectStore("frames").getAll();
+          const vehicles = tx.objectStore("vehicles").getAll();
+          tx.oncomplete = () =>
+            resolve({
+              version: 1,
+              scope: "this-browser-and-address",
+              world: world.result ?? null,
+              frames: frames.result,
+              vehicles: vehicles.result,
+            });
+          tx.onerror = () => reject(tx.error);
+          tx.onabort = () => reject(tx.error || new Error("Storage read aborted"));
+        });
+      }
+      async function writeWorld(state2) {
+        if (!state2.basin?.equipment) return false;
+        const db = await openExhibition();
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction("world", "readwrite"),
+            store = tx.objectStore("world");
+          let written = false;
+          const req = store.get("basin");
+          req.onsuccess = () => {
+            if ((req.result?.basin?.state?.time ?? -1) > state2.basin.state.time) return;
+            store.put({
+              id: "basin",
+              version: 1,
+              basin: state2.basin,
+              seed: state2.seed,
+              evidence: state2.evidence,
+              updatedAt: /* @__PURE__ */ new Date().toISOString(),
+            });
+            written = true;
+          };
+          tx.oncomplete = () => resolve(written);
+          tx.onerror = tx.onabort = () => reject(tx.error || new Error("World write aborted"));
+        });
+      }
+      async function writeExhibitionRecord(record, kind = "frames") {
+        if (!["frames", "vehicles"].includes(kind)) throw new Error("Unknown record store");
+        const db = await openExhibition();
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction(kind, "readwrite"),
+            store = tx.objectStore(kind);
+          if (kind === "frames") {
+            const req = store.get(record.id);
+            req.onsuccess = () => {
+              if (!req.result) store.put(record);
+            };
+            const all = store.getAll();
+            all.onsuccess = () => {
+              const old = all.result
+                .filter((r) => r.stage === "aftermath")
+                .sort((a, b) => b.seconds - a.seconds);
+              for (const r of old.slice(31)) store.delete(r.id);
+            };
+          } else store.put(record);
+          tx.oncomplete = () => resolve(true);
+          tx.onerror = tx.onabort = () => reject(tx.error || new Error("Record write aborted"));
+        });
+      }
+
+      // works/first_dawn/habitat/model.js
+      var GRID = 64;
+      var STEP = 0.1;
+      var TIME_SCALE = 30;
+      var SITE = Object.freeze({ x: -1400, z: 3300, size: 640 });
+      var COUNT = GRID * GRID;
+      var L = 334e3;
+      var LV = 25e5;
+      var CP = 4200;
+      var SOIL = 3e4;
+      var clamp2 = (x, a, b) => Math.max(a, Math.min(b, x));
+      function createBasinModel(heightAt, saved = null, { equipment = true } = {}) {
+        const equipped = saved?.equipment ?? equipment;
+        const fields = {};
+        for (const name of ["water", "enthalpy", "vapor", "vaporHeat", "sediment", "trace"])
+          fields[name] = new Float64Array(COUNT);
+        const { water, enthalpy, vapor, vaporHeat, sediment, trace } = fields;
+        const height = new Float64Array(COUNT),
+          shelter = new Float64Array(COUNT),
+          heater = new Float64Array(COUNT);
+        const liquid = new Float64Array(COUNT),
+          temperature = new Float64Array(COUNT);
+        let initialWater = 0,
+          initialSediment = 0,
+          initialHeat = 0;
+        for (let j = 0; j < GRID; j++)
+          for (let i = 0; i < GRID; i++) {
+            const k = j * GRID + i,
+              x = SITE.x + (i / (GRID - 1) - 0.5) * SITE.size,
+              z = SITE.z + (j / (GRID - 1) - 0.5) * SITE.size;
+            height[k] = heightAt(x, z);
+            shelter[k] = clamp2((heightAt(x - 110, z + 80) - height[k]) / 65, 0, 1);
+            const valley = Math.exp(-Math.pow((x - SITE.x - 70 * Math.sin(j * 0.055)) / 200, 2));
+            water[k] =
+              (0.03 + 0.85 * valley * (0.35 + 0.65 * shelter[k])) *
+              Math.pow(
+                Math.sin((Math.PI * i) / (GRID - 1)) * Math.sin((Math.PI * j) / (GRID - 1)),
+                2,
+              );
+            enthalpy[k] = (-3 - shelter[k] * 4) * (SOIL + water[k] * CP);
+            sediment[k] = 0.2 + 0.1 * shelter[k];
+            heater[k] = Math.exp(-Math.pow((i - 32) / 8, 2) - Math.pow((j - 30) / 21, 4));
+            initialHeat += enthalpy[k];
+            initialWater += water[k];
+            initialSediment += sediment[k];
+          }
+        const state2 = {
+          version: 1,
+          steps: 0,
+          time: 0,
+          reserve: 0.72,
+          stored: 0,
+          storedHeat: 0,
+          pumped: 0,
+          waterOut: 0,
+          sedimentOut: 0,
+          heatBoundary: 0,
+          heatOut: 0,
+          generated: 0,
+          consumed: 0,
+          heating: false,
+          pumping: false,
+          stableFor: 0,
+          eventAt: null,
+          eventCount: 0,
+          wind: 0,
+          flow: 0,
+          pumpPower: 0,
+          heatPower: 0,
+          storageWarning: false,
+        };
+        if (saved) {
+          if (
+            saved.version !== 1 ||
+            !saved.state ||
+            !Number.isInteger(saved.state.steps) ||
+            saved.state.steps < 0 ||
+            !Object.values(saved.state).every((v) => typeof v !== "number" || Number.isFinite(v)) ||
+            Object.keys(fields).some(
+              (name) =>
+                !Array.isArray(saved[name]) ||
+                saved[name].length !== COUNT ||
+                saved[name].some((v) => !Number.isFinite(v) || (name !== "enthalpy" && v < 0)),
+            )
+          )
+            throw new Error("Invalid local basin checkpoint");
+          for (const [key2, value] of Object.entries(state2)) {
+            const restored = saved.state[key2];
+            if (key2 === "pumped" && restored === void 0) continue;
+            if (key2 === "eventAt") {
+              if (
+                restored !== null &&
+                (!Number.isFinite(restored) || restored < 0 || restored > saved.state.time)
+              )
+                throw new Error("Invalid basin event clock");
+            } else if (
+              typeof restored !== typeof value ||
+              (typeof value === "number" && !Number.isFinite(restored))
+            )
+              throw new Error("Invalid basin scalar: " + key2);
+          }
+          if (
+            saved.state.reserve < 0 ||
+            saved.state.reserve > 1 ||
+            saved.state.stored < 0 ||
+            saved.state.waterOut < 0 ||
+            Math.abs(saved.state.time - saved.state.steps * STEP) > 1e-6
+          )
+            throw new Error("Invalid basin resource balance");
+          Object.assign(state2, saved.state);
+          for (const name of Object.keys(fields)) fields[name].set(saved[name]);
+        }
+        function phases() {
+          for (let k = 0; k < COUNT; k++) {
+            const latent = water[k] * L,
+              e = enthalpy[k];
+            liquid[k] = e < 0 ? 0 : e < latent ? e / L : water[k];
+            temperature[k] =
+              e < 0
+                ? e / (SOIL + water[k] * CP)
+                : e > latent
+                  ? (e - latent) / (SOIL + water[k] * CP)
+                  : 0;
+          }
+        }
+        phases();
+        function move(a, b, amount) {
+          amount = Math.min(amount, liquid[a]);
+          if (!(amount > 0)) return;
+          const heat = amount * (L + CP * temperature[a]);
+          water[a] -= amount;
+          liquid[a] -= amount;
+          enthalpy[a] -= heat;
+          water[b] += amount;
+          liquid[b] += amount;
+          enthalpy[b] += heat;
+          const s = Math.min(sediment[a], amount * 0.016);
+          sediment[a] -= s;
+          sediment[b] += s;
+          trace[a] += s;
+          trace[b] += s;
+          state2.flow += amount;
+        }
+        function step() {
+          const dt = STEP * TIME_SCALE,
+            t = state2.steps * STEP;
+          const active = equipped && t >= 64;
+          state2.wind = 2.7 + 1.2 * Math.sin(t / 89) + 0.4 * Math.sin(t / 31);
+          const sunlight = 145 + 30 * Math.sin(t / 310);
+          const generation = active ? 36e-4 * (0.8 + 0.2 * Math.cos(t / 210)) : 0;
+          const capacity = Math.min(generation * STEP, 1 - state2.reserve);
+          state2.reserve += capacity;
+          state2.generated += capacity;
+          let available = 0;
+          for (let k = 0; k < COUNT; k++) available += liquid[k] * heater[k];
+          if (!active) state2.heating = state2.pumping = false;
+          else {
+            if (state2.reserve < 0.18 || state2.stored > 44) state2.heating = false;
+            else if (state2.reserve > 0.56 && state2.stored < 24) state2.heating = true;
+            if (state2.reserve < 0.12 || state2.stored > 65) state2.pumping = false;
+            else if (state2.reserve > 0.3 && state2.stored < 48 && available > 0.08)
+              state2.pumping = true;
+          }
+          if (available < 0.02) state2.pumping = false;
+          const maintenance = state2.eventAt !== null;
+          const pumpRate = maintenance ? 0.38 : 1;
+          const heatRate = maintenance ? 0.65 : 1;
+          const demand = active
+            ? 6e-4 +
+              (state2.heating ? 48e-4 * heatRate : 0) +
+              (state2.pumping ? 11e-4 * pumpRate : 0)
+            : 0;
+          const used = Math.min(state2.reserve, demand * STEP),
+            power = demand ? used / (demand * STEP) : 0;
+          state2.reserve -= used;
+          state2.consumed += used;
+          state2.heatPower = state2.heating ? power * heatRate : 0;
+          state2.pumpPower = state2.pumping ? power * pumpRate : 0;
+          state2.flow = 0;
+          for (let k = 0; k < COUNT; k++) {
+            const ice = water[k] - liquid[k],
+              albedo = 0.19 + 0.49 * clamp2(ice / 0.32, 0, 1);
+            const kelvin = temperature[k] + 273.15;
+            const loss = 0.92 * 5670374419e-17 * (kelvin ** 4 - 250 ** 4) + 1.6 * (kelvin - 263);
+            const q =
+              (sunlight * (1 - albedo) * (1 - 0.48 * shelter[k]) -
+                loss +
+                250 * heater[k] * state2.heatPower) *
+              dt;
+            enthalpy[k] += q;
+            state2.heatBoundary += q;
+            const evaporation = Math.min(
+              liquid[k],
+              Math.max(0, enthalpy[k]) / (L + LV + CP * Math.max(0, temperature[k])),
+              liquid[k] * 25e-6 * dt,
+            );
+            water[k] -= evaporation;
+            vapor[k] += evaporation;
+            const evaporationHeat = evaporation * (L + LV + CP * Math.max(0, temperature[k]));
+            enthalpy[k] -= evaporationHeat;
+            vaporHeat[k] += evaporationHeat;
+            const condensed = vapor[k] * 9e-4 * dt;
+            const condensationHeat = vaporHeat[k] * 9e-4 * dt;
+            vapor[k] -= condensed;
+            water[k] += condensed;
+            vaporHeat[k] -= condensationHeat;
+            enthalpy[k] += condensationHeat;
+            const escaped = vapor[k] * 15e-5 * dt;
+            const escapedHeat = vaporHeat[k] * 15e-5 * dt;
+            vaporHeat[k] -= escapedHeat;
+            state2.heatOut += escapedHeat;
+            vapor[k] -= escaped;
+            state2.waterOut += escaped;
+            if (state2.pumping && heater[k] > 0.3) {
+              const take = Math.min(
+                Math.max(0, liquid[k] - evaporation),
+                water[k],
+                35e-5 * dt * state2.pumpPower * heater[k],
+              );
+              const heat = take * (L + CP * Math.max(0, temperature[k]));
+              water[k] -= take;
+              enthalpy[k] -= heat;
+              liquid[k] -= take;
+              state2.stored += take;
+              state2.pumped += take;
+              state2.storedHeat += heat;
+            }
+          }
+          if (active && state2.eventAt !== null && state2.stored > 0) {
+            const use = Math.min(state2.stored, 0.065 * STEP);
+            const heat = (state2.storedHeat * use) / state2.stored;
+            state2.storedHeat -= heat;
+            state2.heatOut += heat;
+            state2.stored -= use;
+            state2.waterOut += use;
+          }
+          phases();
+          const reverse = state2.steps % 2;
+          for (let n = 0; n < COUNT; n++) {
+            const a = reverse ? COUNT - 1 - n : n,
+              i = a % GRID,
+              j = Math.floor(a / GRID);
+            for (let direction = 0; direction < 2; direction++) {
+              const b =
+                direction === 0 ? (i < GRID - 1 ? a + 1 : -1) : j < GRID - 1 ? a + GRID : -1;
+              if (b < 0) continue;
+              const difference = height[a] - height[b] + (liquid[a] - liquid[b]) * 1e-3;
+              const from = difference > 0 ? a : b,
+                to = difference > 0 ? b : a;
+              move(from, to, liquid[from] * Math.min(0.08, Math.abs(difference) * 7e-4 * dt));
+              if (state2.wind > 3.2 && liquid[a] < 0.015) {
+                const dust = Math.min(sediment[a], 4e-6 * dt * (state2.wind - 3.2));
+                sediment[a] -= dust;
+                sediment[b] += dust;
+                trace[a] += dust;
+                trace[b] += dust;
+              }
+            }
+          }
+          phases();
+          let mean = 0,
+            weight = 0;
+          for (let k = 0; k < COUNT; k++) {
+            mean += temperature[k] * heater[k];
+            weight += heater[k];
+          }
+          mean /= weight;
+          const ready =
+            active && state2.stored >= 18 && state2.reserve >= 0.28 && mean > -2 && mean < 12;
+          state2.stableFor = ready ? state2.stableFor + STEP : 0;
+          if (state2.eventAt === null && state2.stableFor >= 10) {
+            state2.eventAt = t;
+            state2.heating = false;
+            state2.eventCount++;
+          }
+          state2.steps++;
+          state2.time = state2.steps * STEP;
+        }
+        function snapshot() {
+          let total = state2.stored,
+            solid = 0,
+            fluid = 0,
+            soil = 0,
+            minTemp = Infinity,
+            maxTemp = -Infinity,
+            changed = 0,
+            heat = state2.storedHeat;
+          for (let k = 0; k < COUNT; k++) {
+            heat += enthalpy[k] + vaporHeat[k];
+            total += water[k] + vapor[k];
+            solid += water[k] - liquid[k];
+            fluid += liquid[k];
+            soil += sediment[k];
+            changed += trace[k];
+            minTemp = Math.min(minTemp, temperature[k]);
+            maxTemp = Math.max(maxTemp, temperature[k]);
+          }
+          return {
+            ...state2,
+            ice: solid,
+            liquid: fluid,
+            water: total,
+            waterError: (total + state2.waterOut - initialWater) / initialWater,
+            sedimentError: (soil + state2.sedimentOut - initialSediment) / initialSediment,
+            heatError:
+              (heat + state2.heatOut - initialHeat - state2.heatBoundary) /
+              Math.max(1, Math.abs(initialHeat), Math.abs(state2.heatBoundary)),
+            reserveError: state2.reserve - 0.72 - state2.generated + state2.consumed,
+            minTemp,
+            maxTemp,
+            changed,
+            equipment: equipped,
+            grid: GRID,
+            localOnly: true,
+            storedKilograms: state2.stored * (SITE.size / (GRID - 1)) ** 2,
+            atmosphere: {
+              pressurePa: 9e4,
+              airKelvin: 263,
+              skyKelvin: 250,
+              authored: true,
+            },
+          };
+        }
+        return {
+          state: state2,
+          equipped,
+          fields,
+          height,
+          liquid,
+          temperature,
+          step,
+          snapshot,
+          advance(seconds2) {
+            const steps = Math.floor((seconds2 + 1e-7) / STEP);
+            while (state2.steps < steps) step();
+          },
+          save() {
+            const result = { version: 1, equipment: equipped, state: { ...state2 } };
+            for (const name of Object.keys(fields)) result[name] = Array.from(fields[name]);
+            return result;
+          },
+        };
+      }
+
+      // works/first_dawn/timeline.js
+      var DURATION = 108;
+      var CUTS = Object.freeze([20, 40, 68, 82]);
+      var SURFACE_AT = CUTS[3];
+      var LOW_PASS_AT = CUTS[3];
+
+      // works/first_dawn/surface-flight.js
+      var SURFACE_TRAVEL = 1280;
+      function surfaceProgress(seconds2) {
+        const u = Math.max(0, Math.min(1, (seconds2 - LOW_PASS_AT) / (DURATION - LOW_PASS_AT)));
+        return u * u * u * (10 + u * (-15 + 6 * u));
+      }
+      var surfaceTrackX = (progress) => 300 + 430 * progress;
+      var surfaceTrackZ = (progress) => 1020 + SURFACE_TRAVEL * (1 - progress);
+
+      // works/first_dawn/surface.js
+      var canyonCenter = (z) =>
+        -1600 +
+        245 * Math.sin(z * 32e-5) +
+        145 * canyonNoise(z / 1900, 3, 11) +
+        65 * canyonNoise(z / 650, 7, 29);
+      function canyonHash(x, z, seed) {
+        let n = Math.imul(x, 374761393) ^ Math.imul(z, 668265263) ^ Math.imul(seed, 1442695041);
+        n = Math.imul(n ^ (n >>> 13), 1274126177);
+        return (((n ^ (n >>> 16)) >>> 0) / 4294967295) * 2 - 1;
+      }
+      function canyonNoise(x, z, seed) {
+        const ix = Math.floor(x),
+          iz = Math.floor(z),
+          fx = x - ix,
+          fz = z - iz;
+        const u = fx * fx * fx * (10 + fx * (-15 + 6 * fx)),
+          v = fz * fz * fz * (10 + fz * (-15 + 6 * fz));
+        const a = canyonHash(ix, iz, seed),
+          b = canyonHash(ix + 1, iz, seed);
+        const c = canyonHash(ix, iz + 1, seed),
+          d = canyonHash(ix + 1, iz + 1, seed);
+        return a + (b - a) * u + (c - a + (d - c - b + a) * u) * v;
+      }
+      function faultNoise(z, scale, seed) {
+        const p = z / scale,
+          i = Math.floor(p),
+          f = p - i;
+        return canyonHash(i, seed, 223) * (1 - f) + canyonHash(i + 1, seed, 223) * f;
+      }
+      var bankCuts = [];
+      for (const bank of [-1, 1]) {
+        let z = -2500;
+        for (let i = 0; i < 35; i++) {
+          const sample = canyonHash(i, bank, 179) * 0.5 + 0.5;
+          z += 145 + sample * 355;
+          bankCuts.push([
+            z,
+            bank,
+            canyonHash(i, bank, 181) * 0.76,
+            105 + (canyonHash(i, bank, 183) * 0.5 + 0.5) * 185,
+            35 + (canyonHash(i, bank, 187) * 0.5 + 0.5) * 85,
+            0.98 + (canyonHash(i, bank, 191) * 0.5 + 0.5) * 0.52,
+          ]);
+        }
+      }
+      function canyonSection(x, z) {
+        const center = canyonCenter(z),
+          side = x < center ? -1 : 1,
+          distance = Math.abs(x - center);
+        const rim =
+          135 * faultNoise(z, 850, side * 41) +
+          72 * faultNoise(z, 245, side * 59) +
+          25 * faultNoise(z, 85, side * 67);
+        const width = 710 + 70 * canyonNoise(z / 1700, side, 17) + rim;
+        const q = distance / width;
+        return { side, distance, width, q };
+      }
+      function parallelRift(z) {
+        const center =
+          canyonCenter(z) - 1710 + 95 * faultNoise(z, 1700, 251) + 35 * faultNoise(z, 290, 269);
+        const chamber = 0.5 + 0.5 * canyonNoise(z / 1100, 4, 257);
+        const opening = MathUtils.smoothstep(chamber, 0.28, 0.78);
+        return {
+          center,
+          width: 55 + 310 * opening + 24 * faultNoise(z, 230, 263),
+          depth: 160 + 630 * opening,
+        };
+      }
+      var impacts = [
+        [-4650, 5450, 330, 0.34],
+        [-4360, 2100, 255, 0.31],
+        [-2710, 4450, 190, 0.36],
+        [-2850, 6500, 125, 0.3],
+        [650, 4100, 230, 0.32],
+      ];
+      for (let i = 0; i < 110; i++) {
+        const x = -6800 + (canyonHash(i, 3, 271) * 0.5 + 0.5) * 8400;
+        const z = -1800 + (canyonHash(i, 7, 277) * 0.5 + 0.5) * 10600;
+        const r = 28 + Math.pow(canyonHash(i, 11, 281) * 0.5 + 0.5, 2.8) * 118;
+        const section = canyonSection(x, z),
+          rift = parallelRift(z);
+        if (
+          section.distance < section.width + r * 1.5 ||
+          Math.abs(x - rift.center) < rift.width + r * 1.5 ||
+          Math.hypot(x - 730, z - 1020) < 700 + r
+        )
+          continue;
+        if (impacts.some(([cx, cz, cr]) => Math.hypot(x - cx, z - cz) < cr + r * 1.4)) continue;
+        impacts.push([x, z, r, 0.28 + (canyonHash(i, 13, 283) * 0.5 + 0.5) * 0.13]);
+      }
+      function groundHeight(x, z) {
+        const { side, distance, width, q } = canyonSection(x, z);
+        const rise =
+          0.18 * MathUtils.smoothstep(q, 0.18, 0.54) +
+          0.15 * MathUtils.smoothstep(q, 0.49, 0.72) +
+          0.47 * MathUtils.smoothstep(q, 0.73, 0.87) +
+          0.2 * MathUtils.smoothstep(q, 0.93, 1.02);
+        const incision = 1 - rise,
+          wall = incision * (1 - incision) * 4;
+        const plain =
+          -620 +
+          29 * canyonNoise(x / 2100, z / 1800, 127) +
+          14 * canyonNoise(x / 650, z / 900, 139) +
+          2.5 * canyonNoise(x / 70, z / 90, 317) +
+          0.9 * canyonNoise(x / 24, z / 29, 331);
+        const depth = 1040 + 95 * canyonNoise(z / 1700, 2, 101);
+        const rockBreak =
+          22 * canyonNoise(x / 90, z / 115, 193) * wall +
+          9 * canyonNoise(x / 38, z / 51, 197) * wall;
+        const buttress = 72 * faultNoise(z + x * 0.32, 230, 73) * wall;
+        const floorMask = 1 - MathUtils.smoothstep(q, 0.12, 0.35);
+        const floor2 =
+          12 * canyonNoise(x / 310, z / 500, 97) * floorMask +
+          3 * Math.sin(x * 0.028 + z * 0.014 + canyonNoise(x / 420, z / 520, 199) * 2) * floorMask;
+        const center = canyonCenter(z);
+        const tributaryAxis = center + 760 + (z - 2800) * 0.4 + 80 * canyonNoise(z / 650, 9, 113);
+        const tributary =
+          (1 - MathUtils.smoothstep(Math.abs(x - tributaryAxis), 45, 270)) *
+          Math.exp(-Math.pow((z - 2800) / 1900, 2));
+        const bedPhase =
+          (plain - incision * depth + 18 * canyonNoise(x / 1100, z / 1400, 347)) / 58;
+        const bed = bedPhase - Math.floor(bedPhase);
+        const ledge =
+          MathUtils.smoothstep(bed, 0.2, 0.42) - MathUtils.smoothstep(bed, 0.68, 0.92) - 0.5;
+        const ledgeRelief = ledge * 19 * wall * (0.65 + 0.35 * canyonNoise(x / 180, z / 260, 349));
+        let surface =
+          plain - incision * depth + buttress + rockBreak + floor2 - tributary * 220 + ledgeRelief;
+        if (q < 1.8)
+          for (const [head, bank, slope, cutDepth, cutWidth, reach] of bankCuts) {
+            if (bank !== side || Math.abs(z - head) > 520) continue;
+            const axis2 =
+              head +
+              slope * (distance - width * 0.64) +
+              26 * canyonNoise(distance / 210, bank * 2, 163);
+            const taper = cutWidth * (0.62 + 0.52 * MathUtils.smoothstep(q, 0.45, 1.1));
+            const gully = Math.exp(-Math.pow(Math.abs(z - axis2) / taper, 1.3 + cutDepth * 2e-3));
+            const exposed =
+              MathUtils.smoothstep(q, 0.22 + reach * 0.09, 0.5) *
+              (1 - MathUtils.smoothstep(q, reach - 0.22, reach + 0.18));
+            surface -= cutDepth * gully * exposed;
+            if (cutDepth > 205) {
+              const fork = MathUtils.smoothstep(q, 0.54, 1.08);
+              const branchAxis = axis2 + bank * cutWidth * 2.1 * fork;
+              const branch = Math.exp(-Math.pow(Math.abs(z - branchAxis) / (taper * 0.36), 1.7));
+              surface -= cutDepth * 0.24 * branch * exposed * fork;
+            }
+            const fan =
+              Math.exp(-Math.pow((q - 0.27) / 0.17, 2)) *
+              Math.exp(-Math.pow((z - head + slope * width * 0.3) / (cutWidth * 2.1), 2));
+            surface += cutDepth * fan * (0.32 + 0.06 * canyonNoise(x / 28, z / 37, 317));
+          }
+        const rift = parallelRift(z),
+          rq = Math.abs(x - rift.center) / rift.width;
+        if (rq < 1.5) {
+          const profile =
+            0.22 * MathUtils.smoothstep(rq, 0.2, 0.68) + 0.78 * MathUtils.smoothstep(rq, 0.76, 1.1);
+          surface -= rift.depth * (1 - profile);
+          surface +=
+            20 * faultNoise(z + x * 0.6, 140, 293) * (1 - MathUtils.smoothstep(rq, 0.7, 1.3));
+        }
+        const mesaMask = MathUtils.smoothstep(q, 1.04, 1.25) * MathUtils.smoothstep(rq, 1.12, 1.4);
+        if (x < canyonCenter(z) && mesaMask > 0) {
+          for (const offset of [1050, 1230]) {
+            const axis2 = canyonCenter(z) - offset + 34 * faultNoise(z, 750, offset);
+            const d = Math.abs(x - axis2);
+            surface -= 19 * Math.exp(-Math.pow(d / 18, 2)) * mesaMask;
+          }
+        }
+        for (const [cx, cz, r, depthRatio] of impacts) {
+          if (Math.abs(x - cx) > r * 1.6 || Math.abs(z - cz) > r * 1.6) continue;
+          const angle = Math.atan2(z - cz, x - cx);
+          const d =
+            Math.hypot(x - cx, z - cz) /
+            (r * (1 + 0.024 * Math.sin(angle * 5 + cx) + 0.016 * Math.sin(angle * 9 + cz)));
+          if (d > 1.55) continue;
+          const bowl = 1 - MathUtils.smoothstep(d, 0.42, 1.02);
+          const rim = Math.exp(-Math.pow((d - 1.03) / 0.14, 2));
+          const ejecta =
+            Math.exp(-Math.pow((d - 1.22) / 0.28, 2)) *
+            (0.65 + 0.35 * canyonNoise(x / 34, z / 37, 307));
+          surface += r * (-depthRatio * bowl + 0.085 * rim + 0.018 * ejecta);
+        }
+        return surface;
+      }
+      function focusedAxis(t, nearLo, nearHi, a, b) {
+        return t < a
+          ? -1e4 + (t / a) * (nearLo + 1e4)
+          : t < b
+            ? nearLo + ((t - a) / (b - a)) * (nearHi - nearLo)
+            : nearHi + ((t - b) / (1 - b)) * (1e4 - nearHi);
+      }
+      function axisCell(axis2, value) {
+        let lo = 0,
+          hi = axis2.length - 1;
+        while (hi - lo > 1) {
+          const mid = (lo + hi) >> 1;
+          if (axis2[mid] <= value) lo = mid;
+          else hi = mid;
+        }
+        return lo;
+      }
+      function createSurface(scene2, tier2) {
+        const group = new Group();
+        group.name = "incised-mineral-plateau";
+        group.visible = false;
+        scene2.add(group);
+        const segments = { high: 320, mid: 220, low: 140 }[tier2];
+        const xs = new Float64Array(segments + 1),
+          zs = new Float64Array(segments + 1);
+        for (let i = 0; i <= segments; i++) {
+          xs[i] = focusedAxis(i / segments, -5200, 1200, 0.06, 0.96);
+          zs[i] = focusedAxis(i / segments, -1200, 7800, 0.05, 0.96);
+        }
+        const extent = 2e4;
+        const geometry = new PlaneGeometry(extent, extent, segments, segments);
+        geometry.rotateX(-Math.PI / 2);
+        const pos = geometry.attributes.position,
+          colors = [];
+        const pale = new Color(9988430),
+          dark = new Color(6902345),
+          layer = new Color(11373673),
+          c = new Color();
+        for (let i = 0; i < pos.count; i++) {
+          const ix = i % (segments + 1),
+            iz = Math.floor(i / (segments + 1));
+          const x = xs[ix],
+            z = zs[iz],
+            y = groundHeight(x, z);
+          pos.setXYZ(i, x, y, z);
+          const depth = MathUtils.smoothstep(-y, 680, 1650);
+          const strata =
+            0.5 + 0.5 * Math.sin(y * 0.026 + canyonNoise(x / 1100, z / 900, 151) * 1.7);
+          const exposure =
+            MathUtils.smoothstep(-y, 760, 1040) * (1 - MathUtils.smoothstep(-y, 1420, 1690));
+          c.copy(pale)
+            .lerp(dark, depth * 0.28)
+            .multiplyScalar(0.92 + strata * 0.055 + canyonNoise(x / 220, z / 270, 311) * 0.055);
+          c.lerp(layer, exposure * strata * 0.18);
+          colors.push(c.r, c.g, c.b);
+        }
+        geometry.setAttribute("color", new Float32BufferAttribute(colors, 3));
+        geometry.computeVertexNormals();
+        const heightAt = (x, z) => {
+          const ix = axisCell(xs, x),
+            iz = axisCell(zs, z);
+          const fx = MathUtils.clamp((x - xs[ix]) / (xs[ix + 1] - xs[ix]), 0, 1);
+          const fz = MathUtils.clamp((z - zs[iz]) / (zs[iz + 1] - zs[iz]), 0, 1);
+          const a = iz * (segments + 1) + ix,
+            b = a + segments + 1;
+          return fx + fz <= 1
+            ? pos.getY(a) + (pos.getY(a + 1) - pos.getY(a)) * fx + (pos.getY(b) - pos.getY(a)) * fz
+            : pos.getY(b + 1) +
+                (pos.getY(b) - pos.getY(b + 1)) * (1 - fx) +
+                (pos.getY(a + 1) - pos.getY(b + 1)) * (1 - fz);
+        };
+        const occlusion = new Float32Array(pos.count),
+          directions = [
+            [1, 0],
+            [-1, 0],
+            [0, 1],
+            [0, -1],
+          ],
+          radii = [80, 240, 650];
+        for (let i = 0; i < pos.count; i++) {
+          const x = pos.getX(i),
+            y = pos.getY(i),
+            z = pos.getZ(i);
+          let blocked = 0;
+          for (const [dx, dz] of directions) {
+            let horizon = 0;
+            for (const r of radii)
+              horizon = Math.max(horizon, (heightAt(x + dx * r, z + dz * r) - y) / r);
+            blocked += horizon / Math.sqrt(1 + horizon * horizon);
+          }
+          occlusion[i] = Math.max(0.42, 1 - blocked * 0.145);
+        }
+        geometry.setAttribute("basinOcclusion", new Float32BufferAttribute(occlusion, 1));
+        const material = new MeshStandardMaterial({
+          vertexColors: true,
+          roughness: 1,
+          metalness: 0,
+        });
+        material.shadowSide = DoubleSide;
+        material.onBeforeCompile = (shader) => {
+          shader.vertexShader = shader.vertexShader
+            .replace(
+              "#include <common>",
+              "#include <common>\nvarying vec3 basinPosition;varying float basinSlope;varying float basinAO;varying vec3 basinNormal;attribute float basinOcclusion;",
+            )
+            .replace(
+              "#include <begin_vertex>",
+              "#include <begin_vertex>\nbasinPosition=position;basinSlope=1.-abs(normal.y);basinAO=basinOcclusion;basinNormal=normal;",
+            );
+          shader.fragmentShader = shader.fragmentShader
+            .replace(
+              "#include <common>",
+              `#include <common>
+      varying vec3 basinPosition;varying float basinSlope;varying float basinAO;varying vec3 basinNormal;
+      float basinHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+      float basinNoise(vec2 p){
+        vec2 i=floor(p),f=fract(p);f=f*f*f*(f*(f*6.-15.)+10.);
+        return mix(mix(basinHash(i),basinHash(i+vec2(1,0)),f.x),
+          mix(basinHash(i+vec2(0,1)),basinHash(i+vec2(1,1)),f.x),f.y);
+      }
+      // Blended planar sampling avoids stretching the wall into vertical streaks.
+      float basinStone(vec3 p,float frequency){
+        vec3 w=pow(abs(basinNormal),vec3(4.));w/=max(dot(w,vec3(1.)),.001);
+        return basinNoise(p.yz*frequency)*w.x+basinNoise(p.xz*frequency)*w.y+basinNoise(p.xy*frequency)*w.z;
+      }
+      float basinJoint(vec2 p){
+        vec2 cell=floor(p),f=fract(p);float first=8.,second=8.;
+        for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){
+          vec2 q=vec2(float(x),float(y));
+          vec2 seed=vec2(basinHash(cell+q),basinHash(cell+q+vec2(71.,19.)));
+          float d=length(q+.2+.6*seed-f);
+          second=min(second,max(first,d));first=min(first,d);
+        }
+        return second-first;
+      }
+      float basinRockMask(vec3 p){
+        float slopes=smoothstep(.10,.58,basinSlope);
+        float outcrop=smoothstep(.56,.76,basinNoise(p.xz*.021));
+        return max(slopes,outcrop*.65);
+      }
+      float basinRelief(vec3 p){
+        float rock=basinRockMask(p);
+        float stone=(basinStone(p,.027)-.5)*1.15;
+        ${tier2 === "low" ? "" : "stone+=(basinStone(p,.087)-.5)*.32;"}
+        float bedding=sin((p.y+18.*basinNoise(p.xz*.0013))*.108);
+        float relief=stone*mix(.18,1.,rock)+bedding*.48*basinSlope;
+        float closeRange=1.-smoothstep(90.,380.,length(vViewPosition));
+        float jointAA=1.-smoothstep(.12,.7,length(fwidth(p.xz*.36)));
+        float joints=0.;if(closeRange>.001&&rock>.01)joints=1.-smoothstep(.012,.048,basinJoint(p.xz*.36));
+        relief-=joints*.065*rock*closeRange*jointAA;
+        ${tier2 === "low" ? "" : "relief+=(basinStone(p,1.8)-.5)*.014*closeRange*(1.-rock);"}
+        float grains=basinNoise(p.xz*${tier2 === "high" ? "40." : tier2 === "mid" ? "22." : "12."});
+        float grainFootprint=length(fwidth(p.xz*${tier2 === "high" ? "40." : tier2 === "mid" ? "22." : "12."}));
+        relief+=(grains-.5)*.004*closeRange*(1.-smoothstep(.25,.8,grainFootprint));
+        float windPhase=dot(p.xz,vec2(8.1,3.6))+basinNoise(p.xz*.65)*3.;
+        float rippleAA=1.-smoothstep(.3,1.1,fwidth(windPhase));
+        relief+=sin(windPhase)*.014*(1.-rock)*closeRange*rippleAA;
+        return relief;
+      }`,
+            )
+            .replace(
+              "#include <color_fragment>",
+              `#include <color_fragment>
+      float warp=(basinNoise(basinPosition.xz*.0018)-.5)*26.;
+      float phase=(basinPosition.y+warp)*.032;
+      float bands=sin(phase+.23*sin(phase*.31));
+      float materialRock=basinRockMask(basinPosition);
+      float exposure=smoothstep(760.,1030.,-basinPosition.y)*(1.-smoothstep(1440.,1690.,-basinPosition.y));
+      float nearDetail=1.-smoothstep(3500.,8000.,length(vViewPosition));
+      float aa=1.-smoothstep(.35,1.2,length(fwidth(basinPosition.xz*.09)));
+      float sediment=(basinNoise(basinPosition.xz*vec2(.025,.065))-.5);
+      ${tier2 === "low" ? "float grain=0.;" : "float grain=basinNoise(basinPosition.xz*.09)-.5;"}
+      float floorMask=smoothstep(1390.,1660.,-basinPosition.y);
+      float ripple=sin(dot(basinPosition.xz,vec2(.028,.014))+basinNoise(basinPosition.xz*.002)*2.);
+      float microAA=1.-smoothstep(.12,.7,length(fwidth(basinPosition.xz*.36)));
+      float microNear=1.-smoothstep(90.,380.,length(vViewPosition));
+      float joints=0.;if(microNear>.001&&materialRock>.01)joints=1.-smoothstep(.012,.048,basinJoint(basinPosition.xz*.36));
+      diffuseColor.rgb*=1.+bands*.08*exposure+sediment*.095*nearDetail+grain*.035*nearDetail*aa+ripple*.018*floorMask;
+      diffuseColor.rgb*=mix(vec3(1.025,1.018,1.01),vec3(.91,.925,.94),materialRock*.46);
+      diffuseColor.rgb*=1.-joints*.16*materialRock*microNear*microAA;
+      // Sub-metre aggregate remains readable in penumbra; filter it at distance.
+      float sandAA=1.-smoothstep(.35,1.2,length(fwidth(basinPosition.xz*4.8)));
+      float aggregate=basinNoise(basinPosition.xz*1.25)-.5;
+      float mineralGrain=basinNoise(basinPosition.xz*4.8)-.5;
+      float fineFrequency=${tier2 === "high" ? "40." : tier2 === "mid" ? "22." : "12."};
+      float fineAA=1.-smoothstep(.25,.8,length(fwidth(basinPosition.xz*fineFrequency)));
+      float fineGrain=basinNoise(basinPosition.xz*fineFrequency)-.5;
+      diffuseColor.rgb*=1.+(aggregate*.14+mineralGrain*.10*sandAA+fineGrain*.35*fineAA)*microNear;
+      float veil=1.-exp(-length(vViewPosition)*.00042);
+      diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.34,.195,.15),veil*.10);`,
+            )
+            .replace(
+              "#include <roughnessmap_fragment>",
+              `#include <roughnessmap_fragment>
+      roughnessFactor=clamp(mix(.97,.79,materialRock)+(basinStone(basinPosition,.17)-.5)*.045,.73,1.);`,
+            )
+            .replace(
+              "#include <normal_fragment_maps>",
+              `#include <normal_fragment_maps>
+      // Surface-gradient bump mapping in view space; amplitude is in world units.
+      float relief=basinRelief(basinPosition);
+      float detailVisibility=1.-smoothstep(.45,1.5,length(fwidth(basinPosition.xz*.027)));
+      vec3 sigmaX=dFdx(-vViewPosition),sigmaY=dFdy(-vViewPosition);
+      vec3 gradX=cross(sigmaY,normal),gradY=cross(normal,sigmaX);
+      float determinant=dot(sigmaX,gradX)*faceDirection;
+      vec3 gradient=sign(determinant)*(dFdx(relief)*gradX+dFdy(relief)*gradY)*detailVisibility;
+      normal=normalize(max(abs(determinant),1.e-8)*normal-gradient);`,
+            )
+            .replace(
+              "#include <fog_fragment>",
+              `#include <fog_fragment>
+      float terrainLuma=dot(gl_FragColor.rgb,vec3(.2126,.7152,.0722));
+      gl_FragColor.rgb=mix(vec3(terrainLuma),gl_FragColor.rgb,.672);`,
+            )
+            .replace(
+              "#include <aomap_fragment>",
+              "#include <aomap_fragment>\nreflectedLight.indirectDiffuse*=basinAO;reflectedLight.indirectSpecular*=basinAO;",
+            );
+        };
+        material.customProgramCacheKey = () => `canyon-stratified-mineral-v9-${tier2}`;
+        const terrain = new Mesh(geometry, material);
+        terrain.castShadow = terrain.receiveShadow = true;
+        group.add(terrain);
+        const rockGeometry = new IcosahedronGeometry(1, tier2 === "low" ? 0 : 1);
+        const rockPos = rockGeometry.attributes.position;
+        for (let i = 0; i < rockPos.count; i++) {
+          const x = rockPos.getX(i),
+            y = rockPos.getY(i),
+            z = rockPos.getZ(i);
+          const split = 1 + 0.13 * Math.sin(x * 6.3 + z * 4.7) + 0.07 * Math.sin(z * 9.1 - y * 3.2);
+          rockPos.setXYZ(i, x * split, Math.max(-0.62, Math.min(0.62, y)) * 0.8, z * split);
+        }
+        rockGeometry.computeVertexNormals();
+        const rockMaterial = new MeshStandardMaterial({ color: 7755850, roughness: 0.87 });
+        const rocks = new InstancedMesh(rockGeometry, rockMaterial, tier2 === "low" ? 2 : 5);
+        const dummy = new Object3D();
+        let seed = 7103;
+        const rand = () => {
+          seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+          return seed / 4294967296;
+        };
+        for (let i = 0; i < rocks.count; i++) {
+          const along = (i + 0.5) / rocks.count,
+            side = i % 2 ? 1 : -1;
+          let x = surfaceTrackX(along) + side * (110 + rand() * 250);
+          let z = surfaceTrackZ(along) + (rand() - 0.5) * SURFACE_TRAVEL * 0.07;
+          let r = 1.5 + rand() * 3;
+          const fragments = [
+            [728.1, 1018.7, 0.32],
+            [732.6, 1017.5, 0.19],
+            [729.2, 1014.4, 0.13],
+          ];
+          if (i < Math.min(rocks.count, 3)) [x, z, r] = fragments[i];
+          dummy.position.set(x, heightAt(x, z) + r * 0.2, z);
+          dummy.scale.set(r, r * 0.55, r * 0.8);
+          dummy.rotation.set(rand(), rand() * 6, rand());
+          dummy.updateMatrix();
+          rocks.setMatrixAt(i, dummy.matrix);
+        }
+        rocks.castShadow = rocks.receiveShadow = true;
+        rocks.computeBoundingSphere();
+        group.add(rocks);
+        const skylight = new HemisphereLight(12895688, 7361350, 0.58);
+        group.add(skylight);
+        const skyUniforms = { elapsed: { value: SURFACE_AT }, surfaceStart: { value: SURFACE_AT } };
+        const sky = new Mesh(
+          new SphereGeometry(39e3, 32, 20),
+          new ShaderMaterial({
+            uniforms: skyUniforms,
+            side: BackSide,
+            depthWrite: false,
+            vertexShader: `varying vec3 skyDirection;void main(){skyDirection=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+            fragmentShader: `
+      uniform float elapsed;uniform float surfaceStart;varying vec3 skyDirection;
+      void main(){
+        vec3 direction=normalize(skyDirection);
+        float h=max(0.,direction.y),az=atan(direction.x,-direction.z);
+        float age=max(0.,elapsed-surfaceStart);
+        float emergence=smoothstep(0.,10.,age);
+        float airMass=1./sqrt(h*h+.025);
+        vec3 beta=vec3(.12,.17,.235),transmittance=exp(-beta*airMass);
+        vec3 solar=normalize(vec3(-.46,.18,-.87));
+        float mu=dot(direction,solar),g=.72;
+        float mie=(1.-g*g)/pow(max(.08,1.+g*g-2.*g*mu),1.5);
+        float rayleigh=.75*(1.+mu*mu);
+        vec3 col=vec3(.014,.023,.042)*transmittance;
+        col+=(1.-transmittance)*mix(vec3(.30,.205,.125),vec3(.09,.14,.20),smoothstep(.1,.8,h))*(.62+rayleigh*.13);
+        col+=vec3(.22,.135,.065)*(1.-transmittance)*mie*.045;
+        float bend=.13+.035*sin(az*3.2+age*.037)+.018*sin(az*7.-age*.022);
+        float envelope=smoothstep(.015,.075,h)*(1.-smoothstep(.32,.58,h));
+        float curtain=exp(-abs(h-bend)*12.);
+        float folds=.62+.22*sin(az*22.+sin(az*5.+age*.045)*2.5)+.10*sin(az*49.-age*.03);
+        float mist=exp(-pow((h-.22)/.19,2.));
+        float shift=.5+.5*sin(az*1.8+age*.055);
+        vec3 gasTint=mix(vec3(.032,.092,.075),vec3(.077,.047,.088),shift);
+        float rays=pow(.5+.5*sin(az*58.+sin(az*6.+age*.025)*1.8),4.);
+        col+=gasTint*(curtain*(folds*.46+rays*.075)+mist*.145)*envelope*emergence;
+        // Broad horizon strata remain separate from the aurora's luminous folds.
+        float layerBend=.048+.009*sin(az*1.7+age*.009)+.004*sin(az*4.1-age*.006);
+        float lowerGas=exp(-pow((h-layerBend)/.027,2.));
+        float upperGas=exp(-pow((h-layerBend-.075)/.048,2.));
+        float gasDepth=(lowerGas*.085+upperGas*.035)*(1.-smoothstep(.22,.38,h));
+        float gasTransmission=exp(-gasDepth*airMass);
+        vec3 gasLight=mix(vec3(.29,.205,.145),vec3(.14,.165,.18),smoothstep(.04,.16,h));
+        col=col*gasTransmission+gasLight*(1.-gasTransmission)*.72;
+        gl_FragColor=vec4(col,1.);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`,
+          }),
+        );
+        sky.position.set(850, -760, 1800);
+        group.add(sky);
+        return {
+          group,
+          material,
+          heightAt,
+          observerHeight: heightAt(850, 1800),
+          update(seconds2) {
+            skyUniforms.elapsed.value = seconds2;
+          },
+        };
+      }
+
+      // works/first_dawn/habitat/record.js
+      async function inheritPlace(state2, phase2) {
+        if (state2.basin) return { inherited: false, available: true };
+        try {
+          const saved = (await readExhibition()).world;
+          if (!saved?.basin?.equipment) return { inherited: false, available: true };
+          createBasinModel(groundHeight, saved.basin);
+          state2.basin = saved.basin;
+          state2.placeInherited = true;
+          if (phase2 === "arrival") state2.basinOrigin = saved.basin.state.time;
+          else {
+            state2.endingOrigin = saved.basin.state.time;
+            state2.seed = saved.seed;
+            state2.evidence = saved.evidence;
+          }
+          return { inherited: true, available: true };
+        } catch {
+          return { inherited: false, available: false };
+        }
+      }
+      function regions(model) {
+        return [-1, 0, 1].map((zone) => {
+          let ice = 0,
+            liquid = 0,
+            trace = 0,
+            count = 0;
+          for (let j = 0; j < GRID; j++)
+            for (let i = 0; i < GRID; i++) {
+              if (Math.floor(i / (GRID / 3)) - 1 !== zone) continue;
+              const k = j * GRID + i;
+              ice += model.fields.water[k] - model.liquid[k];
+              liquid += model.liquid[k];
+              trace += model.fields.trace[k];
+              count++;
+            }
+          return {
+            zone: zone === 0 ? "회수 설비 주변" : "낮은 개입의 경계 지역",
+            side: zone,
+            ice: ice / count,
+            liquid: liquid / count,
+            trace: trace / count,
+          };
+        });
+      }
+      function createPlaceRecorder(renderer2, scene2, surface, habitat2, tier2, state2) {
+        const completed = /* @__PURE__ */ new Set();
+        let busy = false,
+          pending = Promise.resolve(),
+          available = true;
+        const snapshot = () => ({ available, completed: [...completed], busy });
+        async function durable() {
+          try {
+            return await writeWorld({ ...state2, basin: habitat2.save() });
+          } catch {
+            available = false;
+            return false;
+          }
+        }
+        function capture(stage, id) {
+          const target2 = new WebGLRenderTarget(640, 400);
+          target2.texture.colorSpace = SRGBColorSpace;
+          const frame2 = new Scene();
+          frame2.background = new Color(197895);
+          frame2.environment = scene2.environment;
+          frame2.environmentIntensity = 0.55;
+          frame2.fog = new FogExp2(7489080, 75e-6);
+          const terrain = surface.group.clone(true),
+            equipment = habitat2.group.clone(true);
+          terrain.visible = true;
+          equipment.visible = stage !== "before" && habitat2.model.equipped;
+          frame2.add(terrain, equipment, new HemisphereLight(12111079, 4278871, 0.16));
+          const light = new DirectionalLight(14806271, 2.45);
+          light.target.position.set(SITE.x, surface.heightAt(SITE.x, SITE.z), SITE.z);
+          light.position.copy(light.target.position).add(new Vector3(-1400, 2600, 1700));
+          light.castShadow = true;
+          light.shadow.mapSize.setScalar(1024);
+          Object.assign(light.shadow.camera, {
+            left: -1e3,
+            right: 1e3,
+            top: 1e3,
+            bottom: -1e3,
+            near: 100,
+            far: 9e3,
+          });
+          light.shadow.bias = ((-2e3 / 1024) * 1.2) / 8900;
+          light.shadow.normalBias = (2e3 / 1024) * 1.5;
+          const fill = new DirectionalLight(10337247, 0.22);
+          fill.position.set(1800, -600, -2200);
+          frame2.add(light, light.target, fill);
+          const camera2 = new PerspectiveCamera(42, 1.6, 0.5, 8e4);
+          camera2.position.set(-1420, groundHeight(-1420, 2780) + 175, 2780);
+          camera2.lookAt(-1400, groundHeight(-1400, 3300) + 125, 3300);
+          const previous = renderer2.getRenderTarget(),
+            auto = renderer2.shadowMap.autoUpdate;
+          const buffer = new Uint8Array(640 * 400 * 4);
+          try {
+            renderer2.shadowMap.autoUpdate = true;
+            renderer2.setRenderTarget(target2);
+            renderer2.render(frame2, camera2);
+            renderer2.readRenderTargetPixels(target2, 0, 0, 640, 400, buffer);
+            const canvas = document.createElement("canvas");
+            canvas.width = 640;
+            canvas.height = 400;
+            const ctx = canvas.getContext("2d"),
+              image = ctx.createImageData(640, 400);
+            for (let y = 0; y < 400; y++)
+              image.data.set(buffer.subarray((399 - y) * 2560, (400 - y) * 2560), y * 2560);
+            ctx.putImageData(image, 0, 0);
+            const s = habitat2.snapshot();
+            return {
+              id,
+              stage,
+              seconds: s.time,
+              image: canvas.toDataURL("image/jpeg", 0.77),
+              width: 640,
+              height: 400,
+              tier: tier2,
+              capturedAt: /* @__PURE__ */ new Date().toISOString(),
+              site: { ...SITE },
+              camera: {
+                position: camera2.position.toArray(),
+                quaternion: camera2.quaternion.toArray(),
+                fov: 42,
+                aspect: 1.6,
+              },
+              status:
+                stage === "before"
+                  ? "개입 이전"
+                  : !s.heatPower && !s.pumpPower
+                    ? "설비 휴지"
+                    : s.eventAt === null
+                      ? "조건 형성 중"
+                      : "유지 운전 이후",
+              resources: {
+                stored: s.storedKilograms,
+                reserve: s.reserve,
+                heatPower: s.heatPower,
+                pumpPower: s.pumpPower,
+                eventAt: s.eventAt,
+                changed: s.changed,
+              },
+              regions: regions(habitat2.model),
+            };
+          } finally {
+            renderer2.setRenderTarget(previous);
+            renderer2.shadowMap.autoUpdate = auto;
+            renderer2.shadowMap.needsUpdate = true;
+            target2.dispose();
+            light.shadow.map?.dispose();
+          }
+        }
+        function update() {
+          if (busy || !habitat2.model.equipped) return;
+          const s = habitat2.model.state;
+          const stage =
+            s.time < 64
+              ? "before"
+              : s.eventAt !== null && s.time >= s.eventAt + 60
+                ? "aftermath"
+                : "intervention";
+          if (stage === "intervention" && s.time < 64.2) return;
+          const id =
+            stage === "aftermath"
+              ? `aftermath:${Math.floor((s.time - s.eventAt - 60) / 300)}`
+              : stage;
+          if (completed.has(id)) return;
+          busy = true;
+          pending = (async () => {
+            try {
+              const record = capture(stage, id);
+              await writeExhibitionRecord(record);
+              available = true;
+              await durable();
+              completed.add(id);
+            } catch {
+              available = false;
+              completed.add(id);
+            } finally {
+              busy = false;
+            }
+          })();
+        }
+        return {
+          update,
+          persist: durable,
+          flush: async () => {
+            await pending;
+            return durable();
+          },
+          snapshot,
+        };
+      }
+
       // node_modules/three/examples/jsm/geometries/RoundedBoxGeometry.js
       var _tempNormal = new Vector3();
       function getUv(faceDirVector, normal, uvAxis, projectionAxis, radius, sideLength) {
@@ -35818,7 +36966,7 @@ void main() {
         "TR-X05",
         "TR-X06",
         "TERRAFORMING_PROJECT",
-        "SURVEY / 01",
+        "OBSERVE / SAMPLE",
         "F2345",
         "F1021",
         "F2406",
@@ -35830,7 +36978,7 @@ void main() {
         "TR-R01",
         "LIFT HERE",
         "NO STEP",
-        "SERVICE / 02",
+        "SUPPLY / SERVICE",
         "OPTICAL / KEEP CLEAR",
         "RCS / KEEP CLEAR",
         "LOX / FEED",
@@ -35842,8 +36990,9 @@ void main() {
         "W-L",
         "W-R",
         "TAIL / 06",
+        "HABITAT / SERVICE",
       ];
-      var ROW = 32;
+      var ROW = 30;
       var ATLAS_HEIGHT = 2048;
       var atlases = /* @__PURE__ */ new Map();
       function paint(tier2) {
@@ -36011,6 +37160,16 @@ void main() {
           [0, 0, -1],
           ark ? 47 : 85,
           ark ? 17 : 28,
+          true,
+        );
+        b.project(
+          "HABITAT / SERVICE",
+          hull,
+          [0, ark ? 24 : 28, ark ? 450 : 220],
+          [1, 0, 0],
+          [0, 0, -1],
+          ark ? 36 : 54,
+          ark ? 8 : 9,
           true,
         );
         for (const side of [-1, 1]) {
@@ -36322,7 +37481,7 @@ void main() {
       });
       var fract = (x) => x - Math.floor(x);
       var hash = (x, y) => fract(Math.sin(x * 127.1 + y * 311.7) * 43758.5453);
-      var clamp2 = (x) => Math.max(0, Math.min(1, x));
+      var clamp3 = (x) => Math.max(0, Math.min(1, x));
       var noise = (u, v, cells) => {
         const x = u * cells,
           y = v * cells,
@@ -36362,7 +37521,7 @@ void main() {
               const cross = Math.sin(2 * Math.PI * (v * 9 - u * 3 + warp * 0.55));
               const crease = Math.exp(-Math.abs(fold) * 15),
                 crinkle = Math.exp(-Math.abs(cross) * 12);
-              height = clamp2(
+              height = clamp3(
                 0.5 +
                   fold * 0.19 +
                   cross * 0.065 -
@@ -36371,7 +37530,7 @@ void main() {
                   (fine - 0.5) * 0.05,
               );
               tone = 0.955 + (broad - 0.5) * 0.025;
-              rough = clamp2(0.72 + (broad - 0.5) * 0.23 + crease * 0.16 + crinkle * 0.08);
+              rough = clamp3(0.72 + (broad - 0.5) * 0.23 + crease * 0.16 + crinkle * 0.08);
               tint = (broad - 0.5) * 0.025;
             } else if (
               kind === "aluminum" ||
@@ -36388,7 +37547,7 @@ void main() {
               tone = 0.962 + (broad - 0.5) * 0.04 - scratch * 0.06;
               height =
                 0.5 + brush * 0.033 + machining * 0.02 + (fine - 0.5) * 0.01 - scratch * 0.08;
-              rough = clamp2(
+              rough = clamp3(
                 (kind.endsWith("steel") ? 0.82 : 0.9) +
                   brush * 0.13 +
                   (finishField - 0.5) * 0.13 +
@@ -36399,7 +37558,7 @@ void main() {
               const pore = Math.max(0, (fine - 0.71) / 0.29);
               tone = 0.96 + (broad - 0.5) * 0.025 - pore * 0.025;
               height = 0.5 + (fine - 0.5) * 0.022 - pore * 0.035;
-              rough = clamp2(0.96 + n * 0.025 + pore * 0.015);
+              rough = clamp3(0.96 + n * 0.025 + pore * 0.015);
             } else if (kind === "radiator") {
               const channel = Math.abs(fract(v * 12) - 0.5) > 0.465;
               tone = channel ? 0.66 : 0.955 + (broad - 0.5) * 0.025;
@@ -36415,12 +37574,12 @@ void main() {
               rough = 0.95 + (finishField - 0.5) * 0.07 + (fine - 0.5) * 0.035;
             }
             const i = (y * size + x) * 4;
-            color[i] = Math.round(clamp2(tone + tint) * 255);
-            color[i + 1] = Math.round(clamp2(tone) * 255);
-            color[i + 2] = Math.round(clamp2(tone - tint) * 255);
+            color[i] = Math.round(clamp3(tone + tint) * 255);
+            color[i + 1] = Math.round(clamp3(tone) * 255);
+            color[i + 2] = Math.round(clamp3(tone - tint) * 255);
             color[i + 3] = 255;
-            data[i] = Math.round(clamp2(height) * 255);
-            data[i + 1] = Math.round(clamp2(rough) * 255);
+            data[i] = Math.round(clamp3(height) * 255);
+            data[i + 1] = Math.round(clamp3(rough) * 255);
             data[i + 2] = 0;
             data[i + 3] = 255;
           }
@@ -37131,6 +38290,7 @@ void main() {
               const next2 = [...records.filter((r) => r.id !== id), record].slice(-8);
               storage.setItem(VEHICLE_ARCHIVE_KEY, JSON.stringify({ version: 1, records: next2 }));
               records = next2;
+              void writeExhibitionRecord(record, "vehicles").catch(() => {});
               return true;
             } catch {
               disabled = true;
@@ -38915,529 +40075,6 @@ void main() {
         }
       }
 
-      // works/first_dawn/timeline.js
-      var DURATION = 108;
-      var CUTS = Object.freeze([20, 40, 68, 82]);
-      var SURFACE_AT = CUTS[3];
-      var LOW_PASS_AT = CUTS[3];
-
-      // works/first_dawn/surface-flight.js
-      var SURFACE_TRAVEL = 1280;
-      function surfaceProgress(seconds2) {
-        const u = Math.max(0, Math.min(1, (seconds2 - LOW_PASS_AT) / (DURATION - LOW_PASS_AT)));
-        return u * u * u * (10 + u * (-15 + 6 * u));
-      }
-      var surfaceTrackX = (progress) => 300 + 430 * progress;
-      var surfaceTrackZ = (progress) => 1020 + SURFACE_TRAVEL * (1 - progress);
-
-      // works/first_dawn/surface.js
-      var canyonCenter = (z) =>
-        -1600 +
-        245 * Math.sin(z * 32e-5) +
-        145 * canyonNoise(z / 1900, 3, 11) +
-        65 * canyonNoise(z / 650, 7, 29);
-      function canyonHash(x, z, seed) {
-        let n = Math.imul(x, 374761393) ^ Math.imul(z, 668265263) ^ Math.imul(seed, 1442695041);
-        n = Math.imul(n ^ (n >>> 13), 1274126177);
-        return (((n ^ (n >>> 16)) >>> 0) / 4294967295) * 2 - 1;
-      }
-      function canyonNoise(x, z, seed) {
-        const ix = Math.floor(x),
-          iz = Math.floor(z),
-          fx = x - ix,
-          fz = z - iz;
-        const u = fx * fx * fx * (10 + fx * (-15 + 6 * fx)),
-          v = fz * fz * fz * (10 + fz * (-15 + 6 * fz));
-        const a = canyonHash(ix, iz, seed),
-          b = canyonHash(ix + 1, iz, seed);
-        const c = canyonHash(ix, iz + 1, seed),
-          d = canyonHash(ix + 1, iz + 1, seed);
-        return a + (b - a) * u + (c - a + (d - c - b + a) * u) * v;
-      }
-      function faultNoise(z, scale, seed) {
-        const p = z / scale,
-          i = Math.floor(p),
-          f = p - i;
-        return canyonHash(i, seed, 223) * (1 - f) + canyonHash(i + 1, seed, 223) * f;
-      }
-      var bankCuts = [];
-      for (const bank of [-1, 1]) {
-        let z = -2500;
-        for (let i = 0; i < 35; i++) {
-          const sample = canyonHash(i, bank, 179) * 0.5 + 0.5;
-          z += 145 + sample * 355;
-          bankCuts.push([
-            z,
-            bank,
-            canyonHash(i, bank, 181) * 0.76,
-            105 + (canyonHash(i, bank, 183) * 0.5 + 0.5) * 185,
-            35 + (canyonHash(i, bank, 187) * 0.5 + 0.5) * 85,
-            0.98 + (canyonHash(i, bank, 191) * 0.5 + 0.5) * 0.52,
-          ]);
-        }
-      }
-      function canyonSection(x, z) {
-        const center = canyonCenter(z),
-          side = x < center ? -1 : 1,
-          distance = Math.abs(x - center);
-        const rim =
-          135 * faultNoise(z, 850, side * 41) +
-          72 * faultNoise(z, 245, side * 59) +
-          25 * faultNoise(z, 85, side * 67);
-        const width = 710 + 70 * canyonNoise(z / 1700, side, 17) + rim;
-        const q = distance / width;
-        return { side, distance, width, q };
-      }
-      function parallelRift(z) {
-        const center =
-          canyonCenter(z) - 1710 + 95 * faultNoise(z, 1700, 251) + 35 * faultNoise(z, 290, 269);
-        const chamber = 0.5 + 0.5 * canyonNoise(z / 1100, 4, 257);
-        const opening = MathUtils.smoothstep(chamber, 0.28, 0.78);
-        return {
-          center,
-          width: 55 + 310 * opening + 24 * faultNoise(z, 230, 263),
-          depth: 160 + 630 * opening,
-        };
-      }
-      var impacts = [
-        [-4650, 5450, 330, 0.34],
-        [-4360, 2100, 255, 0.31],
-        [-2710, 4450, 190, 0.36],
-        [-2850, 6500, 125, 0.3],
-        [650, 4100, 230, 0.32],
-      ];
-      for (let i = 0; i < 110; i++) {
-        const x = -6800 + (canyonHash(i, 3, 271) * 0.5 + 0.5) * 8400;
-        const z = -1800 + (canyonHash(i, 7, 277) * 0.5 + 0.5) * 10600;
-        const r = 28 + Math.pow(canyonHash(i, 11, 281) * 0.5 + 0.5, 2.8) * 118;
-        const section = canyonSection(x, z),
-          rift = parallelRift(z);
-        if (
-          section.distance < section.width + r * 1.5 ||
-          Math.abs(x - rift.center) < rift.width + r * 1.5 ||
-          Math.hypot(x - 730, z - 1020) < 700 + r
-        )
-          continue;
-        if (impacts.some(([cx, cz, cr]) => Math.hypot(x - cx, z - cz) < cr + r * 1.4)) continue;
-        impacts.push([x, z, r, 0.28 + (canyonHash(i, 13, 283) * 0.5 + 0.5) * 0.13]);
-      }
-      function groundHeight(x, z) {
-        const { side, distance, width, q } = canyonSection(x, z);
-        const rise =
-          0.18 * MathUtils.smoothstep(q, 0.18, 0.54) +
-          0.15 * MathUtils.smoothstep(q, 0.49, 0.72) +
-          0.47 * MathUtils.smoothstep(q, 0.73, 0.87) +
-          0.2 * MathUtils.smoothstep(q, 0.93, 1.02);
-        const incision = 1 - rise,
-          wall = incision * (1 - incision) * 4;
-        const plain =
-          -620 +
-          29 * canyonNoise(x / 2100, z / 1800, 127) +
-          14 * canyonNoise(x / 650, z / 900, 139) +
-          2.5 * canyonNoise(x / 70, z / 90, 317) +
-          0.9 * canyonNoise(x / 24, z / 29, 331);
-        const depth = 1040 + 95 * canyonNoise(z / 1700, 2, 101);
-        const rockBreak =
-          22 * canyonNoise(x / 90, z / 115, 193) * wall +
-          9 * canyonNoise(x / 38, z / 51, 197) * wall;
-        const buttress = 72 * faultNoise(z + x * 0.32, 230, 73) * wall;
-        const floorMask = 1 - MathUtils.smoothstep(q, 0.12, 0.35);
-        const floor2 =
-          12 * canyonNoise(x / 310, z / 500, 97) * floorMask +
-          3 * Math.sin(x * 0.028 + z * 0.014 + canyonNoise(x / 420, z / 520, 199) * 2) * floorMask;
-        const center = canyonCenter(z);
-        const tributaryAxis = center + 760 + (z - 2800) * 0.4 + 80 * canyonNoise(z / 650, 9, 113);
-        const tributary =
-          (1 - MathUtils.smoothstep(Math.abs(x - tributaryAxis), 45, 270)) *
-          Math.exp(-Math.pow((z - 2800) / 1900, 2));
-        const bedPhase =
-          (plain - incision * depth + 18 * canyonNoise(x / 1100, z / 1400, 347)) / 58;
-        const bed = bedPhase - Math.floor(bedPhase);
-        const ledge =
-          MathUtils.smoothstep(bed, 0.2, 0.42) - MathUtils.smoothstep(bed, 0.68, 0.92) - 0.5;
-        const ledgeRelief = ledge * 19 * wall * (0.65 + 0.35 * canyonNoise(x / 180, z / 260, 349));
-        let surface =
-          plain - incision * depth + buttress + rockBreak + floor2 - tributary * 220 + ledgeRelief;
-        if (q < 1.8)
-          for (const [head, bank, slope, cutDepth, cutWidth, reach] of bankCuts) {
-            if (bank !== side || Math.abs(z - head) > 520) continue;
-            const axis2 =
-              head +
-              slope * (distance - width * 0.64) +
-              26 * canyonNoise(distance / 210, bank * 2, 163);
-            const taper = cutWidth * (0.62 + 0.52 * MathUtils.smoothstep(q, 0.45, 1.1));
-            const gully = Math.exp(-Math.pow(Math.abs(z - axis2) / taper, 1.3 + cutDepth * 2e-3));
-            const exposed =
-              MathUtils.smoothstep(q, 0.22 + reach * 0.09, 0.5) *
-              (1 - MathUtils.smoothstep(q, reach - 0.22, reach + 0.18));
-            surface -= cutDepth * gully * exposed;
-            if (cutDepth > 205) {
-              const fork = MathUtils.smoothstep(q, 0.54, 1.08);
-              const branchAxis = axis2 + bank * cutWidth * 2.1 * fork;
-              const branch = Math.exp(-Math.pow(Math.abs(z - branchAxis) / (taper * 0.36), 1.7));
-              surface -= cutDepth * 0.24 * branch * exposed * fork;
-            }
-            const fan =
-              Math.exp(-Math.pow((q - 0.27) / 0.17, 2)) *
-              Math.exp(-Math.pow((z - head + slope * width * 0.3) / (cutWidth * 2.1), 2));
-            surface += cutDepth * fan * (0.32 + 0.06 * canyonNoise(x / 28, z / 37, 317));
-          }
-        const rift = parallelRift(z),
-          rq = Math.abs(x - rift.center) / rift.width;
-        if (rq < 1.5) {
-          const profile =
-            0.22 * MathUtils.smoothstep(rq, 0.2, 0.68) + 0.78 * MathUtils.smoothstep(rq, 0.76, 1.1);
-          surface -= rift.depth * (1 - profile);
-          surface +=
-            20 * faultNoise(z + x * 0.6, 140, 293) * (1 - MathUtils.smoothstep(rq, 0.7, 1.3));
-        }
-        const mesaMask = MathUtils.smoothstep(q, 1.04, 1.25) * MathUtils.smoothstep(rq, 1.12, 1.4);
-        if (x < canyonCenter(z) && mesaMask > 0) {
-          for (const offset of [1050, 1230]) {
-            const axis2 = canyonCenter(z) - offset + 34 * faultNoise(z, 750, offset);
-            const d = Math.abs(x - axis2);
-            surface -= 19 * Math.exp(-Math.pow(d / 18, 2)) * mesaMask;
-          }
-        }
-        for (const [cx, cz, r, depthRatio] of impacts) {
-          if (Math.abs(x - cx) > r * 1.6 || Math.abs(z - cz) > r * 1.6) continue;
-          const angle = Math.atan2(z - cz, x - cx);
-          const d =
-            Math.hypot(x - cx, z - cz) /
-            (r * (1 + 0.024 * Math.sin(angle * 5 + cx) + 0.016 * Math.sin(angle * 9 + cz)));
-          if (d > 1.55) continue;
-          const bowl = 1 - MathUtils.smoothstep(d, 0.42, 1.02);
-          const rim = Math.exp(-Math.pow((d - 1.03) / 0.14, 2));
-          const ejecta =
-            Math.exp(-Math.pow((d - 1.22) / 0.28, 2)) *
-            (0.65 + 0.35 * canyonNoise(x / 34, z / 37, 307));
-          surface += r * (-depthRatio * bowl + 0.085 * rim + 0.018 * ejecta);
-        }
-        return surface;
-      }
-      function focusedAxis(t, nearLo, nearHi, a, b) {
-        return t < a
-          ? -1e4 + (t / a) * (nearLo + 1e4)
-          : t < b
-            ? nearLo + ((t - a) / (b - a)) * (nearHi - nearLo)
-            : nearHi + ((t - b) / (1 - b)) * (1e4 - nearHi);
-      }
-      function axisCell(axis2, value) {
-        let lo = 0,
-          hi = axis2.length - 1;
-        while (hi - lo > 1) {
-          const mid = (lo + hi) >> 1;
-          if (axis2[mid] <= value) lo = mid;
-          else hi = mid;
-        }
-        return lo;
-      }
-      function createSurface(scene2, tier2) {
-        const group = new Group();
-        group.name = "incised-mineral-plateau";
-        group.visible = false;
-        scene2.add(group);
-        const segments = { high: 320, mid: 220, low: 140 }[tier2];
-        const xs = new Float64Array(segments + 1),
-          zs = new Float64Array(segments + 1);
-        for (let i = 0; i <= segments; i++) {
-          xs[i] = focusedAxis(i / segments, -5200, 1200, 0.06, 0.96);
-          zs[i] = focusedAxis(i / segments, -1200, 7800, 0.05, 0.96);
-        }
-        const extent = 2e4;
-        const geometry = new PlaneGeometry(extent, extent, segments, segments);
-        geometry.rotateX(-Math.PI / 2);
-        const pos = geometry.attributes.position,
-          colors = [];
-        const pale = new Color(9988430),
-          dark = new Color(6902345),
-          layer = new Color(11373673),
-          c = new Color();
-        for (let i = 0; i < pos.count; i++) {
-          const ix = i % (segments + 1),
-            iz = Math.floor(i / (segments + 1));
-          const x = xs[ix],
-            z = zs[iz],
-            y = groundHeight(x, z);
-          pos.setXYZ(i, x, y, z);
-          const depth = MathUtils.smoothstep(-y, 680, 1650);
-          const strata =
-            0.5 + 0.5 * Math.sin(y * 0.026 + canyonNoise(x / 1100, z / 900, 151) * 1.7);
-          const exposure =
-            MathUtils.smoothstep(-y, 760, 1040) * (1 - MathUtils.smoothstep(-y, 1420, 1690));
-          c.copy(pale)
-            .lerp(dark, depth * 0.28)
-            .multiplyScalar(0.92 + strata * 0.055 + canyonNoise(x / 220, z / 270, 311) * 0.055);
-          c.lerp(layer, exposure * strata * 0.18);
-          colors.push(c.r, c.g, c.b);
-        }
-        geometry.setAttribute("color", new Float32BufferAttribute(colors, 3));
-        geometry.computeVertexNormals();
-        const heightAt = (x, z) => {
-          const ix = axisCell(xs, x),
-            iz = axisCell(zs, z);
-          const fx = MathUtils.clamp((x - xs[ix]) / (xs[ix + 1] - xs[ix]), 0, 1);
-          const fz = MathUtils.clamp((z - zs[iz]) / (zs[iz + 1] - zs[iz]), 0, 1);
-          const a = iz * (segments + 1) + ix,
-            b = a + segments + 1;
-          return fx + fz <= 1
-            ? pos.getY(a) + (pos.getY(a + 1) - pos.getY(a)) * fx + (pos.getY(b) - pos.getY(a)) * fz
-            : pos.getY(b + 1) +
-                (pos.getY(b) - pos.getY(b + 1)) * (1 - fx) +
-                (pos.getY(a + 1) - pos.getY(b + 1)) * (1 - fz);
-        };
-        const occlusion = new Float32Array(pos.count),
-          directions = [
-            [1, 0],
-            [-1, 0],
-            [0, 1],
-            [0, -1],
-          ],
-          radii = [80, 240, 650];
-        for (let i = 0; i < pos.count; i++) {
-          const x = pos.getX(i),
-            y = pos.getY(i),
-            z = pos.getZ(i);
-          let blocked = 0;
-          for (const [dx, dz] of directions) {
-            let horizon = 0;
-            for (const r of radii)
-              horizon = Math.max(horizon, (heightAt(x + dx * r, z + dz * r) - y) / r);
-            blocked += horizon / Math.sqrt(1 + horizon * horizon);
-          }
-          occlusion[i] = Math.max(0.42, 1 - blocked * 0.145);
-        }
-        geometry.setAttribute("basinOcclusion", new Float32BufferAttribute(occlusion, 1));
-        const material = new MeshStandardMaterial({
-          vertexColors: true,
-          roughness: 1,
-          metalness: 0,
-        });
-        material.shadowSide = DoubleSide;
-        material.onBeforeCompile = (shader) => {
-          shader.vertexShader = shader.vertexShader
-            .replace(
-              "#include <common>",
-              "#include <common>\nvarying vec3 basinPosition;varying float basinSlope;varying float basinAO;varying vec3 basinNormal;attribute float basinOcclusion;",
-            )
-            .replace(
-              "#include <begin_vertex>",
-              "#include <begin_vertex>\nbasinPosition=position;basinSlope=1.-abs(normal.y);basinAO=basinOcclusion;basinNormal=normal;",
-            );
-          shader.fragmentShader = shader.fragmentShader
-            .replace(
-              "#include <common>",
-              `#include <common>
-      varying vec3 basinPosition;varying float basinSlope;varying float basinAO;varying vec3 basinNormal;
-      float basinHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
-      float basinNoise(vec2 p){
-        vec2 i=floor(p),f=fract(p);f=f*f*f*(f*(f*6.-15.)+10.);
-        return mix(mix(basinHash(i),basinHash(i+vec2(1,0)),f.x),
-          mix(basinHash(i+vec2(0,1)),basinHash(i+vec2(1,1)),f.x),f.y);
-      }
-      // Blended planar sampling avoids stretching the wall into vertical streaks.
-      float basinStone(vec3 p,float frequency){
-        vec3 w=pow(abs(basinNormal),vec3(4.));w/=max(dot(w,vec3(1.)),.001);
-        return basinNoise(p.yz*frequency)*w.x+basinNoise(p.xz*frequency)*w.y+basinNoise(p.xy*frequency)*w.z;
-      }
-      float basinJoint(vec2 p){
-        vec2 cell=floor(p),f=fract(p);float first=8.,second=8.;
-        for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){
-          vec2 q=vec2(float(x),float(y));
-          vec2 seed=vec2(basinHash(cell+q),basinHash(cell+q+vec2(71.,19.)));
-          float d=length(q+.2+.6*seed-f);
-          second=min(second,max(first,d));first=min(first,d);
-        }
-        return second-first;
-      }
-      float basinRockMask(vec3 p){
-        float slopes=smoothstep(.10,.58,basinSlope);
-        float outcrop=smoothstep(.56,.76,basinNoise(p.xz*.021));
-        return max(slopes,outcrop*.65);
-      }
-      float basinRelief(vec3 p){
-        float rock=basinRockMask(p);
-        float stone=(basinStone(p,.027)-.5)*1.15;
-        ${tier2 === "low" ? "" : "stone+=(basinStone(p,.087)-.5)*.32;"}
-        float bedding=sin((p.y+18.*basinNoise(p.xz*.0013))*.108);
-        float relief=stone*mix(.18,1.,rock)+bedding*.48*basinSlope;
-        float closeRange=1.-smoothstep(90.,380.,length(vViewPosition));
-        float jointAA=1.-smoothstep(.12,.7,length(fwidth(p.xz*.36)));
-        float joints=0.;if(closeRange>.001&&rock>.01)joints=1.-smoothstep(.012,.048,basinJoint(p.xz*.36));
-        relief-=joints*.065*rock*closeRange*jointAA;
-        ${tier2 === "low" ? "" : "relief+=(basinStone(p,1.8)-.5)*.014*closeRange*(1.-rock);"}
-        float grains=basinNoise(p.xz*${tier2 === "high" ? "40." : tier2 === "mid" ? "22." : "12."});
-        float grainFootprint=length(fwidth(p.xz*${tier2 === "high" ? "40." : tier2 === "mid" ? "22." : "12."}));
-        relief+=(grains-.5)*.004*closeRange*(1.-smoothstep(.25,.8,grainFootprint));
-        float windPhase=dot(p.xz,vec2(8.1,3.6))+basinNoise(p.xz*.65)*3.;
-        float rippleAA=1.-smoothstep(.3,1.1,fwidth(windPhase));
-        relief+=sin(windPhase)*.014*(1.-rock)*closeRange*rippleAA;
-        return relief;
-      }`,
-            )
-            .replace(
-              "#include <color_fragment>",
-              `#include <color_fragment>
-      float warp=(basinNoise(basinPosition.xz*.0018)-.5)*26.;
-      float phase=(basinPosition.y+warp)*.032;
-      float bands=sin(phase+.23*sin(phase*.31));
-      float materialRock=basinRockMask(basinPosition);
-      float exposure=smoothstep(760.,1030.,-basinPosition.y)*(1.-smoothstep(1440.,1690.,-basinPosition.y));
-      float nearDetail=1.-smoothstep(3500.,8000.,length(vViewPosition));
-      float aa=1.-smoothstep(.35,1.2,length(fwidth(basinPosition.xz*.09)));
-      float sediment=(basinNoise(basinPosition.xz*vec2(.025,.065))-.5);
-      ${tier2 === "low" ? "float grain=0.;" : "float grain=basinNoise(basinPosition.xz*.09)-.5;"}
-      float floorMask=smoothstep(1390.,1660.,-basinPosition.y);
-      float ripple=sin(dot(basinPosition.xz,vec2(.028,.014))+basinNoise(basinPosition.xz*.002)*2.);
-      float microAA=1.-smoothstep(.12,.7,length(fwidth(basinPosition.xz*.36)));
-      float microNear=1.-smoothstep(90.,380.,length(vViewPosition));
-      float joints=0.;if(microNear>.001&&materialRock>.01)joints=1.-smoothstep(.012,.048,basinJoint(basinPosition.xz*.36));
-      diffuseColor.rgb*=1.+bands*.08*exposure+sediment*.095*nearDetail+grain*.035*nearDetail*aa+ripple*.018*floorMask;
-      diffuseColor.rgb*=mix(vec3(1.025,1.018,1.01),vec3(.91,.925,.94),materialRock*.46);
-      diffuseColor.rgb*=1.-joints*.16*materialRock*microNear*microAA;
-      // Sub-metre aggregate remains readable in penumbra; filter it at distance.
-      float sandAA=1.-smoothstep(.35,1.2,length(fwidth(basinPosition.xz*4.8)));
-      float aggregate=basinNoise(basinPosition.xz*1.25)-.5;
-      float mineralGrain=basinNoise(basinPosition.xz*4.8)-.5;
-      float fineFrequency=${tier2 === "high" ? "40." : tier2 === "mid" ? "22." : "12."};
-      float fineAA=1.-smoothstep(.25,.8,length(fwidth(basinPosition.xz*fineFrequency)));
-      float fineGrain=basinNoise(basinPosition.xz*fineFrequency)-.5;
-      diffuseColor.rgb*=1.+(aggregate*.14+mineralGrain*.10*sandAA+fineGrain*.35*fineAA)*microNear;
-      float veil=1.-exp(-length(vViewPosition)*.00042);
-      diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.34,.195,.15),veil*.10);`,
-            )
-            .replace(
-              "#include <roughnessmap_fragment>",
-              `#include <roughnessmap_fragment>
-      roughnessFactor=clamp(mix(.97,.79,materialRock)+(basinStone(basinPosition,.17)-.5)*.045,.73,1.);`,
-            )
-            .replace(
-              "#include <normal_fragment_maps>",
-              `#include <normal_fragment_maps>
-      // Surface-gradient bump mapping in view space; amplitude is in world units.
-      float relief=basinRelief(basinPosition);
-      float detailVisibility=1.-smoothstep(.45,1.5,length(fwidth(basinPosition.xz*.027)));
-      vec3 sigmaX=dFdx(-vViewPosition),sigmaY=dFdy(-vViewPosition);
-      vec3 gradX=cross(sigmaY,normal),gradY=cross(normal,sigmaX);
-      float determinant=dot(sigmaX,gradX)*faceDirection;
-      vec3 gradient=sign(determinant)*(dFdx(relief)*gradX+dFdy(relief)*gradY)*detailVisibility;
-      normal=normalize(max(abs(determinant),1.e-8)*normal-gradient);`,
-            )
-            .replace(
-              "#include <fog_fragment>",
-              `#include <fog_fragment>
-      float terrainLuma=dot(gl_FragColor.rgb,vec3(.2126,.7152,.0722));
-      gl_FragColor.rgb=mix(vec3(terrainLuma),gl_FragColor.rgb,.672);`,
-            )
-            .replace(
-              "#include <aomap_fragment>",
-              "#include <aomap_fragment>\nreflectedLight.indirectDiffuse*=basinAO;reflectedLight.indirectSpecular*=basinAO;",
-            );
-        };
-        material.customProgramCacheKey = () => `canyon-stratified-mineral-v9-${tier2}`;
-        const terrain = new Mesh(geometry, material);
-        terrain.castShadow = terrain.receiveShadow = true;
-        group.add(terrain);
-        const rockGeometry = new IcosahedronGeometry(1, tier2 === "low" ? 0 : 1);
-        const rockPos = rockGeometry.attributes.position;
-        for (let i = 0; i < rockPos.count; i++) {
-          const x = rockPos.getX(i),
-            y = rockPos.getY(i),
-            z = rockPos.getZ(i);
-          const split = 1 + 0.13 * Math.sin(x * 6.3 + z * 4.7) + 0.07 * Math.sin(z * 9.1 - y * 3.2);
-          rockPos.setXYZ(i, x * split, Math.max(-0.62, Math.min(0.62, y)) * 0.8, z * split);
-        }
-        rockGeometry.computeVertexNormals();
-        const rockMaterial = new MeshStandardMaterial({ color: 7755850, roughness: 0.87 });
-        const rocks = new InstancedMesh(rockGeometry, rockMaterial, tier2 === "low" ? 2 : 5);
-        const dummy = new Object3D();
-        let seed = 7103;
-        const rand = () => {
-          seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-          return seed / 4294967296;
-        };
-        for (let i = 0; i < rocks.count; i++) {
-          const along = (i + 0.5) / rocks.count,
-            side = i % 2 ? 1 : -1;
-          let x = surfaceTrackX(along) + side * (110 + rand() * 250);
-          let z = surfaceTrackZ(along) + (rand() - 0.5) * SURFACE_TRAVEL * 0.07;
-          let r = 1.5 + rand() * 3;
-          const fragments = [
-            [728.1, 1018.7, 0.32],
-            [732.6, 1017.5, 0.19],
-            [729.2, 1014.4, 0.13],
-          ];
-          if (i < Math.min(rocks.count, 3)) [x, z, r] = fragments[i];
-          dummy.position.set(x, heightAt(x, z) + r * 0.2, z);
-          dummy.scale.set(r, r * 0.55, r * 0.8);
-          dummy.rotation.set(rand(), rand() * 6, rand());
-          dummy.updateMatrix();
-          rocks.setMatrixAt(i, dummy.matrix);
-        }
-        rocks.castShadow = rocks.receiveShadow = true;
-        rocks.computeBoundingSphere();
-        group.add(rocks);
-        const skylight = new HemisphereLight(12895688, 7361350, 0.58);
-        group.add(skylight);
-        const skyUniforms = { elapsed: { value: SURFACE_AT }, surfaceStart: { value: SURFACE_AT } };
-        const sky = new Mesh(
-          new SphereGeometry(39e3, 32, 20),
-          new ShaderMaterial({
-            uniforms: skyUniforms,
-            side: BackSide,
-            depthWrite: false,
-            vertexShader: `varying vec3 skyDirection;void main(){skyDirection=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
-            fragmentShader: `
-      uniform float elapsed;uniform float surfaceStart;varying vec3 skyDirection;
-      void main(){
-        vec3 direction=normalize(skyDirection);
-        float h=max(0.,direction.y),az=atan(direction.x,-direction.z);
-        float age=max(0.,elapsed-surfaceStart);
-        float emergence=smoothstep(0.,10.,age);
-        float airMass=1./sqrt(h*h+.025);
-        vec3 beta=vec3(.12,.17,.235),transmittance=exp(-beta*airMass);
-        vec3 solar=normalize(vec3(-.46,.18,-.87));
-        float mu=dot(direction,solar),g=.72;
-        float mie=(1.-g*g)/pow(max(.08,1.+g*g-2.*g*mu),1.5);
-        float rayleigh=.75*(1.+mu*mu);
-        vec3 col=vec3(.014,.023,.042)*transmittance;
-        col+=(1.-transmittance)*mix(vec3(.30,.205,.125),vec3(.09,.14,.20),smoothstep(.1,.8,h))*(.62+rayleigh*.13);
-        col+=vec3(.22,.135,.065)*(1.-transmittance)*mie*.045;
-        float bend=.13+.035*sin(az*3.2+age*.037)+.018*sin(az*7.-age*.022);
-        float envelope=smoothstep(.015,.075,h)*(1.-smoothstep(.32,.58,h));
-        float curtain=exp(-abs(h-bend)*12.);
-        float folds=.62+.22*sin(az*22.+sin(az*5.+age*.045)*2.5)+.10*sin(az*49.-age*.03);
-        float mist=exp(-pow((h-.22)/.19,2.));
-        float shift=.5+.5*sin(az*1.8+age*.055);
-        vec3 gasTint=mix(vec3(.032,.092,.075),vec3(.077,.047,.088),shift);
-        float rays=pow(.5+.5*sin(az*58.+sin(az*6.+age*.025)*1.8),4.);
-        col+=gasTint*(curtain*(folds*.46+rays*.075)+mist*.145)*envelope*emergence;
-        // Broad horizon strata remain separate from the aurora's luminous folds.
-        float layerBend=.048+.009*sin(az*1.7+age*.009)+.004*sin(az*4.1-age*.006);
-        float lowerGas=exp(-pow((h-layerBend)/.027,2.));
-        float upperGas=exp(-pow((h-layerBend-.075)/.048,2.));
-        float gasDepth=(lowerGas*.085+upperGas*.035)*(1.-smoothstep(.22,.38,h));
-        float gasTransmission=exp(-gasDepth*airMass);
-        vec3 gasLight=mix(vec3(.29,.205,.145),vec3(.14,.165,.18),smoothstep(.04,.16,h));
-        col=col*gasTransmission+gasLight*(1.-gasTransmission)*.72;
-        gl_FragColor=vec4(col,1.);
-        #include <tonemapping_fragment>
-        #include <colorspace_fragment>
-      }`,
-          }),
-        );
-        sky.position.set(850, -760, 1800);
-        group.add(sky);
-        return {
-          group,
-          heightAt,
-          observerHeight: heightAt(850, 1800),
-          update(seconds2) {
-            skyUniforms.elapsed.value = seconds2;
-          },
-        };
-      }
-
       // works/first_dawn/atmosphere.js
       function createAtmosphere(planet, sun, tier2) {
         const steps = { high: 16, mid: 12, low: 8 }[tier2];
@@ -39602,6 +40239,7 @@ void main() {
         const surface = createSurface(scene2, tier2);
         const surfaceFog = new FogExp2(7489080, 14e-5);
         return {
+          surface,
           planetPosition: () => planet.position.toArray(),
           observerHeight: surface.observerHeight,
           surfaceHeightAt: surface.heightAt,
@@ -39819,7 +40457,7 @@ void main() {
       var asin = Math.asin;
       var PI = Math.PI;
       var _round = Math.round;
-      var clamp3 = (v, min, max) => (v < min ? min : v > max ? max : v);
+      var clamp4 = (v, min, max) => (v < min ? min : v > max ? max : v);
       var round = (v, decimalLength) => {
         if (decimalLength < 0) return v;
         if (!decimalLength) return _round(v);
@@ -40311,8 +40949,8 @@ void main() {
         const tickablePrevAbsoluteTime = tickable._currentTime;
         const tickableEndTime = tickableDelay + iterationDuration;
         const tickableAbsoluteTime = time - tickableDelay;
-        const tickablePrevTime = clamp3(tickablePrevAbsoluteTime, -tickableDelay, duration);
-        const tickableCurrentTime = clamp3(tickableAbsoluteTime, -tickableDelay, duration);
+        const tickablePrevTime = clamp4(tickablePrevAbsoluteTime, -tickableDelay, duration);
+        const tickableCurrentTime = clamp4(tickableAbsoluteTime, -tickableDelay, duration);
         const deltaTime = tickableAbsoluteTime - tickablePrevAbsoluteTime;
         const isCurrentTimeAboveZero = tickableCurrentTime > 0;
         const isCurrentTimeEqualOrAboveDuration = tickableCurrentTime >= duration;
@@ -40324,7 +40962,7 @@ void main() {
         if (iterationCount > 1) {
           const period = iterationDuration + (isCurrentTimeEqualOrAboveDuration ? 0 : _loopDelay);
           const currentIteration = ~~(tickableCurrentTime / period);
-          tickable._currentIteration = clamp3(currentIteration, 0, iterationCount);
+          tickable._currentIteration = clamp4(currentIteration, 0, iterationCount);
           if (isCurrentTimeEqualOrAboveDuration) tickable._currentIteration--;
           isOdd = tickable._currentIteration % 2;
           iterationElapsedTime = tickableCurrentTime - currentIteration * period || 0;
@@ -40466,7 +41104,7 @@ void main() {
                         : absoluteTime >= tween._absoluteStartTime ||
                           (!tween._hasFromValue && absoluteTime >= tweenPrevRepEndTime)))))
               ) {
-                const tweenNewTime = (tween._currentTime = clamp3(
+                const tweenNewTime = (tween._currentTime = clamp4(
                   iterationTime - tween._startTime,
                   0,
                   tweenChangeDuration,
@@ -41440,7 +42078,7 @@ void main() {
           cancelled ? this.cancel() : this.reset(true).play();
         }
         get currentTime() {
-          return clamp3(round(this._currentTime, globals.precision), -this._delay, this.duration);
+          return clamp4(round(this._currentTime, globals.precision), -this._delay, this.duration);
         }
         set currentTime(time) {
           const paused2 = this.paused;
@@ -41448,19 +42086,19 @@ void main() {
           if (!paused2) this.resume();
         }
         get iterationCurrentTime() {
-          return clamp3(round(this._iterationTime, globals.precision), 0, this.iterationDuration);
+          return clamp4(round(this._iterationTime, globals.precision), 0, this.iterationDuration);
         }
         set iterationCurrentTime(time) {
           this.currentTime = this.iterationDuration * this._currentIteration + time;
         }
         get progress() {
-          return clamp3(round(this._currentTime / this.duration, 10), 0, 1);
+          return clamp4(round(this._currentTime / this.duration, 10), 0, 1);
         }
         set progress(progress) {
           this.currentTime = this.duration * progress;
         }
         get iterationProgress() {
-          return clamp3(round(this._iterationTime / this.iterationDuration, 10), 0, 1);
+          return clamp4(round(this._iterationTime / this.iterationDuration, 10), 0, 1);
         }
         set iterationProgress(progress) {
           const iterationDuration = this.iterationDuration;
@@ -41472,7 +42110,7 @@ void main() {
         }
         set currentIteration(iterationCount) {
           this.currentTime =
-            this.iterationDuration * clamp3(+iterationCount, 0, this.iterationCount - 1);
+            this.iterationDuration * clamp4(+iterationCount, 0, this.iterationCount - 1);
         }
         get reversed() {
           return !!this._reversed;
@@ -41855,8 +42493,8 @@ void main() {
             (+overshoot + 1) * t * t * t - +overshoot * t * t,
         /** @type {ElasticEasing} */
         Elastic: (amplitude = 1, period = 0.3) => {
-          const a = clamp3(+amplitude, 1, 10);
-          const p = clamp3(+period, minValue, 2);
+          const a = clamp4(+amplitude, 1, 10);
+          const p = clamp4(+period, minValue, 2);
           const s = (p / doublePI) * asin(1 / a);
           const e = doublePI / p;
           return (t) =>
@@ -45086,7 +45724,7 @@ void main() {
             } else {
               if (
                 connectionsToDestination.every(
-                  (connection) => connection.input !== input || connection.output !== output,
+                  (connection2) => connection2.input !== input || connection2.output !== output,
                 )
               ) {
                 connectionsToDestination.push({ input, output });
@@ -45103,7 +45741,7 @@ void main() {
             } else if (typeof destinationOrOutput === "number") {
               for (const [destination, connectionsToDestination] of connections) {
                 const filteredConnections = connectionsToDestination.filter(
-                  (connection) => connection.output !== destinationOrOutput,
+                  (connection2) => connection2.output !== destinationOrOutput,
                 );
                 if (filteredConnections.length === 0) {
                   connections.delete(destination);
@@ -45118,9 +45756,9 @@ void main() {
                 const connectionsToDestination = connections.get(destinationOrOutput);
                 if (connectionsToDestination !== void 0) {
                   const filteredConnections = connectionsToDestination.filter(
-                    (connection) =>
-                      connection.output !== output &&
-                      (connection.input !== input || input === void 0),
+                    (connection2) =>
+                      connection2.output !== output &&
+                      (connection2.input !== input || input === void 0),
                   );
                   if (filteredConnections.length === 0) {
                     connections.delete(destinationOrOutput);
@@ -45131,11 +45769,11 @@ void main() {
               }
             }
             for (const [destination, connectionsToDestination] of connections) {
-              connectionsToDestination.forEach((connection) => {
+              connectionsToDestination.forEach((connection2) => {
                 if (isNativeAudioNode(destination)) {
-                  nativeAudioNode.connect(destination, connection.output, connection.input);
+                  nativeAudioNode.connect(destination, connection2.output, connection2.input);
                 } else {
-                  nativeAudioNode.connect(destination, connection.output);
+                  nativeAudioNode.connect(destination, connection2.output);
                 }
               });
             }
@@ -45396,7 +46034,7 @@ void main() {
             if (isAudioNode(destination)) {
               const nativeDestinationAudioNode = getNativeAudioNode(destination);
               try {
-                const connection = connectNativeAudioNodeToNativeAudioNode(
+                const connection2 = connectNativeAudioNodeToNativeAudioNode(
                   this._nativeAudioNode,
                   nativeDestinationAudioNode,
                   output,
@@ -45404,7 +46042,7 @@ void main() {
                 );
                 const isPassive = isPassiveAudioNode(this);
                 if (isOffline || isPassive) {
-                  this._nativeAudioNode.disconnect(...connection);
+                  this._nativeAudioNode.disconnect(...connection2);
                 }
                 if (
                   this.context.state !== "closed" &&
@@ -48734,10 +49372,10 @@ void main() {
                 insertElementInSet2(
                   connections,
                   [destination, output, input],
-                  (connection) =>
-                    connection[0] === destination &&
-                    connection[1] === output &&
-                    connection[2] === input,
+                  (connection2) =>
+                    connection2[0] === destination &&
+                    connection2[1] === output &&
+                    connection2[2] === input,
                   true,
                 );
                 if (wasDisconnected) {
@@ -48749,7 +49387,7 @@ void main() {
               insertElementInSet2(
                 connections,
                 [destination, output],
-                (connection) => connection[0] === destination && connection[1] === output,
+                (connection2) => connection2[0] === destination && connection2[1] === output,
                 true,
               );
               if (wasDisconnected) {
@@ -48766,9 +49404,9 @@ void main() {
                 connections.clear();
               } else if (typeof destinationOrOutput === "number") {
                 disconnect2.call(nativeAudioNode, destinationOrOutput);
-                for (const connection of connections) {
-                  if (connection[1] === destinationOrOutput) {
-                    connections.delete(connection);
+                for (const connection2 of connections) {
+                  if (connection2[1] === destinationOrOutput) {
+                    connections.delete(connection2);
                   }
                 }
               } else {
@@ -48777,13 +49415,13 @@ void main() {
                 } else {
                   disconnect2.call(nativeAudioNode, destinationOrOutput, output);
                 }
-                for (const connection of connections) {
+                for (const connection2 of connections) {
                   if (
-                    connection[0] === destinationOrOutput &&
-                    (output === void 0 || connection[1] === output) &&
-                    (input === void 0 || connection[2] === input)
+                    connection2[0] === destinationOrOutput &&
+                    (output === void 0 || connection2[1] === output) &&
+                    (input === void 0 || connection2[2] === input)
                   ) {
-                    connections.delete(connection);
+                    connections.delete(connection2);
                   }
                 }
               }
@@ -54197,7 +54835,7 @@ void main() {
       function EQ(a, b) {
         return Math.abs(a - b) < EPSILON;
       }
-      function clamp4(value, min, max) {
+      function clamp5(value, min, max) {
         return Math.max(Math.min(value, max), min);
       }
 
@@ -61172,7 +61810,7 @@ void main() {
               maxValue2,
             );
           }
-          return clamp4(-this._inverseFFT(real, imag, this._phase) / maxValue2, -1, 1);
+          return clamp5(-this._inverseFFT(real, imag, this._phase) / maxValue2, -1, 1);
         }
         get partials() {
           return this._partials.slice(0, this.partialCount);
@@ -64897,9 +65535,9 @@ void main() {
       }
 
       // works/shared/journey-score.js
-      var clamp5 = (x) => Math.max(0, Math.min(1, x));
+      var clamp6 = (x) => Math.max(0, Math.min(1, x));
       var swell = (t, start2, end) => {
-        const x = clamp5((t - start2) / (end - start2));
+        const x = clamp6((t - start2) / (end - start2));
         return x * x * (3 - 2 * x);
       };
       var window3 = (t, a, b, c, d) => swell(t, a, b) * (1 - swell(t, c, d));
@@ -65014,6 +65652,7 @@ void main() {
         response: response2 = null,
       }) {
         const quality2 = TIERS[tier2] || TIERS.low;
+        let environment2 = null;
         let graph = null,
           pending = null,
           enabled = false,
@@ -65041,6 +65680,20 @@ void main() {
           duration,
           decay: quality2.decay,
           gain: graph?.master.gain.value ?? 0,
+          environment: environment2,
+          environmentMix: environment2
+            ? {
+                wind: graph?.environmentGates.wind?.gain.value ?? 0,
+                water: graph?.environmentGates.water?.gain.value ?? 0,
+                pump: graph?.environmentGates.pump?.gain.value ?? 0,
+                music:
+                  environment2.eventAt != null
+                    ? Math.max(0, 1 - (environment2.time - environment2.eventAt) / 8)
+                    : phase2 === "ending"
+                      ? 0
+                      : 1,
+              }
+            : null,
           toneHz: response2?.toneHz ?? 73.416,
           score: journeyScore(phase2, seconds2, duration, distance),
           ...(graph?.meter ? { waveform: Array.from(graph.meter.getValue()) } : {}),
@@ -65130,7 +65783,26 @@ void main() {
               nodes.forEach((node) => node.dispose());
               return;
             }
-            graph = { nodes, master, gates, wet, colour, meter };
+            const environmentGates = {};
+            if (phase2 === "arrival" || phase2 === "ending") {
+              for (const [name, frequency, kind] of [
+                ["wind", 450, "brown"],
+                ["water", 1600, "pink"],
+              ]) {
+                const source2 = own(new Noise(kind));
+                const filter = own(new Filter({ type: "bandpass", frequency, Q: 0.6 }));
+                const gate2 = own(new Gain(0));
+                source2.chain(filter, gate2, master);
+                source2.start();
+                environmentGates[name] = gate2;
+              }
+              const source = own(new Oscillator(92, "triangle")),
+                gate = own(new Gain(0));
+              source.chain(gate, master);
+              source.start();
+              environmentGates.pump = gate;
+            }
+            graph = { nodes, master, gates, wet, colour, meter, environmentGates };
           } catch (error2) {
             nodes.forEach((node) => node.dispose());
             throw error2;
@@ -65141,22 +65813,51 @@ void main() {
           param.linearRampToValueAtTime(target2, now3 + 0.12);
         };
         function update(t, d = 12e3, envelope = 1) {
-          seconds2 = Math.max(0, Math.min(duration, t));
+          seconds2 = Math.max(0, environment2 ? t : Math.min(duration, t));
           distance = d;
           level = Math.max(0, Math.min(1, envelope));
           if (!graph || (Math.abs(seconds2 - lastUpdate) < 0.075 && seconds2 !== duration)) return;
           lastUpdate = seconds2;
-          const score = journeyScore(phase2, seconds2, duration, distance),
+          const score = journeyScore(
+              phase2,
+              environment2 ? Math.min(seconds2, 53) : seconds2,
+              environment2 ? (phase2 === "arrival" ? 64 : 18) : duration,
+              distance,
+            ),
             now3 = now2();
-          for (const band of BANDS) ramp(graph.gates[band].gain, score[band], now3);
+          const eventFade =
+            environment2?.eventAt != null
+              ? Math.max(0, 1 - (environment2.time - environment2.eventAt) / 8)
+              : 1;
+          const music = environment2 ? (phase2 === "ending" ? 0 : eventFade) : 1;
+          for (const band of BANDS) ramp(graph.gates[band].gain, score[band] * music, now3);
+          if (environment2) {
+            const fade = Math.min(1, Math.max(0, (environment2.time - 20) / 16));
+            ramp(
+              graph.environmentGates.wind.gain,
+              Math.max(0, environment2.wind - 1.6) * 0.018 * fade,
+              now3,
+            );
+            ramp(
+              graph.environmentGates.water.gain,
+              Math.min(0.028, environment2.flow * 0.025) * fade,
+              now3,
+            );
+            ramp(graph.environmentGates.pump.gain, environment2.pumpPower * 0.024 * fade, now3);
+          }
           ramp(graph.wet.gain, score.wet, now3);
           ramp(graph.colour.frequency, score.cutoff, now3);
-          ramp(graph.master.gain, enabled && !paused2 ? 0.85 * score.envelope * level : 0, now3);
-          if (!enabled || seconds2 >= duration) {
+          ramp(
+            graph.master.gain,
+            enabled && !paused2 ? 0.85 * (environment2 ? 1 : score.envelope) * level : 0,
+            now3,
+          );
+          if (!enabled || (seconds2 >= duration && !environment2)) {
             if (!suspendTimer)
               suspendTimer = setTimeout(() => {
                 suspendTimer = null;
-                if (!enabled || seconds2 >= duration) context2.rawContext.suspend().catch(() => {});
+                if (!enabled || (seconds2 >= duration && !environment2))
+                  context2.rawContext.suspend().catch(() => {});
               }, 240);
           } else {
             clearTimeout(suspendTimer);
@@ -65210,7 +65911,7 @@ void main() {
         }
         function resume2() {
           paused2 = false;
-          if (graph && enabled && seconds2 < duration)
+          if (graph && enabled && (seconds2 < duration || environment2))
             context2.rawContext
               .resume()
               .then(() => {
@@ -65234,6 +65935,9 @@ void main() {
           if (enabled) enable();
         }
         return {
+          setEnvironment(value) {
+            environment2 = value;
+          },
           enable,
           mute,
           pause: pause2,
@@ -65360,12 +66064,12 @@ void main() {
       }
 
       // works/first_dawn/mission-response.js
-      var clamp6 = (x) => Math.max(0, Math.min(1, x));
+      var clamp7 = (x) => Math.max(0, Math.min(1, x));
       function migrationResponse(evidence) {
         if (!evidence)
           return { source: "preview", energy: null, thermal: null, opening: 1, duration: 16 };
-        const energy = clamp6(evidence.energy),
-          thermal = clamp6((evidence.temperature - 210) / 65);
+        const energy = clamp7(evidence.energy),
+          thermal = clamp7((evidence.temperature - 210) / 65);
         return {
           source: "mission-record",
           energy,
@@ -65384,8 +66088,20 @@ void main() {
           duration: MIGRATION_DURATION,
           next: "arrival",
         },
-        arrival: { file: "arrival.html", start: 68, duration: 64, next: "ending" },
-        ending: { file: "ending.html", start: 0, duration: 18, next: null },
+        arrival: {
+          file: "arrival.html",
+          start: 68,
+          duration: 180,
+          openEnded: true,
+          next: "ending",
+        },
+        ending: {
+          file: "ending.html",
+          start: 0,
+          duration: 18,
+          openEnded: true,
+          next: null,
+        },
       });
       function readPostMission() {
         try {
@@ -65395,7 +66111,7 @@ void main() {
             !Object.hasOwn(POST_PHASES, s.phase) ||
             !Number.isFinite(s.elapsed) ||
             s.elapsed < 0 ||
-            s.elapsed > POST_PHASES[s.phase].duration
+            (!POST_PHASES[s.phase].openEnded && s.elapsed > POST_PHASES[s.phase].duration)
           )
             return null;
           if (
@@ -65447,228 +66163,243 @@ void main() {
         return state2;
       }
 
-      // works/first_dawn/possibility-model.js
-      var GRID = 64;
-      var STEP = 0.05;
-      var clamp7 = (x) => Math.max(0, Math.min(1, x));
-      function possibilityConditions(evidence) {
-        if (!evidence) return null;
-        const thermal = clamp7(1 - Math.abs(evidence.temperature - 246) / 80);
-        return {
-          resource: clamp7(0.3 + evidence.energy * 0.5),
-          growth: 0.3 + thermal * 0.25,
-          decay: 0.12 + clamp7(evidence.radiation) * 0.55 + (1 - clamp7(evidence.energy)) * 0.15,
-          diffusion: 0.2 + 0.12 * clamp7(evidence.energy),
-          water: evidence.water ? 1 : 0,
-          footprint: 2.4 + 1.4 * clamp7(evidence.energy),
-        };
-      }
-      var PossibilityModel = class {
-        constructor(evidence, seed = "000000") {
-          this.conditions = possibilityConditions(evidence);
-          this.seed = parseInt(seed || "000000", 16) || 0;
-          this.signatures = evidence?.sampleSignatures ?? null;
-          this.field = new Float32Array(GRID * GRID);
-          this.next = new Float32Array(GRID * GRID);
-          this.resource = new Float32Array(GRID * GRID);
-          this.substrate = new Float32Array(GRID * GRID);
-          this.steps = 0;
-          let state2 = this.seed;
-          const random = () => {
-            state2 = (Math.imul(state2, 1664525) + 1013904223) >>> 0;
-            return state2 / 4294967296;
-          };
-          this.fractures = [];
-          const branch = (x, y, angle, length, depth) => {
-            const nx = x + Math.cos(angle) * length,
-              ny = y + Math.sin(angle) * length;
-            this.fractures.push([x, y, nx, ny]);
-            if (depth)
-              for (const side of [-1, 1])
-                branch(
-                  nx,
-                  ny,
-                  angle + side * (0.3 + random() * 0.8),
-                  length * (0.5 + random() * 0.35),
-                  depth - 1,
-                );
-          };
-          for (const [i, angle] of [-0.8, 1.4, 3.4].entries()) {
-            const a = this.signatures?.[i * 2] ?? 0.5,
-              b = this.signatures?.[i * 2 + 1] ?? 0.5;
-            branch(32, 32, angle + random() * 0.25 + (a - 0.5) * 0.5, 11 * (0.78 + 0.44 * b), 2);
-          }
-          for (let y = 0; y < GRID; y++)
-            for (let x = 0; x < GRID; x++) {
-              let distance = Infinity;
-              for (const [ax, ay, bx, by] of this.fractures) {
-                const dx = bx - ax,
-                  dy = by - ay,
-                  p = clamp7(((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy));
-                distance = Math.min(distance, Math.hypot(x - ax - p * dx, y - ay - p * dy));
-              }
-              const permeability = Math.exp(
-                (-distance * distance) /
-                  (0.7 +
-                    0.5 * (this.conditions ? clamp7((this.conditions.resource - 0.3) / 0.5) : 1)),
-              );
-              this.substrate[y * GRID + x] = permeability < 0.01 ? 0 : permeability;
-            }
-          this.reset();
-        }
-        reset() {
-          this.steps = 0;
-          this.field.fill(0);
-          this.next.fill(0);
-          for (let y = 0; y < GRID; y++)
-            for (let x = 0; x < GRID; x++) {
-              const i = y * GRID + x;
-              const angle = Math.atan2(y - 32, x - 32) + Math.PI;
-              const channel = Math.min(5, Math.floor((angle / (Math.PI * 2)) * 6));
-              const weight =
-                this.signatures?.length === 6 ? 0.55 + 0.45 * this.signatures[channel] : 1;
-              this.resource[i] = (this.conditions?.resource ?? 0) * this.substrate[i] * weight;
-            }
-          if (this.conditions) {
-            this.field[32 * GRID + 32] = 0.8;
-            this.field[32 * GRID + 33] = 0.3;
-          }
-        }
-        advance(seconds2) {
-          const target2 = Math.floor(Math.max(0, Math.min(24, seconds2)) / STEP + 1e-8);
-          if (target2 < this.steps) this.reset();
-          const c = this.conditions;
-          if (!c) return;
-          while (this.steps < target2) {
-            this.next.fill(0);
-            for (let y = 1; y < GRID - 1; y++)
-              for (let x = 1; x < GRID - 1; x++) {
-                const i = y * GRID + x,
-                  u = this.field[i],
-                  r = this.resource[i];
-                const s = this.substrate[i];
-                const flux =
-                  Math.min(s, this.substrate[i - 1]) * (this.field[i - 1] - u) +
-                  Math.min(s, this.substrate[i + 1]) * (this.field[i + 1] - u) +
-                  Math.min(s, this.substrate[i - GRID]) * (this.field[i - GRID] - u) +
-                  Math.min(s, this.substrate[i + GRID]) * (this.field[i + GRID] - u);
-                const reaction = 4 * c.growth * c.water * r * u * (1 - u) - (c.decay + 0.12) * u;
-                this.next[i] = clamp7(u + STEP * (((4 * c.diffusion) / 0.32) * flux + reaction));
-                this.resource[i] = clamp7(r - STEP * 0.75 * u * r);
-              }
-            [this.field, this.next] = [this.next, this.field];
-            this.steps++;
-          }
-        }
-        snapshot() {
-          let mass = 0,
-            peak = 0,
-            activeCells = 0,
-            spread = 0;
-          for (let i = 0; i < this.field.length; i++) {
-            const v = this.field[i];
-            mass += v;
-            peak = Math.max(peak, v);
-            if (v > 8e-3) {
-              activeCells++;
-              spread = Math.max(spread, Math.hypot((i % GRID) - 32, Math.floor(i / GRID) - 32));
-            }
-          }
-          return {
-            steps: this.steps,
-            mass,
-            peak,
-            activeCells,
-            spread: (spread / GRID) * (this.conditions?.footprint ?? 0),
-            status: !this.conditions
-              ? "unavailable"
-              : mass < 0.25
-                ? "fading"
-                : mass > 1.1
-                  ? "persisting"
-                  : "fragile",
-            conditions: this.conditions,
-          };
-        }
+      // works/first_dawn/habitat/world.js
+      var smooth4 = (x) => {
+        x = MathUtils.clamp(x, 0, 1);
+        return x * x * x * (10 + x * (-15 + x * 6));
       };
-
-      // works/first_dawn/possibility.js
-      function createPossibility(scene2, heightAt, evidence, seed) {
-        const model = new PossibilityModel(evidence, seed),
-          pixels = new Uint8Array(GRID * GRID * 4);
-        const texture = new DataTexture(pixels, GRID, GRID, RGBAFormat);
-        texture.magFilter = LinearFilter;
-        texture.minFilter = LinearFilter;
-        texture.colorSpace = SRGBColorSpace;
-        const geometry = new PlaneGeometry(
-          model.conditions?.footprint ?? 2.4,
-          model.conditions?.footprint ?? 2.4,
-          16,
-          16,
-        );
-        geometry.rotateX(-Math.PI / 2);
-        const position = geometry.attributes.position;
-        for (let i = 0; i < position.count; i++) {
-          const x = position.getX(i) + 728,
-            z = position.getZ(i) + 1012;
-          position.setXYZ(i, x, heightAt(x, z) + 0.035, z);
+      function createHabitatWorld(scene2, surface, tier2, checkpoint, options = {}) {
+        const model = createBasinModel(groundHeight, checkpoint, options);
+        const arrays = [new Float32Array(GRID * GRID * 4), new Float32Array(GRID * GRID * 4)];
+        const textures = arrays.map((data) => {
+          const texture = new DataTexture(data, GRID, GRID, RGBAFormat, FloatType);
+          texture.minFilter = texture.magFilter = LinearFilter;
+          texture.needsUpdate = true;
+          return texture;
+        });
+        const uniforms = {
+          basinCurrent: { value: textures[0] },
+          basinPrevious: { value: textures[1] },
+          basinMix: { value: 1 },
+          basinSite: { value: new Vector3(SITE.x, SITE.z, SITE.size) },
+        };
+        const previousCompile = surface.material.onBeforeCompile;
+        surface.material.onBeforeCompile = (shader) => {
+          previousCompile(shader);
+          shader.fragmentShader = shader.fragmentShader.replace(
+            "normal=normalize(max(abs(determinant),1.e-8)*normal-gradient);",
+            "normal=normalize(max(abs(determinant),1.e-8)*normal-gradient*.35);",
+          );
+          Object.assign(shader.uniforms, uniforms);
+          shader.fragmentShader = shader.fragmentShader
+            .replace(
+              "#include <common>",
+              `#include <common>
+      uniform sampler2D basinCurrent; uniform sampler2D basinPrevious;
+      uniform float basinMix; uniform vec3 basinSite;`,
+            )
+            .replace(
+              "// Sub-metre aggregate",
+              `
+      vec2 siteUV=(basinPosition.xz-basinSite.xy)/basinSite.z+.5;
+      float insideSite=step(0.,siteUV.x)*step(0.,siteUV.y)*step(siteUV.x,1.)*step(siteUV.y,1.);
+      vec4 basinState=mix(texture2D(basinPrevious,siteUV),texture2D(basinCurrent,siteUV),basinMix)*insideSite;
+      float frost=smoothstep(.012,.24,basinState.r);
+      float wet=smoothstep(.001,.10,basinState.g);
+      float deposited=clamp(basinState.b,-.2,.2);
+      diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*.27,wet);
+      diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.49,.53,.54),frost*.82);
+      diffuseColor.rgb*=1.+deposited*.3;
+      // Sub-metre aggregate`,
+            )
+            .replace(
+              "roughnessFactor=clamp(mix(.97,.79,materialRock)+(basinStone(basinPosition,.17)-.5)*.045,.73,1.);",
+              "roughnessFactor=mix(clamp(mix(.97,.79,materialRock),.73,1.),.18,wet*(1.-frost));",
+            );
+        };
+        surface.material.customProgramCacheKey = () => `inhabited-basin-v1-${tier2}`;
+        surface.material.needsUpdate = true;
+        const group = new Group();
+        group.name = "sealed-first-settlement";
+        scene2.add(group);
+        const metal = new MeshStandardMaterial({
+          color: 8949129,
+          roughness: 0.67,
+          metalness: 0.38,
+        });
+        const dark = new MeshStandardMaterial({
+          color: 2370607,
+          roughness: 0.78,
+          metalness: 0.3,
+        });
+        const glass = new MeshStandardMaterial({
+          color: 1516331,
+          roughness: 0.17,
+          metalness: 0.42,
+        });
+        const light = new MeshStandardMaterial({
+          color: 9409668,
+          roughness: 0.48,
+          emissive: 8088909,
+          emissiveIntensity: 0,
+        });
+        function box(w, h, d, material, x, y, z, parent = group) {
+          const mesh = new Mesh(new BoxGeometry(w, h, d), material);
+          mesh.position.set(x, y, z);
+          mesh.castShadow = mesh.receiveShadow = true;
+          parent.add(mesh);
+          return mesh;
         }
-        geometry.computeVertexNormals();
-        const mesh = new Mesh(
-          geometry,
+        function pipe(a, b, r, material = dark) {
+          const delta = new Vector3().subVectors(b, a);
+          const mesh = new Mesh(
+            new CylinderGeometry(r, r, delta.length(), tier2 === "low" ? 8 : 12),
+            material,
+          );
+          mesh.position.copy(a).add(b).multiplyScalar(0.5);
+          mesh.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), delta.normalize());
+          mesh.castShadow = true;
+          group.add(mesh);
+          return mesh;
+        }
+        const modulePoints = [
+          [-1408, 3278],
+          [-1377, 3302],
+        ];
+        const lamps = [];
+        for (const [x, z] of modulePoints) {
+          const y = surface.heightAt(x, z) + 4;
+          const cylinder2 = new Mesh(new CylinderGeometry(4, 4, 24, 16), metal);
+          cylinder2.rotation.x = Math.PI / 2;
+          cylinder2.position.set(x, y, z);
+          cylinder2.castShadow = cylinder2.receiveShadow = true;
+          group.add(cylinder2);
+          for (const dz of [-9, 9]) {
+            box(10, 0.8, 3, dark, x, y - 3, z + dz);
+            for (const dx of [-3, 3]) box(0.9, 5, 1, metal, x + dx, y - 4.8, z + dz);
+          }
+          for (const dz of [-12.05, 12.05]) {
+            box(4.5, 5, 0.24, dark, x, y, z + dz);
+            box(3, 3.8, 0.28, metal, x, y - 0.2, z + dz);
+          }
+          lamps.push(box(3, 0.7, 0.35, light, x, y + 1.5, z - 12.25));
+          box(7, 0.8, 16, dark, x, y + 4, z);
+          for (const dz of [-5, 0, 5]) box(0.3, 1.9, 2, glass, x + 3.9, y + 1, z + dz);
+        }
+        const px2 = -1430,
+          pz2 = 3294,
+          py2 = surface.heightAt(px2, pz2);
+        box(9, 4, 6, metal, px2, py2 + 3, pz2);
+        const rotor = new Mesh(new CylinderGeometry(1.3, 1.3, 0.7, 12), dark);
+        rotor.rotation.z = Math.PI / 2;
+        rotor.position.set(px2 - 4.9, py2 + 3, pz2);
+        group.add(rotor);
+        for (let i = 0; i < 6; i++) box(9, 0.18, 6, metal, px2, py2 + 5 + i * 0.5, pz2);
+        let end = new Vector3(px2, py2 + 1, pz2);
+        for (let i = 1; i <= 5; i++) {
+          const x = px2 - 7 * i,
+            z = pz2 + 3 * i;
+          const next2 = new Vector3(x, surface.heightAt(x, z) + 0.7, z);
+          pipe(end, next2, 0.38);
+          end = next2;
+        }
+        pipe(
+          new Vector3(-1408, surface.heightAt(-1408, 3278) + 2, 3278),
+          new Vector3(px2, py2 + 2, pz2),
+          0.7,
+        );
+        const tank = new Mesh(new CylinderGeometry(3, 3, 10, 16), metal);
+        tank.position.set(-1418, surface.heightAt(-1418, 3320) + 5, 3320);
+        group.add(tank);
+        const gauge = box(0.35, 6, 0.2, glass, -1418, surface.heightAt(-1418, 3320) + 5, 3316.95);
+        const canvas = document.createElement("canvas");
+        canvas.width = 512;
+        canvas.height = 128;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#20292c";
+        ctx.font = "500 58px monospace";
+        ctx.fillText("TR / HAB-01", 12, 65);
+        ctx.font = "24px monospace";
+        ctx.fillText("SEALED HABITAT · SERVICE 01", 12, 108);
+        const label = new Mesh(
+          new PlaneGeometry(7, 1.75),
           new MeshStandardMaterial({
-            map: texture,
-            roughness: 1,
-            metalness: 0,
+            map: new CanvasTexture(canvas),
             transparent: true,
+            roughness: 0.82,
             depthWrite: false,
-            side: DoubleSide,
+            polygonOffset: true,
+            polygonOffsetFactor: -1,
           }),
         );
-        mesh.visible = false;
-        mesh.receiveShadow = true;
-        scene2.add(mesh);
-        const target2 = new Vector3(728, heightAt(728, 1012), 1012),
-          start2 = new Quaternion(),
-          end = new Quaternion();
-        let uploadedSteps = -1,
-          uploadedReveal = -1;
-        function update(t, camera2, arrivalSeconds = t - 6) {
-          mesh.visible = t >= 108 && !!evidence;
-          if (arrivalSeconds < ARRIVAL_HANDOFF.settleAt) return;
-          const p = MathUtils.smootherstep(
-            arrivalSeconds,
-            ARRIVAL_HANDOFF.settleAt,
-            ARRIVAL_HANDOFF.stillAt,
-          );
-          start2.copy(camera2.quaternion);
-          camera2.lookAt(target2);
-          end.copy(camera2.quaternion);
-          camera2.quaternion.copy(start2).slerp(end, p);
-          camera2.updateMatrixWorld();
-          if (!evidence) return;
-          model.advance(t - (ARRIVAL_HANDOFF.traceAt + 6));
-          const reveal = MathUtils.smoothstep(
-            t,
-            ARRIVAL_HANDOFF.traceAt + 6,
-            ARRIVAL_HANDOFF.traceAt + 10,
-          );
-          if (model.steps === uploadedSteps && reveal === uploadedReveal) return;
-          uploadedSteps = model.steps;
-          uploadedReveal = reveal;
-          for (let i = 0; i < model.field.length; i++) {
-            const o = i * 4,
-              concentration = model.field[i],
-              edge = 1 - Math.exp(-Math.max(0, concentration - 8e-3) * 7);
-            const crack = model.substrate[i] * 0.32;
-            pixels[o] = Math.round(37 + edge * 37);
-            pixels[o + 1] = Math.round(32 + edge * 52);
-            pixels[o + 2] = Math.round(25 + edge * 34);
-            pixels[o + 3] = Math.round(Math.max(crack, edge * 0.66) * reveal * 230);
+        label.position.set(-1408, surface.heightAt(-1408, 3278) + 5, 3265.7);
+        group.add(label);
+        const target2 = new Vector3(),
+          startPosition = new Vector3(),
+          startRotation = new Quaternion(),
+          finalRotation = new Quaternion();
+        const helper = new PerspectiveCamera();
+        let tick3 = -1,
+          slot = 0,
+          clock = model.state.time;
+        function upload() {
+          slot = 1 - slot;
+          const data = arrays[slot];
+          for (let k = 0; k < GRID * GRID; k++) {
+            data[k * 4] = model.fields.water[k] - model.liquid[k];
+            data[k * 4 + 1] = model.liquid[k];
+            data[k * 4 + 2] = model.fields.trace[k];
+            data[k * 4 + 3] = 1;
           }
-          texture.needsUpdate = true;
+          textures[slot].needsUpdate = true;
+          uniforms.basinPrevious.value = textures[1 - slot];
+          uniforms.basinCurrent.value = textures[slot];
+          tick3 = model.state.steps;
         }
-        return { update, snapshot: () => model.snapshot() };
+        upload();
+        arrays[1 - slot].set(arrays[slot]);
+        textures[1 - slot].needsUpdate = true;
+        function update(time) {
+          clock = Math.max(model.state.time, time);
+          model.advance(clock);
+          if (tick3 !== model.state.steps) upload();
+          uniforms.basinMix.value = Math.min(1, (clock - model.state.time) / STEP);
+          group.visible = time >= 34 && model.equipped;
+          rotor.rotation.x = model.state.pumped * 0.7;
+          light.emissiveIntensity = time < 64 ? 0 : 0.14 * Math.min(1, (time - 64) / 18);
+          gauge.scale.y = 0.08 + Math.min(1, model.state.stored / 65) * 0.92;
+        }
+        function frame2(camera2, blend = 1) {
+          const p = smooth4(blend);
+          if (p <= 0) return;
+          startPosition.copy(camera2.position);
+          startRotation.copy(camera2.quaternion);
+          helper.position.set(-1420, surface.heightAt(-1420, 2780) + 175, 2780);
+          target2.set(-1400, surface.heightAt(-1400, 3300) + 125, 3300);
+          helper.up.set(0, 1, 0);
+          helper.lookAt(target2);
+          finalRotation.copy(helper.quaternion);
+          camera2.position.lerpVectors(startPosition, helper.position, p);
+          if (p < 1)
+            camera2.position.y = Math.max(
+              camera2.position.y,
+              surface.heightAt(camera2.position.x, camera2.position.z) +
+                6 +
+                180 * Math.sin(Math.PI * p),
+            );
+          camera2.quaternion.slerpQuaternions(startRotation, finalRotation, p);
+          camera2.fov = MathUtils.lerp(camera2.fov, camera2.aspect < 1 ? 50 : 42, p);
+          camera2.near = 0.5;
+          camera2.updateProjectionMatrix();
+        }
+        return {
+          model,
+          update,
+          frame: frame2,
+          save: model.save,
+          snapshot: model.snapshot,
+          group,
+        };
       }
 
       // works/first_dawn/arrival-light.js
@@ -65808,6 +66539,19 @@ void main() {
           heat: [1, 0.78, 1.12, 0.88, 1.16, 0.92][i % 6],
           deposit: [0.9, 1.16, 0.82, 1.04, 0.95, 1.1][i % 6],
         }));
+        const roles = [
+          "habitat",
+          "transport",
+          "supply",
+          "transport",
+          "survey-relay",
+          "habitat-core",
+        ];
+        histories.forEach((h, i) => {
+          h.role = roles[i];
+          if (i === 2) h.deposit *= 1.12;
+          if (i === 5) h.heat *= 0.88;
+        });
         fleet2.forEach((ship, index) => {
           ship.updateMatrixWorld(true);
           const inverse = ship.matrixWorld.clone().invert();
@@ -66240,13 +66984,17 @@ void main() {
       var phase = document.body.dataset.phase === "arrival" ? "arrival" : "migration";
       var segment = POST_PHASES[phase];
       var state = enterPostMission(phase);
-      var endTime = segment.start + segment.duration;
+      var endTime = segment.openEnded ? Infinity : segment.start + segment.duration;
+      var placeStorage = phase === "arrival" ? await inheritPlace(state, phase) : null;
+      var basinOrigin = state.basinOrigin ?? 0;
+      var placeRecorder;
       var response = migrationResponse(state.evidence);
       var targetPath = (file) =>
         location.pathname.includes("/works/first_dawn/") ? "../terra_incognita/" + file : file;
       var leaving = false;
       var lastSaved = -1;
-      var possibility;
+      var transferRetryAt = 0;
+      var habitat;
       var recovery;
       var tier = ["high", "mid", "low"].includes(requested)
         ? requested
@@ -66260,7 +67008,7 @@ void main() {
         mid: { dpr: 1.25, shadow: 1024 },
         low: { dpr: 1, shadow: 512 },
       }[tier];
-      var smooth4 = (x) => {
+      var smooth5 = (x) => {
         x = MathUtils.clamp(x, 0, 1);
         return x * x * (3 - 2 * x);
       };
@@ -66293,7 +67041,8 @@ void main() {
       var keyLight;
       var fillLight;
       var arrivalLight;
-      var seconds = segment.start + (params.has("test") ? 0 : state.elapsed);
+      var settledLighting = false;
+      var seconds = segment.start + state.elapsed;
       var paused = false;
       var last = performance.now();
       var frame = 0;
@@ -66320,22 +67069,43 @@ void main() {
       archive.href = location.pathname.includes("/works/first_dawn/")
         ? "../terra_incognita/field-archive.html"
         : "field-archive.html";
-      title.textContent = state.evidence
-        ? "시뮬레이션 · 생명 발생 가능성 / 실제 생명 발견 아님"
-        : "미리보기 · 선행 탐사 기록 없음 / 생명 가능성 모형 미실행";
+      title.textContent = "";
       function persist() {
         state.elapsed = seconds - segment.start;
-        if (phase === "arrival" && seconds >= ARRIVAL_GROUND_AT + 6)
-          state.outcome = possibility?.snapshot();
-        savePostMission(state);
+        if (habitat) {
+          state.basin = habitat.save();
+          state.outcome = habitat.snapshot();
+          void placeRecorder?.persist();
+        }
+        const saved = savePostMission(state);
+        if (!saved) console.warn("Basin checkpoint storage unavailable");
+        return saved;
       }
       function next() {
-        if (leaving) return;
+        if (leaving || seconds < transferRetryAt) return;
+        if (phase === "arrival" && habitat?.model.state.eventAt === null) return;
+        if (!persist() && phase === "arrival") {
+          const box = document.getElementById("error");
+          transferRetryAt = seconds + 10;
+          box.hidden = false;
+          box.textContent = "기록 저장 공간을 확인한 후 다시 열어주세요.";
+          return;
+        }
+        const successor = {
+          ...state,
+          phase: segment.next,
+          elapsed: 0,
+          ...(habitat ? { endingOrigin: habitat.model.state.time } : {}),
+        };
+        if (!savePostMission(successor) && phase === "arrival") {
+          transferRetryAt = seconds + 10;
+          const box = document.getElementById("error");
+          box.hidden = false;
+          box.textContent = "기록 저장 공간을 확인한 후 다시 열어주세요.";
+          return;
+        }
+        Object.assign(state, successor);
         leaving = true;
-        persist();
-        state.phase = segment.next;
-        state.elapsed = 0;
-        savePostMission(state);
         audio.pause();
         const url = new URL(targetPath(POST_PHASES[segment.next].file), location.href);
         for (const key2 of ["quality", "full", "terminal"])
@@ -66385,7 +67155,7 @@ void main() {
           ship.position.set(s.x, s.y, anchorZ - depth);
           ship.scale.setScalar(s.scale);
           ship.visible = phase === "migration" && (!opening || i === 0);
-          const correction = smooth4((flightTime - 64 - i * 3) / 22);
+          const correction = smooth5((flightTime - 64 - i * 3) / 22);
           ship.rotation.set(-0.025 + i * 8e-3, -0.13 + correction * 0.085, (i - 2) * 0.012);
           if (phase === "migration") openingFlyby(ship.position, i, seconds, ship.quaternion);
           updateAttitudeJets(ship, i, phase === "migration" ? seconds : -1);
@@ -66428,16 +67198,47 @@ void main() {
           const start2 = currentShot === "ring-rear" ? MIGRATION_CUTS[2] : MIGRATION_CUTS[3];
           const end = currentShot === "ring-rear" ? MIGRATION_CUTS[3] : segment.duration;
           const envelope =
-            smooth4((seconds - start2) / 1.5) *
-            smooth4((end - seconds) / (currentShot === "ring-rear" ? 1.5 : 4));
+            smooth5((seconds - start2) / 1.5) *
+            smooth5((end - seconds) / (currentShot === "ring-rear" ? 1.5 : 4));
           applyCameraVibration(seconds, camera, 0.7 * envelope);
         }
         if (phase === "arrival" && seconds >= ARRIVAL_FLEET_AT)
           placeArrivalFleet(fleet, camera, seconds, environment.surfaceHeightAt);
+        if (habitat) {
+          habitat.update(basinOrigin + seconds - segment.start);
+          habitat.frame(camera, (seconds - segment.start - 34) / 30);
+          habitat.group.visible = seconds - segment.start >= 34 && habitat.model.equipped;
+          if (seconds - segment.start >= 64)
+            fleet.forEach((ship) => {
+              ship.visible = false;
+            });
+        }
         const shadowSubject = fleet[migrationShot?.subject ?? 0];
         if (phase === "migration") fitVoyageShadow(shadowSubject);
         if (phase === "arrival") {
-          arrivalLight.update(camera, seconds);
+          if (seconds - segment.start < 64) {
+            renderer.shadowMap.autoUpdate = true;
+            settledLighting = false;
+            arrivalLight.update(camera, seconds);
+          } else if (!settledLighting) {
+            keyLight.target.position.set(-1400, environment.surfaceHeightAt(-1400, 3300), 3300);
+            keyLight.position.copy(keyLight.target.position).add(sunlightOffset);
+            Object.assign(keyLight.shadow.camera, {
+              left: -1e3,
+              right: 1e3,
+              top: 1e3,
+              bottom: -1e3,
+              near: 100,
+              far: 9e3,
+            });
+            keyLight.shadow.camera.updateProjectionMatrix();
+            const texel = 2e3 / quality.shadow;
+            keyLight.shadow.bias = (-texel * 1.2) / 8900;
+            keyLight.shadow.normalBias = texel * 1.5;
+            renderer.shadowMap.autoUpdate = false;
+            renderer.shadowMap.needsUpdate = true;
+            settledLighting = true;
+          }
         } else if (currentShot.startsWith("surface")) {
           keyLight.target.position.set(
             camera.position.x,
@@ -66468,9 +67269,9 @@ void main() {
           phase === "migration" &&
             (opening || currentShot === "ring-rear" || currentShot === "escort-closeup"),
         );
-        if (phase === "arrival") possibility.update(timelineTime, camera, seconds);
-        const enter = smooth4((seconds - segment.start) / 0.75),
-          exit = 1 - smooth4((seconds - (endTime - 1.2)) / 0.9);
+        if (habitat) audio.setEnvironment(habitat.model.state);
+        const enter = smooth5((seconds - segment.start) / 0.75),
+          exit = 1 - smooth5((seconds - (endTime - 1.2)) / 0.9);
         const cutTimes = phase === "arrival" ? [ARRIVAL_FLEET_AT] : MIGRATION_CUTS;
         document.getElementById("cut").style.opacity = String(
           Math.max(1 - enter, 1 - exit, ...cutTimes.map((at) => transitionVeil(seconds, at))),
@@ -66478,19 +67279,18 @@ void main() {
         if (arrivalIntro && phase === "arrival") {
           const introTime = seconds - segment.start;
           arrivalIntro.style.opacity = String(
-            smooth4((introTime - 0.4) / 1.5) * (1 - smooth4((introTime - 5) / 2)),
+            smooth5((introTime - 0.4) / 1.5) * (1 - smooth5((introTime - 5) / 2)),
           );
         }
-        title.style.opacity = String(
-          phase === "arrival" ? smooth4((seconds - ARRIVAL_HANDOFF.traceAt - 2) / 2) * exit : 0,
-        );
+        title.style.opacity = "0";
         replay.hidden = true;
-        archive.hidden = true;
+        archive.hidden = phase !== "arrival" || seconds - segment.start < 34;
         audio.update(
           seconds - segment.start,
           camera.position.distanceTo(shadowSubject.position),
           enter * exit,
         );
+        placeRecorder?.update();
         renderer.render(scene, camera);
         vehicleRecorder.sample({
           kind: "fleet",
@@ -66499,6 +67299,9 @@ void main() {
           source: renderer.domElement,
           eligible: enter * exit > 0.95 && phase === "migration" && !opening && seconds > 31,
           status: () => ({
+            role: "HABITATION / CONTINUOUS LOAD",
+            voyageDays: window.VOYAGE_AGEING.snapshot().days ?? 340,
+            surfaceHistory: "항해 시간과 역할에 따른 예술적 열화",
             shot: currentShot,
             ships: fleet.length,
             ringPeriodSeconds: 80,
@@ -66525,11 +67328,18 @@ void main() {
           renderer.setPixelRatio(pixelRatio);
         }
         render2(seconds + dt);
-        if (seconds - lastSaved >= 2) {
+        if (seconds - lastSaved >= 10) {
           persist();
           lastSaved = seconds;
         }
-        if (seconds >= endTime) next();
+        if (
+          seconds >= endTime ||
+          (habitat?.model.state.eventAt !== null &&
+            habitat &&
+            habitat.model.state.time >= habitat.model.state.eventAt + 12 &&
+            (!state.placeInherited || seconds - segment.start >= 90))
+        )
+          next();
       }
       function pause() {
         paused = true;
@@ -66618,12 +67428,19 @@ void main() {
             tier,
             sunlightOffset,
           );
-        possibility = createPossibility(
-          scene,
-          environment.surfaceHeightAt,
-          state.evidence,
-          state.seed,
-        );
+        if (phase === "arrival") {
+          habitat = createHabitatWorld(scene, environment.surface, tier, state.basin);
+          placeRecorder = createPlaceRecorder(
+            renderer,
+            scene,
+            environment.surface,
+            habitat,
+            tier,
+            state,
+          );
+          placeRecorder.update();
+          habitat.update(basinOrigin + seconds - segment.start);
+        }
         render2(seconds);
         document.getElementById("loading").classList.add("done");
         setTimeout(() => {
@@ -66665,8 +67482,13 @@ void main() {
             duration: segment.duration,
             endTime,
             preview: !state.evidence,
-            possibility: possibility.snapshot(),
+            habitat: habitat?.snapshot() ?? null,
+            placeArchive: placeRecorder?.snapshot() ?? null,
+            placeStorage,
             tier,
+            role: "HABITATION / CONTINUOUS LOAD",
+            voyageDays: window.VOYAGE_AGEING.snapshot().days ?? 340,
+            surfaceHistory: "항해 시간과 역할에 따른 예술적 열화",
             shot: currentShot,
             cameraPosition: camera.position.toArray(),
             cameraFov: camera.fov,
@@ -66710,6 +67532,8 @@ void main() {
             ? {
                 seek: render2,
                 next,
+                persist,
+                flushArchive: () => placeRecorder?.flush(),
                 positions: () => fleet.map((s) => s.position.toArray()),
               }
             : {}),
@@ -66727,8 +67551,9 @@ void main() {
         document.getElementById("loading").hidden = true;
         const box = document.getElementById("error");
         box.hidden = false;
-        box.textContent =
-          "3D 화면을 시작할 수 없습니다. WebGL을 지원하는 브라우저에서 다시 열어주세요.";
+        box.textContent = /basin|checkpoint/i.test(error2.message)
+          ? "저장된 환경 상태를 읽을 수 없습니다. 시작 화면에서 새 탐사를 선택해 주세요."
+          : "3D 화면을 시작할 수 없습니다. WebGL을 지원하는 브라우저에서 다시 열어주세요.";
         console.error(error2);
       }
       /*! Bundled license information:

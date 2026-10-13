@@ -3,167 +3,65 @@
   var __export = (target, all3) => {
     for (var name in all3) __defProp(target, name, { get: all3[name], enumerable: !0 });
   };
-  var VEHICLE_ARCHIVE_KEY = "terra-incognita:vehicle-archive:v1",
-    kinds = new Set(["rover", "surveyor", "fleet"]),
-    contexts = new Set(["terra", "desert", "granite", "migration", "arrival"]);
-  function readVehicleArchive(storage4) {
+  var VEHICLE_HISTORY_KEY = "beyond-known:vehicle-history:v1",
+    VEHICLE_ROLES = Object.freeze({
+      rover: "OBSERVATION / SAMPLE RETURN",
+      surveyor: "TRANSPORT / SUPPLY",
+      fleet: "HABITATION / CONTINUOUS LOAD",
+    });
+  function createVehicleHistory(storage4, fresh = !1) {
+    let state = { version: 1, distance: 0, surfaceSeconds: 0, landings: [], worlds: [] };
     try {
-      let source = JSON.parse(storage4.getItem(VEHICLE_ARCHIVE_KEY) || "null");
-      return source?.version !== 1
-        ? []
-        : (Array.isArray(source.records) ? source.records : [])
-            .slice(0, 8)
-            .filter(
-              (r) =>
-                r &&
-                r.id === `${r.kind}:${r.context}` &&
-                kinds.has(r.kind) &&
-                contexts.has(r.context) &&
-                typeof r.image == "string" &&
-                r.image.length < 1e5 &&
-                /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(r.image) &&
-                Number.isFinite(r.seconds) &&
-                r.status &&
-                typeof r.status == "object",
-            );
-    } catch {
-      return [];
-    }
-  }
-  function createVehicleRecorder() {
-    let records,
-      storage4,
-      canvas,
-      context3,
-      disabled = !1;
-    try {
-      ((storage4 = sessionStorage), (records = null));
-    } catch {
-      ((disabled = !0), (records = []));
-    }
-    let clocks = new Map(),
-      seen = new Map();
-    return {
-      sample({ kind, context: place, seconds, source, eligible, status }) {
-        if (disabled || !eligible || !Number.isFinite(seconds)) return !1;
-        let id = `${kind}:${place}`,
-          previous = clocks.get(id);
-        if (previous !== void 0 && seconds < previous + 12) return !1;
-        clocks.set(id, seconds);
+      let saved = !fresh && JSON.parse(storage4?.getItem(VEHICLE_HISTORY_KEY) || "null");
+      saved?.version === 1 &&
+        Number.isFinite(saved.distance) &&
+        saved.distance >= 0 &&
+        Number.isFinite(saved.surfaceSeconds) &&
+        saved.surfaceSeconds >= 0 &&
+        Array.isArray(saved.landings) &&
+        Array.isArray(saved.worlds) &&
+        (state = saved);
+    } catch {}
+    let hasLast = !1,
+      lastX = 0,
+      lastZ = 0,
+      place = null,
+      savedAt = 0,
+      persist = () => {
         try {
-          if (records === null) {
-            records = readVehicleArchive(storage4);
-            for (let r of records) seen.set(r.id, r.seen || 1);
-          }
-          records.length &&
-            !storage4.getItem(VEHICLE_ARCHIVE_KEY) &&
-            ((records = []), seen.clear());
-          let count = (seen.get(id) || 0) + 1;
-          if ((seen.set(id, count), Math.random() >= 1 / count || !source.width || !source.height))
-            return !1;
-          canvas ||= document.createElement("canvas");
-          let scale2 = Math.min(480 / source.width, 640 / source.height);
-          ((canvas.width = Math.max(1, Math.round(source.width * scale2))),
-            (canvas.height = Math.max(1, Math.round(source.height * scale2))),
-            (context3 ||= canvas.getContext("2d", { willReadFrequently: !0 })),
-            context3.drawImage(source, 0, 0, canvas.width, canvas.height));
-          let pixels = context3.getImageData(0, 0, canvas.width, canvas.height).data,
-            bright = 0;
-          for (let i = 0; i < pixels.length; i += 64)
-            pixels[i] + pixels[i + 1] + pixels[i + 2] > 45 && bright++;
-          if (bright < 20) return !1;
-          let image = canvas.toDataURL("image/jpeg", 0.64);
-          if (image.length >= 1e5) return !1;
-          let record = {
-              id,
-              kind,
-              context: place,
-              seconds,
-              seen: count,
-              status: status(),
-              image,
-              width: canvas.width,
-              height: canvas.height,
-            },
-            next = [...records.filter((r) => r.id !== id), record].slice(-8);
-          return (
-            storage4.setItem(VEHICLE_ARCHIVE_KEY, JSON.stringify({ version: 1, records: next })),
-            (records = next),
-            !0
-          );
-        } catch {
-          return ((disabled = !0), !1);
-        }
+          storage4?.setItem(VEHICLE_HISTORY_KEY, JSON.stringify(state));
+        } catch {}
       },
-      snapshot: () => ({
-        records: records?.length || 0,
-        storage: disabled ? "unavailable" : "available",
-      }),
+      coating = { rover: 0.025, surveyor: 0 };
+    return {
+      update(world, position, dt, active, landed) {
+        if (
+          (place !== world && ((place = world), (hasLast = !1)), active && dt > 0 && dt <= 0.11)
+        ) {
+          if (hasLast) {
+            let d = Math.hypot(position.x - lastX, position.z - lastZ);
+            d < 3 && (state.distance += d);
+          }
+          ((state.surfaceSeconds += dt),
+            state.worlds.includes(world) || state.worlds.push(world),
+            landed && !state.landings.includes(world) && state.landings.push(world));
+        }
+        ((lastX = position.x),
+          (lastZ = position.z),
+          (hasLast = !0),
+          state.surfaceSeconds - savedAt > 10 && (persist(), (savedAt = state.surfaceSeconds)));
+      },
+      persist,
+      snapshot: () => ({ ...state, landings: [...state.landings], worlds: [...state.worlds] }),
+      exposure: () => (
+        (coating.rover = Math.min(0.28, 0.025 + state.distance / 3600)),
+        (coating.surveyor = Math.min(
+          0.2,
+          state.landings.length * 0.024 + state.surfaceSeconds / 3e4,
+        )),
+        coating
+      ),
     };
-  }
-  function bindMissionTripleTap({ target = document, enabled, onComplete }) {
-    let contact = null,
-      count = 0,
-      firstAt = 0,
-      lastAt = 0,
-      reset = () => {
-        ((contact = null), (count = 0), (firstAt = 0), (lastAt = 0));
-      };
-    (target.addEventListener(
-      "pointerdown",
-      (event) => {
-        if (event.pointerType === "touch") {
-          if (
-            !enabled() ||
-            event.isPrimary === !1 ||
-            event.target.closest?.(
-              'button,a,input,select,textarea,[role="button"],[contenteditable="true"]',
-            )
-          ) {
-            reset();
-            return;
-          }
-          contact = {
-            id: event.pointerId,
-            x: event.clientX,
-            y: event.clientY,
-            at: performance.now(),
-          };
-        }
-      },
-      { capture: !0, passive: !0 },
-    ),
-      target.addEventListener(
-        "pointermove",
-        (event) => {
-          contact?.id === event.pointerId &&
-            Math.hypot(event.clientX - contact.x, event.clientY - contact.y) > 18 &&
-            reset();
-        },
-        { capture: !0, passive: !0 },
-      ),
-      target.addEventListener(
-        "pointerup",
-        (event) => {
-          if (!contact || contact.id !== event.pointerId) return;
-          let now2 = performance.now(),
-            valid =
-              enabled() &&
-              now2 - contact.at <= 350 &&
-              Math.hypot(event.clientX - contact.x, event.clientY - contact.y) <= 18;
-          if (((contact = null), !valid)) {
-            reset();
-            return;
-          }
-          ((now2 - lastAt > 550 || now2 - firstAt > 1200) && ((count = 0), (firstAt = now2)),
-            (lastAt = now2),
-            ++count === 3 && (reset(), onComplete()));
-        },
-        { capture: !0, passive: !0 },
-      ),
-      target.addEventListener("pointercancel", reset, { capture: !0, passive: !0 }),
-      target.addEventListener("visibilitychange", reset),
-      addEventListener("pagehide", reset));
   }
   var CullFaceNone = 0,
     CullFaceBack = 1,
@@ -50422,6 +50320,217 @@ var<${access}> ${name} : ${structName};`;
     workgroupId2 = TSL.workgroupId,
     workingToColorSpace2 = TSL.workingToColorSpace,
     xor2 = TSL.xor;
+  var roverExposure = uniform2(0.025),
+    landerExposure = uniform2(0);
+  function setMissionExposure(exposure) {
+    ((roverExposure.value = exposure.rover), (landerExposure.value = exposure.surveyor));
+  }
+  var EXHIBITION_DB = "beyond-known-place-v1",
+    connection;
+  function openExhibition() {
+    return (
+      connection ||
+      ((connection = new Promise((resolve, reject) => {
+        let request = indexedDB.open(EXHIBITION_DB, 1);
+        ((request.onupgradeneeded = () => {
+          for (let name of ["world", "frames", "vehicles"])
+            request.result.createObjectStore(name, { keyPath: "id" });
+        }),
+          (request.onsuccess = () => resolve(request.result)),
+          (request.onerror = () => reject(request.error)),
+          (request.onblocked = () => reject(new Error("Installation storage is blocked"))));
+      }).catch((error2) => {
+        throw ((connection = null), error2);
+      })),
+      connection)
+    );
+  }
+  async function writeExhibitionRecord(record, kind = "frames") {
+    if (!["frames", "vehicles"].includes(kind)) throw new Error("Unknown record store");
+    let db = await openExhibition();
+    return new Promise((resolve, reject) => {
+      let tx = db.transaction(kind, "readwrite"),
+        store = tx.objectStore(kind);
+      if (kind === "frames") {
+        let req = store.get(record.id);
+        req.onsuccess = () => {
+          req.result || store.put(record);
+        };
+        let all3 = store.getAll();
+        all3.onsuccess = () => {
+          let old = all3.result
+            .filter((r) => r.stage === "aftermath")
+            .sort((a, b) => b.seconds - a.seconds);
+          for (let r of old.slice(31)) store.delete(r.id);
+        };
+      } else store.put(record);
+      ((tx.oncomplete = () => resolve(!0)),
+        (tx.onerror = tx.onabort = () => reject(tx.error || new Error("Record write aborted"))));
+    });
+  }
+  var VEHICLE_ARCHIVE_KEY = "terra-incognita:vehicle-archive:v1",
+    kinds = new Set(["rover", "surveyor", "fleet"]),
+    contexts = new Set(["terra", "desert", "granite", "migration", "arrival"]);
+  function readVehicleArchive(storage4) {
+    try {
+      let source = JSON.parse(storage4.getItem(VEHICLE_ARCHIVE_KEY) || "null");
+      return source?.version !== 1
+        ? []
+        : (Array.isArray(source.records) ? source.records : [])
+            .slice(0, 8)
+            .filter(
+              (r) =>
+                r &&
+                r.id === `${r.kind}:${r.context}` &&
+                kinds.has(r.kind) &&
+                contexts.has(r.context) &&
+                typeof r.image == "string" &&
+                r.image.length < 1e5 &&
+                /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(r.image) &&
+                Number.isFinite(r.seconds) &&
+                r.status &&
+                typeof r.status == "object",
+            );
+    } catch {
+      return [];
+    }
+  }
+  function createVehicleRecorder() {
+    let records,
+      storage4,
+      canvas,
+      context3,
+      disabled = !1;
+    try {
+      ((storage4 = sessionStorage), (records = null));
+    } catch {
+      ((disabled = !0), (records = []));
+    }
+    let clocks = new Map(),
+      seen = new Map();
+    return {
+      sample({ kind, context: place, seconds, source, eligible, status }) {
+        if (disabled || !eligible || !Number.isFinite(seconds)) return !1;
+        let id = `${kind}:${place}`,
+          previous = clocks.get(id);
+        if (previous !== void 0 && seconds < previous + 12) return !1;
+        clocks.set(id, seconds);
+        try {
+          if (records === null) {
+            records = readVehicleArchive(storage4);
+            for (let r of records) seen.set(r.id, r.seen || 1);
+          }
+          records.length &&
+            !storage4.getItem(VEHICLE_ARCHIVE_KEY) &&
+            ((records = []), seen.clear());
+          let count = (seen.get(id) || 0) + 1;
+          if ((seen.set(id, count), Math.random() >= 1 / count || !source.width || !source.height))
+            return !1;
+          canvas ||= document.createElement("canvas");
+          let scale2 = Math.min(480 / source.width, 640 / source.height);
+          ((canvas.width = Math.max(1, Math.round(source.width * scale2))),
+            (canvas.height = Math.max(1, Math.round(source.height * scale2))),
+            (context3 ||= canvas.getContext("2d", { willReadFrequently: !0 })),
+            context3.drawImage(source, 0, 0, canvas.width, canvas.height));
+          let pixels = context3.getImageData(0, 0, canvas.width, canvas.height).data,
+            bright = 0;
+          for (let i = 0; i < pixels.length; i += 64)
+            pixels[i] + pixels[i + 1] + pixels[i + 2] > 45 && bright++;
+          if (bright < 20) return !1;
+          let image = canvas.toDataURL("image/jpeg", 0.64);
+          if (image.length >= 1e5) return !1;
+          let record = {
+              id,
+              kind,
+              context: place,
+              seconds,
+              seen: count,
+              status: status(),
+              image,
+              width: canvas.width,
+              height: canvas.height,
+            },
+            next = [...records.filter((r) => r.id !== id), record].slice(-8);
+          return (
+            storage4.setItem(VEHICLE_ARCHIVE_KEY, JSON.stringify({ version: 1, records: next })),
+            (records = next),
+            writeExhibitionRecord(record, "vehicles").catch(() => {}),
+            !0
+          );
+        } catch {
+          return ((disabled = !0), !1);
+        }
+      },
+      snapshot: () => ({
+        records: records?.length || 0,
+        storage: disabled ? "unavailable" : "available",
+      }),
+    };
+  }
+  function bindMissionTripleTap({ target = document, enabled, onComplete }) {
+    let contact = null,
+      count = 0,
+      firstAt = 0,
+      lastAt = 0,
+      reset = () => {
+        ((contact = null), (count = 0), (firstAt = 0), (lastAt = 0));
+      };
+    (target.addEventListener(
+      "pointerdown",
+      (event) => {
+        if (event.pointerType === "touch") {
+          if (
+            !enabled() ||
+            event.isPrimary === !1 ||
+            event.target.closest?.(
+              'button,a,input,select,textarea,[role="button"],[contenteditable="true"]',
+            )
+          ) {
+            reset();
+            return;
+          }
+          contact = {
+            id: event.pointerId,
+            x: event.clientX,
+            y: event.clientY,
+            at: performance.now(),
+          };
+        }
+      },
+      { capture: !0, passive: !0 },
+    ),
+      target.addEventListener(
+        "pointermove",
+        (event) => {
+          contact?.id === event.pointerId &&
+            Math.hypot(event.clientX - contact.x, event.clientY - contact.y) > 18 &&
+            reset();
+        },
+        { capture: !0, passive: !0 },
+      ),
+      target.addEventListener(
+        "pointerup",
+        (event) => {
+          if (!contact || contact.id !== event.pointerId) return;
+          let now2 = performance.now(),
+            valid =
+              enabled() &&
+              now2 - contact.at <= 350 &&
+              Math.hypot(event.clientX - contact.x, event.clientY - contact.y) <= 18;
+          if (((contact = null), !valid)) {
+            reset();
+            return;
+          }
+          ((now2 - lastAt > 550 || now2 - firstAt > 1200) && ((count = 0), (firstAt = now2)),
+            (lastAt = now2),
+            ++count === 3 && (reset(), onComplete()));
+        },
+        { capture: !0, passive: !0 },
+      ),
+      target.addEventListener("pointercancel", reset, { capture: !0, passive: !0 }),
+      target.addEventListener("visibilitychange", reset),
+      addEventListener("pagehide", reset));
+  }
   var ease = (x) => {
       let p = Math.max(0, Math.min(1, x));
       return p * p * p * (p * (p * 6 - 15) + 10);
@@ -61818,7 +61927,7 @@ body.ti-voyage #ti-transfer-trigger {
       "TR-X05",
       "TR-X06",
       "TERRAFORMING_PROJECT",
-      "SURVEY / 01",
+      "OBSERVE / SAMPLE",
       "F2345",
       "F1021",
       "F2406",
@@ -61830,7 +61939,7 @@ body.ti-voyage #ti-transfer-trigger {
       "TR-R01",
       "LIFT HERE",
       "NO STEP",
-      "SERVICE / 02",
+      "SUPPLY / SERVICE",
       "OPTICAL / KEEP CLEAR",
       "RCS / KEEP CLEAR",
       "LOX / FEED",
@@ -61842,8 +61951,9 @@ body.ti-voyage #ti-transfer-trigger {
       "W-L",
       "W-R",
       "TAIL / 06",
+      "HABITAT / SERVICE",
     ],
-    ROW = 32,
+    ROW = 30,
     ATLAS_HEIGHT = 2048,
     atlases = new Map();
   function paint(tier) {
@@ -62008,7 +62118,7 @@ body.ti-voyage #ti-transfer-trigger {
         ));
     for (let side of [-1, 1])
       b.project(
-        "SERVICE / 02",
+        "SUPPLY / SERVICE",
         targets,
         [0, 3.88, 1.5],
         [0, 0, -side],
@@ -62041,7 +62151,7 @@ body.ti-voyage #ti-transfer-trigger {
         0.002,
       ),
         b.project(
-          "SURVEY / 01",
+          "OBSERVE / SAMPLE",
           targets,
           [0, -0.045, length3 * 0.12],
           [0, 0, -side],
@@ -63151,8 +63261,8 @@ body.ti-voyage #ti-transfer-trigger {
                       .sub(
                         smoothstep3(D.wheelR * 0.86, D.wheelR * 0.98, positionLocal2.yz.length()),
                       )
-                      .mul(dust * 1.8)
-                  : pow5(max2(n.y, float2(0)), float2(4)).mul(dust),
+                      .mul(roverExposure.add(dust * 1.8))
+                  : pow5(max2(n.y, float2(0)), float2(4)).mul(roverExposure.mul(0.35).add(dust)),
               coated = mix2(surface, vec32(...C.color.dust), dustMask),
               specular = pow5(
                 max2(dot2(n, halfVector), float2(0)),
@@ -64030,7 +64140,13 @@ body.ti-voyage #ti-transfer-trigger {
             finish ? finish.roughness.mul(-gloss * 0.5).add(gloss) : float2(gloss),
           ).mul(sheen3),
           rim = pow5(float2(1).sub(abs2(dot2(n, v))), float2(3)).mul(sheen3 * 0.14),
-          surface = vec32(...rgb).mul(finish ? finish.color : float2(1)),
+          rawSurface = vec32(...rgb).mul(finish ? finish.color : float2(1)),
+          deposit = profile
+            ? float2(1)
+                .sub(smoothstep3(0.4, 3.7, positionLocal2.y))
+                .mul(landerExposure)
+            : float2(0),
+          surface = mix2(rawSurface, vec32(...C.color.dust), deposit),
           optical = !profile && gloss >= 70 && rgb[2] > rgb[0] * 2,
           fresnel = pow5(float2(1).sub(abs2(dot2(n, v))), float2(5))
             .mul(0.96)
@@ -67721,8 +67837,8 @@ body.ti-voyage #ti-transfer-trigger {
         duration: MIGRATION_DURATION,
         next: "arrival",
       },
-      arrival: { file: "arrival.html", start: 68, duration: 64, next: "ending" },
-      ending: { file: "ending.html", start: 0, duration: 18, next: null },
+      arrival: { file: "arrival.html", start: 68, duration: 180, openEnded: !0, next: "ending" },
+      ending: { file: "ending.html", start: 0, duration: 18, openEnded: !0, next: null },
     }),
     clamp10 = (x, a, b) => Math.max(a, Math.min(b, x));
   function savePostMission(state) {
@@ -67771,6 +67887,9 @@ body.ti-voyage #ti-transfer-trigger {
       "terra",
     key2 = "terra-incognita:last-planet";
   if (new URLSearchParams(location.search).get("fresh") === "1") {
+    try {
+      sessionStorage.removeItem(VEHICLE_HISTORY_KEY);
+    } catch {}
     (clearCheckpoint(), resetPlanetState(), clearPostMission());
     try {
       for (let name of [
@@ -67809,7 +67928,16 @@ body.ti-voyage #ti-transfer-trigger {
   (async () => {
     let nextVehicleProbe = 0,
       vehicleRecorder = createVehicleRecorder(),
-      vehicleFramePosition = new Vector3(),
+      vehicleHistory = createVehicleHistory(
+        sessionStorage,
+        new URLSearchParams(location.search).has("fresh"),
+      );
+    (addEventListener("pagehide", () => vehicleHistory.persist()),
+      (window.TI_VEHICLE_HISTORY = () => ({
+        ...vehicleHistory.snapshot(),
+        exposure: vehicleHistory.exposure(),
+      })));
+    let vehicleFramePosition = new Vector3(),
       planetState = new PlanetState();
     window.TI_PLANET_STATE = () => planetState.snapshot();
     let touchTerminal =
@@ -69630,7 +69758,18 @@ body.ti-voyage #ti-transfer-trigger {
           })),
           done && (finalTableau.phase = "complete"));
       }
-      if ((sky.position.copy(camera.position), lens)) {
+      if (
+        (vehicleHistory.update(
+          world,
+          rover.pos,
+          dt,
+          released && !voyage.inSpace,
+          lander.group.visible && !voyage.active,
+        ),
+        setMissionExposure(vehicleHistory.exposure()),
+        sky.position.copy(camera.position),
+        lens)
+      ) {
         let focusTarget = shotDirector.focus;
         (lens.focusAt(camera.position.distanceTo(focusTarget)),
           lens.setProfile(shotDirector.rendered),
@@ -69660,6 +69799,11 @@ body.ti-voyage #ti-transfer-trigger {
                 vehicleFramePosition.z < 1 &&
                 camera.position.distanceTo(object.position) < 90,
               status: () => ({
+                role: VEHICLE_ROLES[kind],
+                travelDistance: Math.round(vehicleHistory.snapshot().distance),
+                surfaceSeconds: Math.round(vehicleHistory.snapshot().surfaceSeconds),
+                recordedLandings: vehicleHistory.snapshot().landings.length,
+                finish: "운용 기록에 따른 예술적 표면 표현",
                 mission: world,
                 phase: docking.started
                   ? docking.phase
