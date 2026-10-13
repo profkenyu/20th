@@ -36125,7 +36125,8 @@ void main() {
         const p = z / scale,
           i = Math.floor(p),
           f = p - i;
-        return canyonHash(i, seed, 223) * (1 - f) + canyonHash(i + 1, seed, 223) * f;
+        const u = f * f * f * (10 + f * (-15 + 6 * f));
+        return canyonHash(i, seed, 223) * (1 - u) + canyonHash(i + 1, seed, 223) * u;
       }
       var bankCuts = [];
       for (const bank of [-1, 1]) {
@@ -36137,8 +36138,8 @@ void main() {
             z,
             bank,
             canyonHash(i, bank, 181) * 0.76,
-            105 + (canyonHash(i, bank, 183) * 0.5 + 0.5) * 185,
-            35 + (canyonHash(i, bank, 187) * 0.5 + 0.5) * 85,
+            45 + (canyonHash(i, bank, 183) * 0.5 + 0.5) * 155,
+            65 + (canyonHash(i, bank, 187) * 0.5 + 0.5) * 120,
             0.98 + (canyonHash(i, bank, 191) * 0.5 + 0.5) * 0.52,
           ]);
         }
@@ -36148,22 +36149,22 @@ void main() {
           side = x < center ? -1 : 1,
           distance = Math.abs(x - center);
         const rim =
-          135 * faultNoise(z, 850, side * 41) +
-          72 * faultNoise(z, 245, side * 59) +
-          25 * faultNoise(z, 85, side * 67);
+          125 * faultNoise(z, 1100, side * 41) +
+          48 * faultNoise(z, 390, side * 59) +
+          8 * faultNoise(z, 170, side * 67);
         const width = 710 + 70 * canyonNoise(z / 1700, side, 17) + rim;
         const q = distance / width;
         return { side, distance, width, q };
       }
       function parallelRift(z) {
         const center =
-          canyonCenter(z) - 1710 + 95 * faultNoise(z, 1700, 251) + 35 * faultNoise(z, 290, 269);
+          canyonCenter(z) - 1710 + 145 * faultNoise(z, 1700, 251) + 42 * faultNoise(z, 570, 269);
         const chamber = 0.5 + 0.5 * canyonNoise(z / 1100, 4, 257);
         const opening = MathUtils.smoothstep(chamber, 0.28, 0.78);
         return {
           center,
-          width: 55 + 310 * opening + 24 * faultNoise(z, 230, 263),
-          depth: 160 + 630 * opening,
+          width: 65 + 310 * opening + 35 * faultNoise(z, 480, 263),
+          depth: 100 + 690 * opening,
         };
       }
       var impacts = [
@@ -36190,11 +36191,12 @@ void main() {
       }
       function groundHeight(x, z) {
         const { side, distance, width, q } = canyonSection(x, z);
+        const shoulder = 0.035 * canyonNoise(z / 780, side * 3, 353);
         const rise =
           0.18 * MathUtils.smoothstep(q, 0.18, 0.54) +
-          0.15 * MathUtils.smoothstep(q, 0.49, 0.72) +
-          0.47 * MathUtils.smoothstep(q, 0.73, 0.87) +
-          0.2 * MathUtils.smoothstep(q, 0.93, 1.02);
+          0.15 * MathUtils.smoothstep(q, 0.49, 0.76) +
+          0.4 * MathUtils.smoothstep(q, 0.64 + shoulder, 0.98 + shoulder) +
+          0.27 * MathUtils.smoothstep(q, 0.84 + shoulder, 1.09 + shoulder);
         const incision = 1 - rise,
           wall = incision * (1 - incision) * 4;
         const plain =
@@ -36207,7 +36209,7 @@ void main() {
         const rockBreak =
           22 * canyonNoise(x / 90, z / 115, 193) * wall +
           9 * canyonNoise(x / 38, z / 51, 197) * wall;
-        const buttress = 72 * faultNoise(z + x * 0.32, 230, 73) * wall;
+        const buttress = 44 * faultNoise(z + x * 0.32, 380, 73) * wall;
         const floorMask = 1 - MathUtils.smoothstep(q, 0.12, 0.35);
         const floor2 =
           12 * canyonNoise(x / 310, z / 500, 97) * floorMask +
@@ -36233,12 +36235,12 @@ void main() {
               slope * (distance - width * 0.64) +
               26 * canyonNoise(distance / 210, bank * 2, 163);
             const taper = cutWidth * (0.62 + 0.52 * MathUtils.smoothstep(q, 0.45, 1.1));
-            const gully = Math.exp(-Math.pow(Math.abs(z - axis2) / taper, 1.3 + cutDepth * 2e-3));
+            const gully = Math.exp(-Math.pow(Math.abs(z - axis2) / taper, 2));
             const exposed =
               MathUtils.smoothstep(q, 0.22 + reach * 0.09, 0.5) *
               (1 - MathUtils.smoothstep(q, reach - 0.22, reach + 0.18));
             surface -= cutDepth * gully * exposed;
-            if (cutDepth > 205) {
+            if (cutDepth > 145) {
               const fork = MathUtils.smoothstep(q, 0.54, 1.08);
               const branchAxis = axis2 + bank * cutWidth * 2.1 * fork;
               const branch = Math.exp(-Math.pow(Math.abs(z - branchAxis) / (taper * 0.36), 1.7));
@@ -36253,17 +36255,25 @@ void main() {
           rq = Math.abs(x - rift.center) / rift.width;
         if (rq < 1.5) {
           const profile =
-            0.22 * MathUtils.smoothstep(rq, 0.2, 0.68) + 0.78 * MathUtils.smoothstep(rq, 0.76, 1.1);
+            0.38 * MathUtils.smoothstep(rq, 0.1, 0.78) +
+            0.62 * MathUtils.smoothstep(rq, 0.48, 1.14);
           surface -= rift.depth * (1 - profile);
           surface +=
-            20 * faultNoise(z + x * 0.6, 140, 293) * (1 - MathUtils.smoothstep(rq, 0.7, 1.3));
+            12 * faultNoise(z + x * 0.6, 280, 293) * (1 - MathUtils.smoothstep(rq, 0.7, 1.3));
         }
         const mesaMask = MathUtils.smoothstep(q, 1.04, 1.25) * MathUtils.smoothstep(rq, 1.12, 1.4);
         if (x < canyonCenter(z) && mesaMask > 0) {
-          for (const offset of [1050, 1230]) {
-            const axis2 = canyonCenter(z) - offset + 34 * faultNoise(z, 750, offset);
+          for (const [offset, head, length] of [
+            [1040, 1800, 1450],
+            [1280, 4700, 2100],
+          ]) {
+            const along = (z - head) / length;
+            if (Math.abs(along) >= 1) continue;
+            const envelope = (1 - along * along) ** 2;
+            const axis2 = canyonCenter(z) - offset + 62 * faultNoise(z, 920, offset) + along * 85;
             const d = Math.abs(x - axis2);
-            surface -= 19 * Math.exp(-Math.pow(d / 18, 2)) * mesaMask;
+            const opening = 14 + 26 * envelope * (0.7 + 0.3 * canyonNoise(z / 310, 5, offset));
+            surface -= 12 * envelope * Math.exp(-Math.pow(d / opening, 2)) * mesaMask;
           }
         }
         for (const [cx, cz, r, depthRatio] of impacts) {
@@ -36417,6 +36427,20 @@ void main() {
         }
         return second-first;
       }
+      // Sparse exposed joints: variable spacing and interrupted continuity.
+      // Use the dominant rock plane so cliff detail is not stretched in XZ.
+      float basinFracture(vec3 p){
+        vec3 n=abs(basinNormal);
+        vec2 plane=n.y>max(n.x,n.z)?p.xz:(n.x>n.z?p.yz:p.xy);
+        vec2 warp=vec2(basinNoise(plane*.018),basinNoise(plane*.018+39.7))-.5;
+        vec2 domain=plane*.16+warp*1.6;
+        float gap=basinJoint(domain);
+        float width=mix(.008,.026,basinNoise(plane*.037+17.));
+        float aa=max(fwidth(gap),.003);
+        float seam=1.-smoothstep(width,width+aa,gap);
+        float exposed=smoothstep(.43,.68,basinNoise(plane*.026+warp));
+        return seam*exposed;
+      }
       float basinRockMask(vec3 p){
         float slopes=smoothstep(.10,.58,basinSlope);
         float outcrop=smoothstep(.56,.76,basinNoise(p.xz*.021));
@@ -36430,8 +36454,8 @@ void main() {
         float relief=stone*mix(.18,1.,rock)+bedding*.48*basinSlope;
         float closeRange=1.-smoothstep(90.,380.,length(vViewPosition));
         float jointAA=1.-smoothstep(.12,.7,length(fwidth(p.xz*.36)));
-        float joints=0.;if(closeRange>.001&&rock>.01)joints=1.-smoothstep(.012,.048,basinJoint(p.xz*.36));
-        relief-=joints*.065*rock*closeRange*jointAA;
+        float joints=0.;if(closeRange>.001&&rock>.01)joints=basinFracture(p);
+        relief-=joints*.035*rock*closeRange*jointAA;
         ${tier2 === "low" ? "" : "relief+=(basinStone(p,1.8)-.5)*.014*closeRange*(1.-rock);"}
         float grains=basinNoise(p.xz*${tier2 === "high" ? "40." : tier2 === "mid" ? "22." : "12."});
         float grainFootprint=length(fwidth(p.xz*${tier2 === "high" ? "40." : tier2 === "mid" ? "22." : "12."}));
@@ -36458,10 +36482,10 @@ void main() {
       float ripple=sin(dot(basinPosition.xz,vec2(.028,.014))+basinNoise(basinPosition.xz*.002)*2.);
       float microAA=1.-smoothstep(.12,.7,length(fwidth(basinPosition.xz*.36)));
       float microNear=1.-smoothstep(90.,380.,length(vViewPosition));
-      float joints=0.;if(microNear>.001&&materialRock>.01)joints=1.-smoothstep(.012,.048,basinJoint(basinPosition.xz*.36));
+      float joints=0.;if(microNear>.001&&materialRock>.01)joints=basinFracture(basinPosition);
       diffuseColor.rgb*=1.+bands*.08*exposure+sediment*.095*nearDetail+grain*.035*nearDetail*aa+ripple*.018*floorMask;
       diffuseColor.rgb*=mix(vec3(1.025,1.018,1.01),vec3(.91,.925,.94),materialRock*.46);
-      diffuseColor.rgb*=1.-joints*.16*materialRock*microNear*microAA;
+      diffuseColor.rgb*=1.-joints*.095*materialRock*microNear*microAA;
       // Sub-metre aggregate remains readable in penumbra; filter it at distance.
       float sandAA=1.-smoothstep(.35,1.2,length(fwidth(basinPosition.xz*4.8)));
       float aggregate=basinNoise(basinPosition.xz*1.25)-.5;
@@ -36501,7 +36525,7 @@ void main() {
               "#include <aomap_fragment>\nreflectedLight.indirectDiffuse*=basinAO;reflectedLight.indirectSpecular*=basinAO;",
             );
         };
-        material.customProgramCacheKey = () => `canyon-stratified-mineral-v9-${tier2}`;
+        material.customProgramCacheKey = () => `canyon-eroded-joints-v10-${tier2}`;
         const terrain = new Mesh(geometry, material);
         terrain.castShadow = terrain.receiveShadow = true;
         group.add(terrain);
@@ -66512,6 +66536,79 @@ void main() {
         };
       }
 
+      // works/first_dawn/arrival-drone.js
+      var DRONE_START = 34;
+      var ARRIVAL_HOLD = 8;
+      var droneEnd = (inherited) => (inherited ? 82 : 124);
+      function arrivalDeparture(inherited, eventAt, origin = 0) {
+        return eventAt === null
+          ? Infinity
+          : Math.max(droneEnd(inherited), eventAt - origin) + ARRIVAL_HOLD;
+      }
+      function createArrivalDrone(heightAt = groundHeight) {
+        const curve = new CatmullRomCurve3(
+          [
+            [730, heightAt(730, 1020) + 6, 1020],
+            [520, -480, 550],
+            [-200, -470, 240],
+            [-970, -600, 420],
+            [-1460, -1050, 1050],
+            [-1480, -1370, 1910],
+            [-1420, heightAt(-1420, 2780) + 175, 2780],
+          ].map((p) => new Vector3(...p)),
+          false,
+          "centripetal",
+        );
+        curve.arcLengthDivisions = 2048;
+        const length = curve.getLength();
+        const ahead = new Vector3();
+        const target2 = new Vector3();
+        const helper = new PerspectiveCamera();
+        helper.position.copy(curve.points[0]);
+        helper.lookAt(730 - 780, helper.position.y + 160, 1020 - 1500);
+        const entryRotation = helper.quaternion.clone();
+        const finalTargetHeight = heightAt(-1400, 3300) + 125;
+        const ease = (p) => MathUtils.smootherstep(p, 0, 1);
+        function travel(u) {
+          const p = MathUtils.clamp(u, 0, 1),
+            ramp = 0.16;
+          const edge = (q) => {
+            const v = q / ramp;
+            return (ramp * (v ** 3 - 0.5 * v ** 4)) / (1 - ramp);
+          };
+          return p < ramp ? edge(p) : p > 1 - ramp ? 1 - edge(1 - p) : (p - ramp / 2) / (1 - ramp);
+        }
+        function frame2(camera2, elapsed, inherited = false) {
+          if (elapsed <= DRONE_START) return;
+          const u = (elapsed - DRONE_START) / (droneEnd(inherited) - DRONE_START);
+          const p = travel(u);
+          curve.getPointAt(p, camera2.position);
+          curve.getPointAt(Math.min(1, p + 170 / length), ahead);
+          target2.subVectors(ahead, camera2.position);
+          target2.y = 0;
+          if (target2.lengthSq() < 1e-8) target2.set(20, 0, 520);
+          target2.normalize().multiplyScalar(520);
+          target2.y = -110;
+          target2.add(camera2.position);
+          helper.position.copy(camera2.position);
+          helper.up.set(0, 1, 0);
+          helper.lookAt(target2);
+          camera2.quaternion.slerpQuaternions(entryRotation, helper.quaternion, ease(u / 0.18));
+          const settle = ease((p - 0.78) / 0.22);
+          helper.lookAt(-1400, finalTargetHeight, 3300);
+          camera2.quaternion.slerp(helper.quaternion, settle);
+          camera2.up.set(0, 1, 0);
+          camera2.fov = MathUtils.lerp(
+            camera2.aspect < 1 ? 67 : 58,
+            camera2.aspect < 1 ? 50 : 42,
+            ease(p),
+          );
+          camera2.near = 0.5;
+          camera2.updateProjectionMatrix();
+        }
+        return { frame: frame2 };
+      }
+
       // works/shared/voyage-age.js
       var clamp8 = (x) => Math.max(0, Math.min(1, x));
       function voyageAge(phase2, seconds2, state2 = {}) {
@@ -66988,6 +67085,7 @@ void main() {
       var placeStorage = phase === "arrival" ? await inheritPlace(state, phase) : null;
       var basinOrigin = state.basinOrigin ?? 0;
       var placeRecorder;
+      var arrivalDrone;
       var response = migrationResponse(state.evidence);
       var targetPath = (file) =>
         location.pathname.includes("/works/first_dawn/") ? "../terra_incognita/" + file : file;
@@ -67206,7 +67304,8 @@ void main() {
           placeArrivalFleet(fleet, camera, seconds, environment.surfaceHeightAt);
         if (habitat) {
           habitat.update(basinOrigin + seconds - segment.start);
-          habitat.frame(camera, (seconds - segment.start - 34) / 30);
+          arrivalDrone.frame(camera, seconds - segment.start, !!state.placeInherited);
+          if (seconds - segment.start >= droneEnd(!!state.placeInherited)) habitat.frame(camera);
           habitat.group.visible = seconds - segment.start >= 34 && habitat.model.equipped;
           if (seconds - segment.start >= 64)
             fleet.forEach((ship) => {
@@ -67334,10 +67433,9 @@ void main() {
         }
         if (
           seconds >= endTime ||
-          (habitat?.model.state.eventAt !== null &&
-            habitat &&
-            habitat.model.state.time >= habitat.model.state.eventAt + 12 &&
-            (!state.placeInherited || seconds - segment.start >= 90))
+          (habitat &&
+            seconds - segment.start >=
+              arrivalDeparture(!!state.placeInherited, habitat.model.state.eventAt, basinOrigin))
         )
           next();
       }
@@ -67429,6 +67527,7 @@ void main() {
             sunlightOffset,
           );
         if (phase === "arrival") {
+          arrivalDrone = createArrivalDrone(environment.surfaceHeightAt);
           habitat = createHabitatWorld(scene, environment.surface, tier, state.basin);
           placeRecorder = createPlaceRecorder(
             renderer,
@@ -67479,6 +67578,10 @@ void main() {
                   ? fleet[5].name
                   : fleet[0].name,
             elapsed: seconds - segment.start,
+            cameraSettledAt: phase === "arrival" ? droneEnd(!!state.placeInherited) : null,
+            departureAt: habitat
+              ? arrivalDeparture(!!state.placeInherited, habitat.model.state.eventAt, basinOrigin)
+              : null,
             duration: segment.duration,
             endTime,
             preview: !state.evidence,
