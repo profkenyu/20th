@@ -89101,6 +89101,9 @@ body.ti-prologue-out #ti-opening-blueprints.bp-residual-title {
             !Object.hasOwn(POST_PHASES, s.phase) ||
             !Number.isFinite(s.elapsed) ||
             s.elapsed < 0 ||
+            [s.basinOrigin, s.endingOrigin].some(
+              (t) => t !== void 0 && (!Number.isFinite(t) || t < 0),
+            ) ||
             (!POST_PHASES[s.phase].openEnded && s.elapsed > POST_PHASES[s.phase].duration)
           )
             return null;

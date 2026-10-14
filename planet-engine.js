@@ -50355,13 +50355,13 @@ var<${access}> ${name} : ${structName};`;
         let req = store.get(record.id);
         req.onsuccess = () => {
           req.result || store.put(record);
-        };
-        let all3 = store.getAll();
-        all3.onsuccess = () => {
-          let old = all3.result
-            .filter((r) => r.stage === "aftermath")
-            .sort((a, b) => b.seconds - a.seconds);
-          for (let r of old.slice(31)) store.delete(r.id);
+          let all3 = store.getAll();
+          all3.onsuccess = () => {
+            let old = all3.result
+              .filter((r) => r.stage === "aftermath")
+              .sort((a, b) => b.seconds - a.seconds);
+            for (let r of old.slice(32)) store.delete(r.id);
+          };
         };
       } else store.put(record);
       ((tx.oncomplete = () => resolve(!0)),

@@ -32110,13 +32110,13 @@ void main() {
             const req = store.get(record.id);
             req.onsuccess = () => {
               if (!req.result) store.put(record);
-            };
-            const all = store.getAll();
-            all.onsuccess = () => {
-              const old = all.result
-                .filter((r) => r.stage === "aftermath")
-                .sort((a, b) => b.seconds - a.seconds);
-              for (const r of old.slice(31)) store.delete(r.id);
+              const all = store.getAll();
+              all.onsuccess = () => {
+                const old = all.result
+                  .filter((r) => r.stage === "aftermath")
+                  .sort((a, b) => b.seconds - a.seconds);
+                for (const r of old.slice(32)) store.delete(r.id);
+              };
             };
           } else store.put(record);
           tx.oncomplete = () => resolve(true);
@@ -32198,6 +32198,7 @@ void main() {
         if (saved) {
           if (
             saved.version !== 1 ||
+            typeof saved.equipment !== "boolean" ||
             !saved.state ||
             !Number.isInteger(saved.state.steps) ||
             saved.state.steps < 0 ||
@@ -32235,6 +32236,23 @@ void main() {
             throw new Error("Invalid basin resource balance");
           Object.assign(state2, saved.state);
           for (const name of Object.keys(fields)) fields[name].set(saved[name]);
+          if (saved.balance) {
+            const { water: water2, sediment: sediment2, heat } = saved.balance;
+            if (![water2, sediment2, heat].every(Number.isFinite) || water2 <= 0 || sediment2 <= 0)
+              throw new Error("Invalid basin conservation baseline");
+            initialWater = water2;
+            initialSediment = sediment2;
+            initialHeat = heat;
+          } else {
+            initialWater = state2.stored + state2.waterOut;
+            initialSediment = state2.sedimentOut;
+            initialHeat = state2.storedHeat + state2.heatOut - state2.heatBoundary;
+            for (let k = 0; k < COUNT; k++) {
+              initialWater += water[k] + vapor[k];
+              initialSediment += sediment[k];
+              initialHeat += enthalpy[k] + vaporHeat[k];
+            }
+          }
         }
         function phases() {
           for (let k = 0; k < COUNT; k++) {
@@ -32461,7 +32479,16 @@ void main() {
             while (state2.steps < steps) step();
           },
           save() {
-            const result = { version: 1, equipment: equipped, state: { ...state2 } };
+            const result = {
+              version: 1,
+              equipment: equipped,
+              state: { ...state2 },
+              balance: {
+                water: initialWater,
+                sediment: initialSediment,
+                heat: initialHeat,
+              },
+            };
             for (const name of Object.keys(fields)) result[name] = Array.from(fields[name]);
             return result;
           },
@@ -33013,10 +33040,24 @@ void main() {
 
       // works/first_dawn/habitat/record.js
       async function inheritPlace(state2, phase) {
-        if (state2.basin) return { inherited: false, available: true };
+        let recovered = false;
+        if (state2.basin) {
+          try {
+            createBasinModel(groundHeight, state2.basin);
+            return { inherited: false, available: true };
+          } catch {
+            delete state2.basin;
+            delete state2.basinOrigin;
+            delete state2.endingOrigin;
+            delete state2.placeInherited;
+            state2.elapsed = 0;
+            state2.outcome = null;
+            recovered = true;
+          }
+        }
         try {
           const saved = (await readExhibition()).world;
-          if (!saved?.basin?.equipment) return { inherited: false, available: true };
+          if (!saved?.basin?.equipment) return { inherited: false, available: true, recovered };
           createBasinModel(groundHeight, saved.basin);
           state2.basin = saved.basin;
           state2.placeInherited = true;
@@ -33026,9 +33067,9 @@ void main() {
             state2.seed = saved.seed;
             state2.evidence = saved.evidence;
           }
-          return { inherited: true, available: true };
+          return { inherited: true, available: true, recovered };
         } catch {
-          return { inherited: false, available: false };
+          return { inherited: false, available: false, recovered };
         }
       }
       function regions(model) {
@@ -33058,6 +33099,7 @@ void main() {
       function createPlaceRecorder(renderer2, scene, surface, habitat2, tier2, state2) {
         const completed = /* @__PURE__ */ new Set();
         let busy = false,
+          retryAt = 0,
           pending = Promise.resolve(),
           available = true;
         const snapshot = () => ({ available, completed: [...completed], busy });
@@ -33163,7 +33205,7 @@ void main() {
           }
         }
         function update() {
-          if (busy || !habitat2.model.equipped) return;
+          if (busy || !habitat2.model.equipped || habitat2.model.state.time < retryAt) return;
           const s = habitat2.model.state;
           const stage =
             s.time < 64
@@ -33185,9 +33227,10 @@ void main() {
               available = true;
               await durable();
               completed.add(id);
+              retryAt = 0;
             } catch {
               available = false;
-              completed.add(id);
+              retryAt = s.time + 10;
             } finally {
               busy = false;
             }
@@ -55765,6 +55808,9 @@ void main() {
             !Object.hasOwn(POST_PHASES, s.phase) ||
             !Number.isFinite(s.elapsed) ||
             s.elapsed < 0 ||
+            [s.basinOrigin, s.endingOrigin].some(
+              (t) => t !== void 0 && (!Number.isFinite(t) || t < 0),
+            ) ||
             (!POST_PHASES[s.phase].openEnded && s.elapsed > POST_PHASES[s.phase].duration)
           )
             return null;
